@@ -1,0 +1,9 @@
+/dist/
+/update-cli
+/release/
+/current/
+/.updater-cli/
+.release-update.lock/
+.DS_Store
+
+/backup/
