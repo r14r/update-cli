@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
   "defaultDownloadFolder": "$HOME/Downloads",
-  "defaultDeploymentPath": "/Users/Shared/CLOUD/DeveloperTools/bin",
-  "defaultConfigPath": "/Users/Shared/CLOUD/DeveloperTools/etc/update-cli"
+  "defaultDeploymentPath": "/usr/local/bin",
+  "defaultConfigPath": "/usr/local/etc/update-cli"
 }

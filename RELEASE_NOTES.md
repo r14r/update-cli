@@ -1,5 +1,17 @@
 # Release Notes
 
+## v2.4.3
+
+- fehlendes Paket `lib/backup` wieder in das Release aufgenommen
+- Build und Setup gegen den vollständigen Release-Inhalt validiert
+- Regressionstest ergänzt, der alle internen Importpakete im Release prüft
+
+## v2.4.2
+
+- Repository-Dokumentationsordner von `docs/` nach `doc/` umbenannt
+- alle README-Bilder, Beispiele und internen Pfadverweise auf `doc/` aktualisiert
+- `docs/` bleibt für eine spätere GitHub-Pages-Site frei
+
 ## v2.4.1
 
 - Docker-Compose-Projekte werden vor jedem echten Update automatisch erkannt
@@ -74,7 +86,7 @@
 ## v2.1.4
 
 - README um zusätzliche GitHub-Screenshots für `--help`, `--howto`, `--init` und `--update` erweitert
-- neue PNG-Dateien unter `docs/images/` hinzugefügt
+- neue PNG-Dateien unter `doc/images/` hinzugefügt
 - Release-Badge und Versionsdatei auf 2.1.4 aktualisiert
 
 ## v2.1.3
@@ -82,7 +94,7 @@
 ## Documentation
 
 - Replaced the existing README with a comprehensive GitHub-oriented project guide.
-- Added a local terminal screenshot under `docs/images/update-cli-check.png`.
+- Added a local terminal screenshot under `doc/images/update-cli-check.png`.
 - Added quickstart, architecture, configuration, full command reference, workflows, setup templates, backup/rollback/restore, JSON automation, security model, development, and troubleshooting sections.
 - Added repository-friendly badges, navigation links, and an indexed table of contents.
 

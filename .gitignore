@@ -6,4 +6,10 @@
 .release-update.lock/
 .DS_Store
 
+# update-cli runtime metadata
+.release-archive
+.release-project
+.release-source
+.release-version
+
 /backup/

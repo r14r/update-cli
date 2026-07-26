@@ -5,7 +5,7 @@
 **Sicherer Release-Updater für lokale ZIPs, direkte URLs und Git-Repositories**
 
 [![Go](https://img.shields.io/badge/Go-1.22%2B-00ADD8?logo=go&logoColor=white)](https://go.dev/)
-[![Release](https://img.shields.io/badge/release-v2.4.1-2ea44f)](#version)
+[![Release](https://img.shields.io/badge/release-v2.4.3-2ea44f)](#version)
 [![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-6e7681)](#voraussetzungen)
 [![Tests](https://img.shields.io/badge/tests-go%20test%20.%2F...-2ea44f)](#entwicklung-und-tests)
 
@@ -15,7 +15,7 @@
 
 </div>
 
-![update-cli Versionsprüfung](docs/images/update-cli-check.png)
+![update-cli Versionsprüfung](doc/images/update-cli-check.png)
 
 ---
 
@@ -256,7 +256,7 @@ Mit der Standardkonfiguration ist das:
 
 Die Datei verwendet dasselbe Schema wie die projektlokale
 `.updater-cli/templates.json`. Ein Beispiel liegt unter
-[`docs/examples/global-templates.json`](docs/examples/global-templates.json).
+[`doc/examples/global-templates.json`](doc/examples/global-templates.json).
 
 Beim Erstellen oder Aktualisieren eines Projekts gilt:
 
@@ -269,7 +269,7 @@ Beim Erstellen oder Aktualisieren eines Projekts gilt:
 
 ```bash
 sudo mkdir -p /usr/local/etc/update-cli
-sudo cp docs/examples/global-templates.json \
+sudo cp doc/examples/global-templates.json \
   /usr/local/etc/update-cli/templates.json
 ```
 
@@ -354,33 +354,35 @@ update-cli --update --backup --setup
 
 ## Screenshots
 
+> Repository-Dokumentation, Screenshots und Beispiele liegen unter `doc/`. Der Ordner `docs/` bleibt damit für eine spätere GitHub-Pages-Site frei.
+
 ### `update-cli --check`
 
-![update-cli Versionsprüfung](docs/images/update-cli-check.png)
+![update-cli Versionsprüfung](doc/images/update-cli-check.png)
 
 ### `update-cli --help`
 
-![update-cli Hilfe](docs/images/update-cli-help.png)
+![update-cli Hilfe](doc/images/update-cli-help.png)
 
 ### `update-cli --howto`
 
-![update-cli Howto](docs/images/update-cli-howto.png)
+![update-cli Howto](doc/images/update-cli-howto.png)
 
 ### `update-cli --init release-updater-go --use-template update-and-setup`
 
-![update-cli Initialisierung](docs/images/update-cli-init.png)
+![update-cli Initialisierung](doc/images/update-cli-init.png)
 
 ### `update-cli --templates --list`
 
-![update-cli Templates](docs/images/update-cli-templates.png)
+![update-cli Templates](doc/images/update-cli-templates.png)
 
 ### `update-cli --templates --list --details`
 
-![update-cli Template-Details](docs/images/update-cli-templates-details.png)
+![update-cli Template-Details](doc/images/update-cli-templates-details.png)
 
 ### `update-cli --update`
 
-![update-cli Update](docs/images/update-cli-update.png)
+![update-cli Update](doc/images/update-cli-update.png)
 
 ## Projektstruktur
 
@@ -603,7 +605,7 @@ Beispiele:
 
 ```text
 mediastudio-v3.25.0.zip
-release-updater-go-v2.4.1.zip
+release-updater-go-v2.4.3.zip
 linedance-knowledgebase-v5.20.2.zip
 ```
 
@@ -1354,7 +1356,7 @@ NO_COLOR=1 update-cli --check
 Aktuelle Version:
 
 ```text
-2.4.1
+2.4.3
 ```
 
 ```bash
@@ -1362,7 +1364,7 @@ update-cli --version
 ```
 
 ```text
-Release Updater 2.4.1
+Release Updater 2.4.3
 ```
 
 Änderungen der einzelnen Releases stehen in [RELEASE_NOTES.md](RELEASE_NOTES.md).
