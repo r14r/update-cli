@@ -1,0 +1,81 @@
+theme: jekyll-theme-minimal
+
+# Site settings
+title: update-cli
+description: Sicherer Release-Updater für lokale ZIPs, direkte URLs und Git-Repositories
+url: https://r14r.github.io/update-cli
+repository: r14r/update-cli
+
+# Navigation and structure
+navigation:
+  - title: Home
+    url: /
+  - title: Getting Started
+    children:
+      - title: Why update-cli?
+        url: /docs/why
+      - title: Features
+        url: /docs/features
+      - title: Requirements
+        url: /docs/requirements
+      - title: Installation
+        url: /docs/installation
+  - title: Configuration
+    children:
+      - title: Build Configuration
+        url: /docs/build-config
+      - title: Project Configuration
+        url: /docs/configuration
+      - title: Archive Format
+        url: /docs/archive-format
+      - title: Templates
+        url: /docs/templates
+  - title: Usage
+    children:
+      - title: Quickstart
+        url: /docs/quickstart
+      - title: Command Reference
+        url: /docs/commands
+      - title: Typical Workflows
+        url: /docs/workflows
+      - title: Setup & Templates
+        url: /docs/setup
+  - title: Advanced
+    children:
+      - title: Backups & Rollback
+        url: /docs/backups
+      - title: JSON Output
+        url: /docs/json-output
+      - title: Security Model
+        url: /docs/security
+      - title: Exit Codes
+        url: /docs/exit-codes
+  - title: Development
+    children:
+      - title: Project Structure
+        url: /docs/structure
+      - title: Development & Tests
+        url: /docs/development
+      - title: Troubleshooting
+        url: /docs/troubleshooting
+
+# Build settings
+markdown: kramdown
+plugins:
+  - jekyll-feed
+  - jekyll-seo-tag
+
+# Exclude files
+exclude:
+  - .gitignore
+  - .release-*
+  - build-config.json
+  - cmd/
+  - lib/
+  - justfile
+  - go.mod
+  - main.go
+  - main_test.go
+  - setup.sh
+  - README.md
+  - RELEASE_NOTES.md
