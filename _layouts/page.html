@@ -1,0 +1,183 @@
+---
+layout: default
+---
+
+<div class="page-container">
+  <div class="sidebar">
+    <nav class="nav-menu">
+      <div class="nav-section">
+        <h3><a href="/">update-cli</a></h3>
+      </div>
+      
+      <div class="nav-section">
+        <h4>Getting Started</h4>
+        <ul>
+          <li><a href="/getting-started/why">Why update-cli?</a></li>
+          <li><a href="/getting-started/features">Features</a></li>
+          <li><a href="/getting-started/requirements">Requirements</a></li>
+          <li><a href="/getting-started/installation">Installation</a></li>
+        </ul>
+      </div>
+      
+      <div class="nav-section">
+        <h4>Configuration</h4>
+        <ul>
+          <li><a href="/configuration/build-config">Build Configuration</a></li>
+          <li><a href="/configuration/configuration">Project Config</a></li>
+          <li><a href="/configuration/archive-format">Archive Format</a></li>
+          <li><a href="/configuration/templates">Templates</a></li>
+        </ul>
+      </div>
+      
+      <div class="nav-section">
+        <h4>Usage</h4>
+        <ul>
+          <li><a href="/usage/quickstart">Quickstart</a></li>
+          <li><a href="/usage/commands">Command Reference</a></li>
+          <li><a href="/usage/workflows">Workflows</a></li>
+          <li><a href="/usage/setup">Setup & Templates</a></li>
+        </ul>
+      </div>
+      
+      <div class="nav-section">
+        <h4>Advanced</h4>
+        <ul>
+          <li><a href="/advanced/backups">Backups & Rollback</a></li>
+          <li><a href="/advanced/json-output">JSON Output</a></li>
+          <li><a href="/advanced/security">Security</a></li>
+          <li><a href="/advanced/exit-codes">Exit Codes</a></li>
+        </ul>
+      </div>
+      
+      <div class="nav-section">
+        <h4>Development</h4>
+        <ul>
+          <li><a href="/development/structure">Project Structure</a></li>
+          <li><a href="/development/development">Development</a></li>
+          <li><a href="/development/troubleshooting">Troubleshooting</a></li>
+        </ul>
+      </div>
+      
+      <div class="nav-section nav-footer">
+        <a href="https://github.com/r14r/update-cli" target="_blank">View on GitHub</a>
+      </div>
+    </nav>
+  </div>
+  
+  <div class="main-content">
+    {{ content }}
+  </div>
+</div>
+
+<style>
+.page-container {
+  display: flex;
+  gap: 20px;
+  margin: 0 auto;
+  max-width: 1400px;
+}
+
+.sidebar {
+  flex: 0 0 250px;
+  position: sticky;
+  top: 20px;
+  height: fit-content;
+}
+
+.nav-menu {
+  background: #f6f8fa;
+  border: 1px solid #e1e4e8;
+  border-radius: 6px;
+  padding: 16px;
+}
+
+.nav-section {
+  margin-bottom: 16px;
+}
+
+.nav-section h3 {
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.nav-section h3 a {
+  color: #0366d6;
+  text-decoration: none;
+}
+
+.nav-section h3 a:hover {
+  text-decoration: underline;
+}
+
+.nav-section h4 {
+  margin: 12px 0 8px 0;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #6a737d;
+}
+
+.nav-section ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.nav-section li {
+  margin: 4px 0;
+}
+
+.nav-section a {
+  display: block;
+  padding: 4px 8px;
+  color: #0366d6;
+  text-decoration: none;
+  font-size: 14px;
+  border-radius: 4px;
+}
+
+.nav-section a:hover {
+  background: #e1e4e8;
+  text-decoration: none;
+}
+
+.nav-footer {
+  border-top: 1px solid #e1e4e8;
+  padding-top: 12px;
+  margin-top: 16px;
+}
+
+.nav-footer a {
+  display: inline-block;
+  padding: 8px 12px;
+  background: #0366d6;
+  color: white;
+  text-decoration: none;
+  border-radius: 4px;
+  font-size: 13px;
+  width: 100%;
+  text-align: center;
+}
+
+.nav-footer a:hover {
+  background: #0256c7;
+}
+
+.main-content {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .page-container {
+    flex-direction: column;
+  }
+  
+  .sidebar {
+    flex: 1;
+    position: relative;
+    top: 0;
+  }
+}
+</style>
