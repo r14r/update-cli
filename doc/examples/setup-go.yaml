@@ -1,0 +1,56 @@
+schemaVersion: 2
+project:
+  name: Go Application
+  type: go
+variables:
+  binary: app
+  distDir: dist
+workflows:
+  setup:
+    tasks: [deploy]
+  ci:
+    tasks: [verify]
+tasks:
+  prepare:
+    steps:
+      - name: Download modules
+        go:
+          action: mod-download
+  check:
+    requires: [prepare]
+    steps:
+      - name: Vet
+        go:
+          action: vet
+      - name: Test
+        go:
+          action: test
+  build:
+    requires: [check]
+    steps:
+      - name: Build
+        go:
+          action: build
+          package: .
+          output: "{{ distDir }}/{{ binary }}"
+          args: [-trimpath]
+  verify:
+    requires: [build]
+    steps:
+      - name: Verify binary
+        assert:
+          executable: "{{ distDir }}/{{ binary }}"
+  deploy:
+    requires: [verify]
+    steps:
+      - name: Deploy
+        deploy:
+          source: "{{ distDir }}/{{ binary }}"
+          target: "/usr/local/bin/{{ binary }}"
+          mode: "0755"
+  clean:
+    steps:
+      - name: Clean
+        remove:
+          path: "{{ distDir }}"
+          recursive: true

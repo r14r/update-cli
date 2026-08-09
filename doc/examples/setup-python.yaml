@@ -1,0 +1,42 @@
+schemaVersion: 2
+project:
+  name: Python Application
+  type: python
+workflows:
+  setup:
+    tasks: [test]
+  ci:
+    tasks: [test]
+tasks:
+  environment:
+    steps:
+      - name: Create virtual environment
+        pythonVenv:
+          path: .venv
+          python: python3
+        when:
+          not:
+            directoryExists: .venv
+      - name: Install dependencies
+        pip:
+          python: .venv/bin/python
+          requirements: requirements.txt
+        when:
+          fileExists: requirements.txt
+      - name: Create local environment file
+        copy:
+          source: .env.example
+          target: .env
+          overwrite: false
+        when:
+          all:
+            - fileExists: .env.example
+            - not:
+                fileExists: .env
+  test:
+    requires: [environment]
+    steps:
+      - name: Run tests
+        command:
+          exec: .venv/bin/python
+          args: [-m, pytest]

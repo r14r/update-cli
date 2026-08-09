@@ -1,0 +1,41 @@
+schemaVersion: 2
+project:
+  name: Docker Application
+  type: docker
+requirements:
+  commands: [docker]
+workflows:
+  setup:
+    tasks: [start]
+  rebuild:
+    tasks: [rebuild]
+tasks:
+  build:
+    steps:
+      - name: Build containers
+        dockerCompose:
+          action: build
+        when:
+          compose: true
+  start:
+    requires: [build]
+    steps:
+      - name: Start services
+        dockerCompose:
+          action: up
+          detach: true
+          removeOrphans: true
+  stop:
+    steps:
+      - name: Stop services
+        dockerCompose:
+          action: down
+          removeOrphans: true
+  rebuild:
+    requires: [stop, build]
+    steps:
+      - name: Start rebuilt services
+        dockerCompose:
+          action: up
+          detach: true
+          removeOrphans: true

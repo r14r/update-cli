@@ -1,0 +1,10 @@
+dist/
+update-cli
+*.zip
+.DS_Store
+.updater-cli/
+.release-update.lock/
+
+.release-project
+.release-source
+.release-version

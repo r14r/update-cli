@@ -1,0 +1,150 @@
+schemaVersion: 2
+
+project:
+  name: Update CLI
+  type: go
+  description: Update CLI prüfen, testen, bauen und deployen
+
+defaults:
+  timeout: 15m
+  failFast: true
+
+variables:
+  distDir: dist
+  binary: update-cli
+  deployPath: "{{ env.UPDATE_CLI_DEPLOY_PATH | /usr/local/bin/update-cli }}"
+  configDir: "{{ env.UPDATE_CLI_CONFIG_PATH | /usr/local/etc/update-cli }}"
+
+requirements:
+  commands:
+    - go
+  optionalCommands:
+    - just
+
+workflows:
+  setup:
+    description: Vollständiges Setup mit Prüfung, Build und Deployment
+    tasks:
+      - deploy
+  ci:
+    description: Prüfen, testen, bauen und verifizieren
+    tasks:
+      - verify
+  build:
+    description: Projekt prüfen und Binary bauen
+    tasks:
+      - build
+  clean:
+    description: Generierte Dateien entfernen
+    tasks:
+      - clean
+
+tasks:
+  prepare:
+    description: Go-Abhängigkeiten vorbereiten
+    steps:
+      - id: go-mod-download
+        name: Go-Module laden
+        go:
+          action: mod-download
+        when:
+          fileExists: go.mod
+
+  check:
+    description: Quellcode statisch prüfen und testen
+    requires:
+      - prepare
+    steps:
+      - id: gofmt
+        name: Go-Formatierung prüfen
+        shell: |
+          out="$(gofmt -l .)"
+          test -z "$out" || { printf '%s\n' "$out"; exit 1; }
+
+      - id: go-vet
+        name: Go-Quellcode prüfen
+        go:
+          action: vet
+
+      - id: go-test
+        name: Go-Tests ausführen
+        go:
+          action: test
+
+      - id: go-test-race
+        name: Race-Tests ausführen
+        go:
+          action: test
+          args: [-race]
+        when:
+          os: [darwin, linux]
+
+  build:
+    description: Update CLI Binary bauen
+    requires:
+      - check
+    steps:
+      - id: build
+        name: Update CLI bauen
+        shell: |
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          mkdir -p "{{ distDir }}"
+          go build -trimpath \
+            -ldflags "-s -w -X main.version=${VERSION}" \
+            -o "{{ distDir }}/{{ binary }}" \
+            .
+
+  verify:
+    description: Gebautes Binary validieren
+    requires:
+      - build
+    steps:
+      - id: binary-exists
+        name: Binary prüfen
+        assert:
+          executable: "{{ distDir }}/{{ binary }}"
+
+      - id: binary-version
+        name: Binary-Version prüfen
+        shell: |
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          OUTPUT="$(./{{ distDir }}/{{ binary }} --version)"
+          printf '%s\n' "$OUTPUT"
+          printf '%s\n' "$OUTPUT" | grep -F "$VERSION" >/dev/null
+
+  deploy:
+    description: Binary und globales Setup-Template installieren
+    requires:
+      - verify
+    steps:
+      - id: config-dir
+        name: Globalen Konfigurationsordner vorbereiten
+        shell: |
+          mkdir -p "{{ configDir }}"
+
+      - id: setup-template
+        name: Globales Setup-TUI-Template installieren
+        deploy:
+          source: setup-template.sh
+          target: "{{ configDir }}/setup-template.sh"
+          mode: "0755"
+        when:
+          fileExists: setup-template.sh
+
+      - id: deploy-binary
+        name: Update CLI deployen
+        deploy:
+          source: "{{ distDir }}/{{ binary }}"
+          target: "{{ deployPath }}"
+          mode: "0755"
+        when:
+          fileExists: "{{ distDir }}/{{ binary }}"
+
+  clean:
+    description: Build-Artefakte entfernen
+    steps:
+      - id: remove-build-output
+        name: Build-Ausgabe entfernen
+        remove:
+          paths: [dist, update-cli]
+          recursive: true

@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 6,
+  "projectName": "demo",
+  "source": {
+    "type": "url",
+    "url": "https://example.invalid/demo-v1.2.3.zip",
+    "sha256": "optional-sha256"
+  },
+  "releaseDir": "release",
+  "currentDir": "current",
+  "no parameter": ["help"],
+  "backup": {"directory": "backup", "keep": 3},
+  "retention": {"releases": 5},
+  "sync": {
+    "preserve": [".git/", ".venv/", ".env", ".env.*", "data/", "storage/", "uploads/", "media/", "logs/", "var/"]
+  },
+  "security": {
+    "allowHttp": false,
+    "maxArchiveBytes": 2147483648,
+    "maxUncompressedBytes": 8589934592,
+    "maxFileBytes": 2147483648,
+    "maxEntries": 100000,
+    "maxCompressionRatio": 200
+  },
+  "healthcheck": {
+    "type": "http",
+    "url": "http://localhost:8080/health",
+    "timeoutSeconds": 30
+  }
+}
