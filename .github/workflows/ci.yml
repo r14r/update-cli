@@ -43,6 +43,8 @@ jobs:
         run: ./dist/update-cli --setup-list --no-ui
       - name: Fullscreen TUI smoke
         run: python3 tests/tui_smoke.py
+      - name: Setup failure keep-update smoke
+        run: python3 tests/setup_failure_keep_smoke.py
 
   cross-build:
     runs-on: ubuntu-latest
