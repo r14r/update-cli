@@ -16,7 +16,7 @@ import (
 const setupFailureHistoryGrace = 2 * time.Second
 
 func maybeKeepFailedSetupUpdate(ctx context.Context, buildVersion string, args []string, started time.Time, originalErr error) (bool, error) {
-	if ctx.Err() != nil || hasCLIFlag(args, "--json") {
+	if ctx.Err() != nil || hasCLIFlag(args, "--json") || automatedEnvironment() {
 		return false, nil
 	}
 
@@ -68,6 +68,10 @@ func maybeKeepFailedSetupUpdate(ctx context.Context, buildVersion string, args [
 	}
 	fmt.Fprintln(os.Stdout, "OK    Update wurde trotz fehlgeschlagenem Setup beibehalten")
 	return true, nil
+}
+
+func automatedEnvironment() bool {
+	return strings.TrimSpace(os.Getenv("CI")) != "" || strings.TrimSpace(os.Getenv("GITHUB_ACTIONS")) != ""
 }
 
 func recentFailedSetupUpdate(args []string, started time.Time) (config.Config, history.Entry, bool) {
