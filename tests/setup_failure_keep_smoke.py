@@ -20,6 +20,8 @@ def run_pty(binary: pathlib.Path, args: list[str], input_data: bytes = b"") -> b
     fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 28, 110, 0, 0))
     env = os.environ.copy()
     env["UPDATE_CLI_TUI"] = "fullscreen"
+    env.pop("CI", None)
+    env.pop("GITHUB_ACTIONS", None)
     process = subprocess.Popen(
         [str(binary), *args],
         stdin=slave,
