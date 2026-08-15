@@ -29,6 +29,23 @@ func TestRetryUpdateWithoutSetupArgsFromCheck(t *testing.T) {
 	}
 }
 
+func TestAutomatedEnvironment(t *testing.T) {
+	t.Setenv("CI", "")
+	t.Setenv("GITHUB_ACTIONS", "")
+	if automatedEnvironment() {
+		t.Fatal("empty automation markers must be interactive")
+	}
+	t.Setenv("CI", "true")
+	if !automatedEnvironment() {
+		t.Fatal("CI=true must be detected as automated")
+	}
+	t.Setenv("CI", "")
+	t.Setenv("GITHUB_ACTIONS", "true")
+	if !automatedEnvironment() {
+		t.Fatal("GITHUB_ACTIONS=true must be detected as automated")
+	}
+}
+
 func TestRecentFailedSetupUpdate(t *testing.T) {
 	root := t.TempDir()
 	downloads := t.TempDir()
