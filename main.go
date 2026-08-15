@@ -5,12 +5,14 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
-	"github.com/r14r/update-cli/lib/buildconfig"
-	"github.com/r14r/update-cli/lib/updater"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
+
+	"github.com/r14r/update-cli/lib/buildconfig"
+	"github.com/r14r/update-cli/lib/updater"
 )
 
 //go:embed VERSION
@@ -32,7 +34,15 @@ func main() {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := updater.Run(ctx, resolvedVersion(), os.Args[1:]); err != nil {
+	args := os.Args[1:]
+	started := time.Now()
+	if err := updater.Run(ctx, resolvedVersion(), args); err != nil {
+		if handled, followErr := maybeKeepFailedSetupUpdate(ctx, resolvedVersion(), args, started, err); handled {
+			if followErr == nil {
+				return
+			}
+			err = followErr
+		}
 		var e *updater.ExitError
 		if errors.As(err, &e) {
 			if e.Err != nil {
