@@ -1,4 +1,29 @@
-# Update CLI 1.0.0
+# Update CLI 1.0.2
+
+Documentation-focused patch release for the stable 1.x CLI contract. Runtime behavior and schemas are unchanged.
+
+## 1.0.2 README and command documentation
+
+- Reworked the Quickstart into a tested onboarding/update workflow using the preferred command-token syntax while retaining flag equivalents.
+- Clarified that `create-yaml`, `convert-yaml`, and `create-setup-script` operate on the configured `current/` project directory.
+- Added a complete `Documentation` section covering command forms, subcommands, command-specific modifiers, short options, compatibility aliases, JSON discovery, release-source overrides, setup selectors, configuration/templates, history/retention, recovery, and no-parameter behavior.
+- Replaced the Quickstart images with terminal captures generated from an isolated `1.0.2` demo project.
+- Added 16 documentation screenshots covering the full command surface in grouped terminal sessions.
+- Preserved the existing detailed architecture, Docker lifecycle, TUI, transaction, setup schema, and security documentation below the new command reference.
+
+## 1.0.1
+
+Patch release for validating the corrected Update CLI version-ordering policy on the stable 1.x line.
+
+## 1.0.1 version-policy verification
+
+- Bumped the release version from `1.0.0` to `1.0.1`.
+- Added regression coverage proving `1.0.1 > 1.0.0` for the `update-cli` project.
+- Added archive-selection coverage proving `1.0.1` is selected ahead of `1.0.0`, `0.8.23`, and historical `3.3.4`.
+- Added updater policy coverage proving `1.0.0 -> 1.0.1` is accepted without `--allow-downgrade`.
+- No runtime behavior, configuration schema, setup schema, or CLI contract changes.
+
+## 1.0.0
 
 Stable 1.0 release after the 0.8.x hardening cycle. Existing flag commands, command-token aliases, config schema 6, setup schema 2, command-ui discovery, TUI and `--no-ui` behavior remain compatible.
 

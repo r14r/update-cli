@@ -67,3 +67,17 @@ func TestEnforceVersionPolicyAllowsUpdateCLIStable100FromLegacy334(t *testing.T)
 		t.Fatalf("legacy 3.3.4 -> 1.0.0 transition treated as downgrade: %v", err)
 	}
 }
+
+func TestEnforceVersionPolicyAllowsUpdateCLIStablePatchFrom100(t *testing.T) {
+	current := filepath.Join(t.TempDir(), "current")
+	if err := os.MkdirAll(current, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(current, "VERSION"), []byte("1.0.0\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	target, _ := versionutil.Parse("1.0.1")
+	if err := enforceVersionPolicy(config.Config{ProjectName: "update-cli", CurrentDir: current}, target, false, false, false); err != nil {
+		t.Fatalf("stable patch 1.0.0 -> 1.0.1 treated as downgrade: %v", err)
+	}
+}

@@ -4,7 +4,15 @@
 
 **Update CLI** is a transactional release updater and project setup/automation runner for versioned applications. It installs validated releases into a stable `current/` directory, keeps immutable release copies and recovery state, and can prepare, check, test, build, deploy, start, stop, migrate, and verify projects through `setup.yaml`.
 
-Current release: **1.0.0**
+Current release: **1.0.2**
+
+### 1.0.2 documentation release
+
+Version 1.0.2 refreshes the README around the actual stable CLI contract. The Quickstart now follows the real onboarding/update flow, explicitly documents that setup-file generation targets the configured `current/` directory, and uses terminal captures produced from an isolated demo project. A new complete Documentation section covers command-token and flag forms, subcommands, supported option variations, compatibility aliases, source overrides, JSON discovery, configuration/templates, setup selectors, retention/recovery commands, and accompanying command screenshots. Runtime behavior and configuration/setup schemas are unchanged.
+
+### 1.0.1 patch release
+
+Version 1.0.1 keeps the 1.0.0 behavior unchanged and adds regression coverage for normal stable-line patch updates (`1.0.0 -> 1.0.1`) and newest-release selection. This release is intended to verify that the corrected Update CLI release-epoch policy continues with ordinary SemVer ordering inside the stable 1.x line.
 
 ### 1.0 stability baseline
 
@@ -16,236 +24,711 @@ See [CODE_REVIEW.md](CODE_REVIEW.md) for the complete pre-1.0 review.
 
 ## Quickstart
 
-The normal day-to-day workflow is intentionally short: initialize a project once, generate or maintain `setup.yaml`, make a versioned release available, and then run Update CLI **without parameters**.
+The normal workflow has two parts: **one-time project onboarding** and the **daily update cycle**. The preferred command style uses command tokens (`update-cli check`, `update-cli update`, ...); the established flag forms (`--check`, `--update`, ...) remain fully supported.
 
-New projects created with `--init` use `check` as their default no-parameter action. This means a bare `update-cli` invocation checks for a newer release first instead of installing anything immediately.
-
-### 1. Initialize the project
-
-Create or enter the project directory, then initialize Update CLI:
+### 1. Verify the installed CLI
 
 ```bash
-mkdir nvidia-cli
-cd nvidia-cli
-update-cli --init nvidia-cli
+update-cli --version
+update-cli --help
 ```
 
-This creates `.updater-cli/config.json` and the standard `release/`, `current/`, and backup structure. A new project starts with:
+`--version` confirms which Update CLI binary is on `PATH`; `--help` shows the compact command overview. For machine-readable discovery use `update-cli --help --json`.
+
+### 2. Initialize a managed project
+
+Create the updater metadata in the project root:
+
+```bash
+mkdir demo-app
+cd demo-app
+update-cli init demo-app
+```
+
+Equivalent legacy form:
+
+```bash
+update-cli --init demo-app
+```
+
+Initialization creates `.updater-cli/config.json` and configures the standard `release/`, `current/`, and `backup/` locations. New projects start with `check` as their no-parameter action:
 
 ```json
 {
   "no parameter": ["check"]
 }
 ```
-
-Therefore the normal command after initialization is simply:
-
-```bash
-update-cli
-```
-
-which is equivalent to running the configured `check` action.
 
 ![Quickstart — initialize project](doc/images/quickstart/01-init.png)
 
-### 2. Generate project setup automation
+### 3. Make the first release available
 
-Let Update CLI inspect the project and generate the current schemaVersion-2 setup manifest:
-
-```bash
-update-cli --create-yaml --from project
-update-cli --create-setup-script
-```
-
-The detector can combine multiple stacks, for example `go+node+docker`. Review the generated `setup.yaml` before using it in production.
-
-If the project already contains a legacy `setup.sh`, convert that instead:
-
-```bash
-update-cli --create-yaml --from setup-script
-```
-
-or optionally refine the deterministic conversion with the configured AI provider:
-
-```bash
-update-cli --create-yaml --from setup-script --with-ai
-```
-
-![Quickstart — generate setup.yaml](doc/images/quickstart/02-create-yaml.png)
-
-### 3. Choose how setup should run after an update
-
-There are two useful no-parameter configurations.
-
-The default created by `--init` is:
-
-```json
-{
-  "no parameter": ["check"]
-}
-```
-
-With this configuration the bare command performs this flow:
+For the default `download` source, place a versioned ZIP in the configured download directory, normally `$HOME/Downloads`:
 
 ```text
-update-cli
-   ↓
-check for a newer release
-   ↓
-Update jetzt installieren?     YES is selected by default
-   ↓ Enter
-transactional update
-   ↓
-Projekt-Setup jetzt ausführen? YES is selected by default
-   ↓ Enter
-setup
+demo-app-v0.1.0.zip
 ```
 
-If you normally want the setup to run **automatically after an accepted update**, change the setting through the CLI:
-
-```bash
-update-cli config --set no-parameter="check,setup"
-```
-
-This updates `.updater-cli/config.json` to:
-
-```json
-{
-  "no parameter": ["check", "setup"]
-}
-```
-
-Then the normal workflow becomes:
-
-```text
-update-cli
-   ↓
-check for a newer release
-   ↓
-Update jetzt installieren?     YES is selected by default
-   ↓ Enter
-transactional update
-   ↓
-setup automatically            no second setup question
-```
-
-This is usually the most convenient configuration for projects whose `setup.yaml` is safe and expected to run after every release.
-
-### 4. Make a release available
-
-For the default `download` source, place a versioned ZIP in `$HOME/Downloads` using the naming convention:
-
-```text
-nvidia-cli-v0.1.5.zip
-```
-
-The archive name must match the configured project name and semantic version pattern:
+The required archive naming convention is:
 
 ```text
 <PROJECT>-v<MAJOR>.<MINOR>.<PATCH>.zip
 ```
 
-You can also configure an HTTPS or Git repository source; the daily workflow remains the same.
+Check the available release without installing it:
 
-### 5. Check and install the update
+```bash
+update-cli check --no-ask
+```
 
-With a newly initialized project, run:
+The same operation using the original flag form is:
+
+```bash
+update-cli --check --no-ask
+```
+
+![Quickstart — check for update](doc/images/quickstart/03-check.png)
+
+### 4. Preview, then install the release
+
+Preview the complete transaction first:
+
+```bash
+update-cli update --plan
+```
+
+Install the selected release:
+
+```bash
+update-cli update
+```
+
+To install a specific local archive:
+
+```bash
+update-cli update ~/Downloads/demo-app-v0.1.0.zip
+```
+
+For a plain terminal or CI job, disable the fullscreen TUI:
+
+```bash
+update-cli update --no-ui
+```
+
+Update CLI validates the archive and version policy, creates a transaction snapshot, prepares the immutable release, synchronizes `current/`, preserves configured persistent paths, verifies the installation, optionally runs setup/health checks, and restores the previous state automatically if a later transaction phase fails.
+
+![Quickstart — transactional update](doc/images/quickstart/04-update.png)
+
+### 5. Create or maintain `setup.yaml`
+
+`--create-yaml` operates on the configured **`current/` project directory**. Use it after `current/` contains the application to generate a schemaVersion-2 setup manifest from the detected project:
+
+```bash
+update-cli create-yaml --from project --dry-run
+update-cli create-yaml --from project
+```
+
+If the project already has a `setup.sh`, convert its detected operations instead:
+
+```bash
+update-cli create-yaml --from setup-script --dry-run
+update-cli create-yaml --from setup-script
+```
+
+AI-assisted refinement is available only for the `setup-script` source:
+
+```bash
+update-cli create-yaml --from setup-script --with-ai
+```
+
+Generate the generic setup wrapper when required:
+
+```bash
+update-cli create-setup-script
+```
+
+Always review generated automation before using it for production deployment.
+
+![Quickstart — generate setup.yaml](doc/images/quickstart/02-create-yaml.png)
+
+### 6. Run project setup
+
+Run the default `setup` workflow independently:
+
+```bash
+update-cli setup
+```
+
+Run setup automatically after a direct update:
+
+```bash
+update-cli update --setup
+```
+
+Explicitly suppress post-update setup:
+
+```bash
+update-cli update --no-setup
+```
+
+For streaming child-process output without the fullscreen interface:
+
+```bash
+update-cli setup --no-ui
+update-cli update --setup --no-ui
+```
+
+![Quickstart — project setup](doc/images/quickstart/05-setup.png)
+
+### 7. Configure the normal no-parameter workflow
+
+The safe default is:
+
+```json
+{
+  "no parameter": ["check"]
+}
+```
+
+A bare invocation therefore checks first:
 
 ```bash
 update-cli
 ```
 
-You can always request the check explicitly:
+To run setup automatically after an accepted update, configure:
 
 ```bash
+update-cli config --set no-parameter="check,setup"
+```
+
+The resulting daily workflow is:
+
+```text
+update-cli
+   ↓
+check for a newer release
+   ↓
+confirm update when one is available
+   ↓
+transactional update
+   ↓
+setup automatically
+```
+
+### 8. Verify the final state
+
+```bash
+update-cli status
+update-cli doctor
+update-cli list
+```
+
+`status` summarizes the active installation and available release, `doctor` validates project prerequisites and updater state, and `list` shows validated releases and backups.
+
+![Quickstart — status and doctor](doc/images/quickstart/06-status.png)
+
+### Quickstart workflows at a glance
+
+| Goal | Command |
+|---|---|
+| Check only | `update-cli check --no-ask` |
+| Preview update | `update-cli update --plan` |
+| Install newest release | `update-cli update` |
+| Install a specific ZIP | `update-cli update release.zip` |
+| Update and force setup | `update-cli update --setup` |
+| Update without setup | `update-cli update --no-setup` |
+| Setup only | `update-cli setup` |
+| Plain/CI output | `update-cli update --setup --no-ui` |
+| Inspect state | `update-cli status` |
+| Diagnose environment | `update-cli doctor` |
+| Default interactive workflow | `update-cli` |
+
+If you use a shell alias such as `u=update-cli`, every example works identically with `u`.
+
+## Documentation
+
+This section is the complete CLI command reference for the current release. It documents the preferred command-token syntax, established flag syntax, subcommands, short aliases, compatibility aliases, positional arguments, and command-specific modifiers.
+
+### Command conventions
+
+Both styles execute the same internal command path:
+
+```bash
+update-cli check
 update-cli --check
+
+update-cli update release.zip
+update-cli --update release.zip
 ```
 
-If a newer release is available, the fullscreen UI displays the installed and available versions and opens the confirmation modal. **YES is preselected**, so pressing Enter immediately starts the update. Use `←` / `→` or Tab when you want to change the selection.
+Common conventions:
 
-![Quickstart — check for update](doc/images/quickstart/03-check.png)
+| Option | Meaning | Scope |
+|---|---|---|
+| `--root DIR`, `-r DIR` | Use another updater project root | Most project commands |
+| `--json` | Request structured JSON where supported | Discovery/status/list/plan/diagnostic commands |
+| `--no-color` | Disable ANSI colors | Most output commands |
+| `--no-ui`, `--noui` | Disable fullscreen TUI and stream process output | Check/update/rollback/setup |
+| `---no-ui` | Historical compatibility spelling for `--no-ui` | Same as `--no-ui` |
+| `--wait` / `--no-wait` | Control waiting before leaving interactive output | Check/update/rollback/setup |
+| `--force`, `-f` | Force replacement/reinstall where explicitly supported | Update/init/setup-file generation |
+| `--dry-run`, `-n` | Preview without writing/applying | Update/setup-file generation |
+| `--downloads DIR`, `-d DIR` | Override download/source directory | Release discovery commands |
+| `--from TYPE` | Override source type: `download`, `url`, `repository` | Release discovery/init; create-yaml uses `project`/`setup-script` |
+| `--folder DIR` | Override release source folder | Release discovery/init |
+| `--url URL` | Override release URL | Release discovery/init |
+| `--repository REPO` | Override release repository | Release discovery/init |
 
-The update is transactional. Update CLI validates the artifact, creates a transaction snapshot, prepares the immutable release, synchronizes `current/`, verifies the installation, preserves configured persistent paths, and automatically restores the previous state if a later phase fails. The project `.gitignore` is always protected during rsync synchronization and restore.
+![Documentation — help and version](doc/images/documentation/01-help-version.png)
 
-After the TUI closes, Update CLI leaves a compact final status line in the normal shell scrollback. After a successful update it contains both the Update CLI version and the project version that was installed:
+### Help, discovery and version
 
-```text
-Update CLI Version 1.0.0 | nvidia-cli | Aktualisiert auf Version: v1.2.4
-```
+| Command | Supported forms and variations |
+|---|---|
+| Help | `update-cli --help`, `update-cli -h`, `update-cli help` |
+| Machine-readable help | `update-cli --help --json`, `update-cli help --json` |
+| Extended operating notes | `update-cli --howto` |
+| Version | `update-cli --version`, `update-cli -V` |
 
-If a check completes without installing anything, the final line reports the currently installed project version instead:
+`--help --json` is deterministic, side-effect free, TUI-free, and intended for tools such as **command-ui**. It exposes `schemaVersion: 1`, command arguments, options, and dynamic selectors.
 
-```text
-Update CLI Version 1.0.0 | nvidia-cli | Installierte Version: v1.2.4
-```
+### Check and update
 
-This status line is also emitted in `--no-ui` mode. JSON output remains machine-readable and does not receive the extra line.
+| Command | Purpose | Supported variations |
+|---|---|---|
+| `check` / `--check` | Find the newest applicable release | `--no-ask`, `--json`, `--wait`, `--no-wait`, `--no-ui`/`--noui`, `--no-color`, source overrides, `--root` |
+| `update [ARCHIVE.zip]` / `--update [ARCHIVE.zip]` | Install a release transactionally | Positional ZIP or `--archive/-a`; `--dry-run/-n`; `--plan [--json]`; `--allow-downgrade`; `--backup`; `--setup` or `--no-setup`; `--force/-f`; wait/UI/color/source/root modifiers |
 
-If the selected release is already installed, Update CLI treats that as a successful no-op rather than a failed update. The version-policy step completes normally and the fullscreen content area shows a green notice:
-
-```text
-Version 1.2.4 ist bereits installiert
-```
-
-The footer remains in the normal close state (`Update beenden | Enter zum Schließen`) and the process exits with code `0`. Use `--force` only when you intentionally want to reinstall the same version.
-
-![Quickstart — transactional update](doc/images/quickstart/04-update.png)
-
-### 6. Run setup explicitly when needed
-
-Setup can also be run independently at any time:
+Typical variations:
 
 ```bash
+update-cli check
+update-cli check --no-ask
+update-cli check --json
+update-cli check --no-ui
+
+update-cli update
+update-cli update release.zip
+update-cli update --archive release.zip
+update-cli update --plan
+update-cli update --plan --json
+update-cli update --dry-run
+update-cli update --backup
+update-cli update --setup
+update-cli update --no-setup
+update-cli update --force
+update-cli update --allow-downgrade
+update-cli update --setup --no-ui
+```
+
+`--allow-downgrade` disables the normal version-order safety check for an intentional downgrade. `--force` is required to reinstall the same version where the updater would otherwise treat it as a no-op.
+
+![Documentation — check and update plan](doc/images/documentation/02-check-update.png)
+
+![Documentation — update execution](doc/images/documentation/03-update-execution.png)
+
+### Backup, rollback and restore
+
+| Command | Supported forms and variations |
+|---|---|
+| Backup | `update-cli backup`, `update-cli --backup`; optional `--json`, `--root`, `--no-color` |
+| Rollback | `update-cli rollback [VERSION]`, `update-cli --rollback [VERSION]`; optional `--setup`, `--json`, `--wait`, `--no-wait`, `--no-ui`, `--root`, `--no-color` |
+| Restore | `update-cli restore BACKUP`, `update-cli --restore BACKUP`; `BACKUP` can be `latest` or a validated backup name; optional `--json`, `--root`, `--no-color` |
+
+Examples:
+
+```bash
+update-cli backup
+update-cli backup --json
+update-cli rollback
+update-cli rollback 1.4.2
+update-cli rollback 1.4.2 --setup --no-ui
+update-cli restore latest
+update-cli restore 20260818-184500-v1.4.2
+```
+
+![Documentation — backup, rollback and restore](doc/images/documentation/04-backup-rollback-restore.png)
+
+### Status, inventory, verification and diagnostics
+
+| Command | Purpose | Supported variations |
+|---|---|---|
+| `status` / `--status` | Active/available release state | `--json`, `--no-color`, source overrides, `--root` |
+| `list` / `--list` | Validated releases and backups | `--json`, `--no-color`, source overrides, `--root` |
+| `verify ARCHIVE.zip` / `--verify ARCHIVE.zip` | Validate a release archive without installing | Positional ZIP or `--archive/-a`; `--json`, `--no-color`, source overrides, `--root` |
+| `doctor` / `--doctor` | Diagnose updater/project prerequisites | `--json`, `--no-color`, `--root` |
+
+```bash
+update-cli status
+update-cli status --json
+update-cli list
+update-cli list --json
+update-cli verify release.zip
+update-cli verify --archive release.zip --json
+update-cli doctor
+update-cli doctor --json
+```
+
+![Documentation — status, list and doctor](doc/images/documentation/05-status-list-doctor.png)
+
+![Documentation — verify and history](doc/images/documentation/06-verify-history.png)
+
+### History and retention
+
+| Command | Purpose | Supported variations |
+|---|---|---|
+| `history` / `--history` | Show transaction history | `--limit N` (minimum 1, default 20), `--json`, `--root`, `--no-color` |
+| `clean` / `--clean` | Remove obsolete **release-directory entries only** | `--keep N`, `--plan`, `--json`, `--root`, `--no-color` |
+| `cleanup` / `--cleanup` | Apply release **and backup** retention | `--keep N`, `--plan`, `--json`, `--root`, `--no-color` |
+
+```bash
+update-cli history
+update-cli history --limit 10
+update-cli history --limit 10 --json
+update-cli clean --plan
+update-cli clean --keep 3
+update-cli cleanup --plan
+update-cli cleanup --keep 3
+```
+
+Use `--plan` before destructive cleanup when you want to inspect the retention decision without deleting anything.
+
+![Documentation — clean and cleanup](doc/images/documentation/07-clean-cleanup.png)
+
+### Project initialization, config migration and locks
+
+| Command | Supported forms and variations |
+|---|---|
+| Init | `update-cli init PROJECTNAME`, `update-cli --init PROJECTNAME`; source options; `--use-template NAME`; `--force/-f`; `--root`; `--no-color` |
+| Upgrade config | `update-cli upgrade`, `update-cli --upgrade`; optional `--json`, `--root`, `--no-color` |
+| Unlock | `update-cli unlock`, `update-cli --unlock`; optional `--root` |
+
+Initialization source examples:
+
+```bash
+update-cli init demo-app
+update-cli init demo-app --from download --folder ~/Downloads
+update-cli init demo-app --from url --url https://example.org/demo-app-v1.0.0.zip
+update-cli init demo-app --from repository --repository github.com/acme/demo-app
+update-cli init demo-app --use-template Go
+update-cli init demo-app --force
+```
+
+`unlock` removes a stale update lock; it is not a replacement for terminating an active updater process.
+
+![Documentation — init, upgrade and unlock](doc/images/documentation/08-init-upgrade-unlock.png)
+
+### Setup execution
+
+The default setup command executes workflow `setup` from the configured `current/setup.yaml` or `current/setup.yml`:
+
+```bash
+update-cli setup
 update-cli --setup
 ```
 
-To install a release directly and force setup without a setup confirmation:
+Supported modifiers:
 
 ```bash
-update-cli --update --setup
+update-cli setup --details
+update-cli setup --wait
+update-cli setup --no-wait
+update-cli setup --no-ui
+update-cli setup --noui
+update-cli setup --no-color
+update-cli setup --root /path/to/project
 ```
 
-To install a release without running setup:
+`--setup` can also modify `update` and `rollback`:
 
 ```bash
-update-cli --update --no-setup
+update-cli update --setup
+update-cli rollback 1.4.2 --setup
 ```
 
-For scripts or CI where fullscreen rendering is undesirable:
+![Documentation — setup workflow](doc/images/documentation/09-setup.png)
 
-```bash
-update-cli --update --setup --no-ui
-```
+### Setup catalog, task, workflow and external manifest
 
-`--no-ui` streams child-process stdout/stderr directly to the terminal.
-
-![Quickstart — project setup](doc/images/quickstart/05-setup.png)
-
-### 7. Verify the final state
-
-Inspect the active version and run environment diagnostics:
-
-```bash
-update-cli --status
-update-cli --doctor
-```
-
-`--status` shows the active/current release state; `--doctor` verifies configuration, release metadata, setup availability, required tools, and other project prerequisites.
-
-![Quickstart — verify status](doc/images/quickstart/06-status.png)
-
-### Typical workflows at a glance
-
-| Goal | Configuration / command | Prompts |
+| Operation | Preferred form | Flag form |
 |---|---|---|
-| Safe default for a new project | `"no parameter": ["check"]` + `update-cli` | update confirmation, then setup confirmation |
-| Check first, then always run setup | `"no parameter": ["check", "setup"]` + `update-cli` | update confirmation only |
-| Direct update and setup | `update-cli --update --setup` | none |
-| Direct update without setup | `update-cli --update --no-setup` | none |
-| Setup only | `update-cli --setup` | none |
-| CI/plain terminal execution | `update-cli --update --setup --no-ui` | none |
+| List catalog | `update-cli setup list` | `update-cli --setup-list` |
+| List catalog as JSON | `update-cli setup list --json` | `update-cli --setup-list --json` |
+| Run task | `update-cli setup task NAME` | `update-cli --setup-task NAME` |
+| Run workflow | `update-cli setup workflow NAME` | `update-cli --setup-workflow NAME` |
+| Use external manifest | `update-cli setup manifest FILE` | `update-cli --setup-manifest FILE` |
 
-If you use a shell alias such as `u=update-cli`, all examples above work identically with `u`.
+Task/workflow execution accepts `--details`, `--no-ui`/`--noui`, `--no-color`, and `--root`. External manifest execution additionally accepts selectors and wait behavior:
+
+```bash
+update-cli setup manifest ./setup.yaml
+update-cli setup manifest ./setup.yaml --setup-list
+update-cli setup manifest ./setup.yaml --setup-task build
+update-cli setup manifest ./setup.yaml --setup-workflow ci
+update-cli setup manifest ./setup.yaml --details --no-ui
+update-cli setup manifest ./setup.yaml --wait
+update-cli setup manifest ./setup.yaml --no-wait
+```
+
+`--setup-task` and `--setup-workflow` are mutually exclusive.
+
+![Documentation — setup selectors](doc/images/documentation/10-setup-selectors.png)
+
+### `setup.yaml` lifecycle commands
+
+| Command | Supported forms and variations |
+|---|---|
+| Convert existing manifest | `update-cli convert-yaml`, `update-cli --convert-yaml`; `--dry-run/-n`, `--force/-f`, `--details`, `--root`, `--no-color` |
+| Generate from project | `update-cli create-yaml --from project`, `update-cli --create-yaml --from project`; `--dry-run/-n`, `--force/-f`, `--details`, `--root`, `--no-color` |
+| Generate from `setup.sh` | `update-cli create-yaml --from setup-script`; same modifiers plus optional `--with-ai` |
+| Generate setup wrapper | `update-cli create-setup-script`, `update-cli --create-setup-script`; `--dry-run/-n`, `--force/-f`, `--details`, `--root`, `--no-color` |
+
+Compatibility spelling retained for older scripts:
+
+```bash
+update-cli -create-setup-script
+```
+
+Important constraints:
+
+- `--with-ai` is valid only with `create-yaml --from setup-script`.
+- `convert-yaml`, `create-yaml`, and `create-setup-script` are mutually exclusive primary operations.
+- `--force` is required before replacing an existing generated file where overwrite protection applies.
+
+![Documentation — setup.yaml lifecycle](doc/images/documentation/11-yaml-management.png)
+
+### Configuration commands
+
+Preferred command forms:
+
+```bash
+update-cli config
+update-cli config list
+update-cli config edit
+update-cli config use-template NAME
+update-cli config --set KEY=VALUE
+```
+
+Historical flag forms remain supported:
+
+```bash
+update-cli --config
+update-cli --config --list
+update-cli --config --edit
+update-cli --config --use-template NAME
+update-cli --config --set KEY=VALUE
+```
+
+`--set` is repeatable and all assignments are validated together before the configuration is written atomically:
+
+```bash
+update-cli config \
+  --set no-parameter="check,setup" \
+  --set backup.keep=7 \
+  --set retention.releases=10
+```
+
+Nested paths use dotted notation. Common examples include:
+
+```text
+projectName
+source.type
+source.folder
+source.url
+source.repository
+source.ref
+source.commit
+source.version
+source.sha256
+releaseDir
+currentDir
+no-parameter
+setup.commands
+backup.directory
+backup.keep
+retention.releases
+sync.preserve
+security.allowHttp
+security.maxArchiveBytes
+security.maxUncompressedBytes
+security.maxFileBytes
+security.maxEntries
+security.maxCompressionRatio
+healthcheck.type
+healthcheck.url
+healthcheck.command
+healthcheck.timeoutSeconds
+docker.lifecycle
+```
+
+Lists may be comma-separated or supplied as JSON arrays; booleans and numeric values retain their JSON types.
+
+![Documentation — configuration](doc/images/documentation/12-config.png)
+
+### Configuration templates
+
+```bash
+update-cli templates list
+update-cli templates list --details
+update-cli templates edit
+update-cli templates edit NAME
+update-cli templates use NAME
+```
+
+Equivalent flag forms:
+
+```bash
+update-cli --templates --list
+update-cli --templates --list --details
+update-cli --templates --edit
+update-cli --templates --edit NAME
+update-cli --templates --use NAME
+```
+
+`templates edit` opens the template for editing; `templates use NAME` applies the selected configuration template to the current project.
+
+![Documentation — templates](doc/images/documentation/13-templates.png)
+
+### JSON output and machine-readable discovery
+
+Important structured-output forms include:
+
+```bash
+update-cli --help --json
+update-cli help --json
+update-cli check --json
+update-cli update --plan --json
+update-cli backup --json
+update-cli rollback 1.4.2 --json
+update-cli restore latest --json
+update-cli status --json
+update-cli list --json
+update-cli verify release.zip --json
+update-cli doctor --json
+update-cli clean --plan --json
+update-cli cleanup --plan --json
+update-cli history --json
+update-cli setup list --json
+update-cli upgrade --json
+```
+
+`update --json` is intentionally restricted to `update --plan --json`; a real update remains an interactive/plain transaction rather than a JSON mutation stream.
+
+If **command-ui** is installed, the discovery contract can be consumed directly:
+
+```bash
+command-ui validate update-cli
+command-ui inspect update-cli
+command-ui update-cli
+```
+
+![Documentation — JSON and discovery](doc/images/documentation/14-json-discovery.png)
+
+### Release-source overrides
+
+Release discovery commands (`check`, `update`, `status`, `list`, `verify`) can override the configured source for one invocation.
+
+Download/folder source:
+
+```bash
+update-cli check --downloads ~/Downloads
+update-cli check --from download --folder ~/Downloads
+```
+
+URL source:
+
+```bash
+update-cli check \
+  --from url \
+  --url https://example.org/releases/demo-app-v1.2.0.zip
+```
+
+Repository source:
+
+```bash
+update-cli check \
+  --from repository \
+  --repository github.com/acme/demo-app
+```
+
+The same source modifiers can be combined with `update`, `status`, `list`, and `verify` where advertised by `--help --json`.
+
+![Documentation — source overrides](doc/images/documentation/15-source-overrides.png)
+
+### Command aliases and compatibility spellings
+
+The command-token interface is an alias layer over the established flag interface. The following pairs are equivalent:
+
+```text
+check                         --check
+update release.zip            --update release.zip
+backup                        --backup
+rollback 1.2.3                --rollback 1.2.3
+restore latest                --restore latest
+status                        --status
+list                          --list
+verify release.zip            --verify release.zip
+doctor                        --doctor
+clean                         --clean
+cleanup                       --cleanup
+history                       --history
+init demo-app                 --init demo-app
+upgrade                       --upgrade
+unlock                        --unlock
+setup                         --setup
+setup list                    --setup-list
+setup task build              --setup-task build
+setup workflow ci             --setup-workflow ci
+setup manifest setup.yaml     --setup-manifest setup.yaml
+convert-yaml                  --convert-yaml
+create-yaml                   --create-yaml
+create-setup-script           --create-setup-script
+config                        --config
+templates list                --templates --list
+```
+
+Short and compatibility options:
+
+```text
+-r DIR       --root DIR
+-a ZIP       --archive ZIP
+-d DIR       --downloads DIR
+-n           --dry-run
+-f           --force
+-V           --version
+--noui       --no-ui
+---no-ui     --no-ui
+```
+
+![Documentation — aliases](doc/images/documentation/16-aliases.png)
+
+### No-parameter behavior
+
+With no explicit primary command, Update CLI executes the actions configured in `.updater-cli/config.json` under `"no parameter"`.
+
+Default initialized configuration:
+
+```json
+{
+  "no parameter": ["check"]
+}
+```
+
+Automatic setup after an accepted update:
+
+```bash
+update-cli config --set no-parameter="check,setup"
+```
+
+Then:
+
+```bash
+update-cli
+```
+
+uses the configured sequence instead of requiring explicit command flags.
+
 
 ## Highlights
 
@@ -316,199 +799,6 @@ go build -trimpath -ldflags "-s -w -X main.version=$(cat VERSION)" -o dist/updat
 ```
 
 Deploy the locally built binary and global setup template with the project's setup workflow or the Justfile deployment recipes.
-
-## Machine-readable CLI discovery
-
-Update CLI exposes a deterministic command contract for tools such as **command-ui**:
-
-```bash
-update-cli --help --json
-```
-
-The command writes **JSON only** to stdout and does not initialize the fullscreen TUI, perform release discovery, mutate configuration, or execute setup/update operations. The equivalent command-token form is:
-
-```bash
-update-cli help --json
-```
-
-The discovery document uses `schemaVersion: 1`, reports the currently running Update CLI version, describes command arguments and relevant options, and exposes dynamic value sources for rollback releases, restore backups, setup tasks, and setup workflows.
-
-If command-ui is installed, validate and open Update CLI with:
-
-```bash
-command-ui validate update-cli
-command-ui inspect update-cli
-command-ui update-cli
-```
-
-### Command-token aliases
-
-Update CLI remains fully backward compatible with the established flag-based interface. Command-token forms are aliases that are normalized to the same internal options and execution path:
-
-```bash
-update-cli check                       # same as: update-cli --check
-update-cli update release.zip          # same as: update-cli --update release.zip
-update-cli backup                      # same as: update-cli --backup
-update-cli rollback 1.2.3              # same as: update-cli --rollback 1.2.3
-update-cli restore latest              # same as: update-cli --restore latest
-update-cli status --json               # same as: update-cli --status --json
-update-cli list --json                 # same as: update-cli --list --json
-update-cli verify release.zip          # same as: update-cli --verify release.zip
-update-cli doctor                      # same as: update-cli --doctor
-update-cli cleanup                     # same as: update-cli --cleanup
-update-cli history                     # same as: update-cli --history
-update-cli init my-project             # same as: update-cli --init my-project
-update-cli upgrade                     # same as: update-cli --upgrade
-update-cli unlock                      # same as: update-cli --unlock
-```
-
-Setup automation also has a command hierarchy:
-
-```bash
-update-cli setup
-update-cli setup list
-update-cli setup list --json
-update-cli setup task build
-update-cli setup workflow ci
-update-cli setup manifest ./setup.yaml
-```
-
-The existing forms `--setup`, `--setup-list`, `--setup-task`, `--setup-workflow`, and `--setup-manifest` remain supported. The YAML lifecycle commands also accept token aliases:
-
-```bash
-update-cli convert-yaml
-update-cli create-yaml --from project
-update-cli create-setup-script
-```
-
-Configuration and template operations can be written command-first as well:
-
-```bash
-update-cli config
-update-cli config list
-update-cli config edit
-update-cli config use-template go
-update-cli config --set no-parameter="check,setup"
-
-update-cli templates list
-update-cli templates edit
-update-cli templates use go
-```
-
-Rollback and restore selectors in the discovery document use the structured inventory from `update-cli list --json`. Setup task/workflow selectors use `update-cli setup list --json`.
-
-## CLI reference
-
-### Release and recovery
-
-```bash
-update-cli --check [--no-ask] [--wait|--no-wait] [--no-ui]
-update-cli --update [ARCHIVE.zip] [--backup] [--setup|--no-setup] [--force]
-update-cli --update --plan [--json]
-update-cli --backup
-update-cli --rollback [VERSION] [--setup]
-update-cli --restore latest
-update-cli --verify ARCHIVE.zip
-update-cli --clean [--keep N] [--plan]      # release folder only
-update-cli --cleanup [--keep N] [--plan]    # release + backup retention
-update-cli --unlock
-```
-
-### Typo suggestions
-
-Unknown command-line options are checked against the supported flag set. Close matches produce a correction hint instead of only a generic parser error:
-
-```bash
-update-cli --vesion
-# ERROR  unbekannter Parameter "--vesion"; meinten Sie "--version"?
-```
-
-Update CLI does not silently execute the suggested option; correct the command and run it again.
-
-### Information and diagnostics
-
-```bash
-update-cli --status [--json]
-update-cli --list [--json]
-update-cli --doctor
-update-cli --history [--limit N]
-update-cli --howto
-update-cli --version
-```
-
-### Configuration and templates
-
-The preferred configuration command is `update-cli config`. The historical `--config` spelling remains supported.
-
-```bash
-update-cli config
-update-cli config --list
-update-cli config --edit
-update-cli config --use-template NAME
-update-cli config --set KEY=VALUE
-update-cli --templates --list [--details]
-update-cli --init PROJECTNAME
-update-cli --upgrade
-```
-
-`config --set` can change any supported value in `.updater-cli/config.json`. Nested JSON fields use dotted paths; key matching accepts JSON camelCase as well as kebab-case, snake_case, and spaces. Lists can be supplied as comma-separated values or as a JSON array.
-
-Typical examples:
-
-```bash
-# Change the no-parameter workflow
-update-cli config --set no-parameter="check,setup"
-
-# Retention values are parsed as integers
-update-cli config --set backup.keep=7
-update-cli config --set retention.releases=10
-
-# Boolean values retain their JSON type
-update-cli config --set security.allow-http=true
-
-# Lists are accepted as comma-separated values
-update-cli config --set sync.preserve=".git/,.gitignore,.env,data/,storage/"
-
-# Multiple changes are validated together and written as one operation
-update-cli config \
-  --set source.type=url \
-  --set source.url=https://example.org/releases/my-app-v1.4.0.zip
-```
-
-Examples of supported dotted paths include:
-
-```text
-projectName
-source.type
-source.folder
-source.url
-source.repository
-source.ref
-source.commit
-source.version
-source.sha256
-releaseDir
-currentDir
-no-parameter              -> JSON key "no parameter"
-setup.commands
-backup.directory
-backup.keep
-retention.releases
-sync.preserve
-security.allowHttp
-security.maxArchiveBytes
-security.maxUncompressedBytes
-security.maxFileBytes
-security.maxEntries
-security.maxCompressionRatio
-healthcheck.type
-healthcheck.url
-healthcheck.command
-healthcheck.timeoutSeconds
-docker.lifecycle
-```
-
-All `--set` assignments are applied in memory first. Update CLI validates the complete resulting configuration and writes it atomically only if the combined configuration is valid. Unknown keys, invalid types, or invalid configurations are rejected without changing `config.json`.
 
 ## Docker lifecycle
 
@@ -596,7 +886,7 @@ The screen has four independent regions:
 
 ```text
 ┌──────────────────────────────────────────────────────────────┐
-│ Update CLI Version 1.0.0   |   my-project v1.2.4   |   Setup       │
+│ Update CLI Version 1.0.2   |   my-project v1.2.4   |   Setup       │
 └──────────────────────────────────────────────────────────────┘
 ┌──────────────────────────────────────────────────────────────┐
 │ Project / update / setup information                         │
