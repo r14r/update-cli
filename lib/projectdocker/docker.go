@@ -1,6 +1,7 @@
 package projectdocker
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -8,6 +9,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+)
+
+var (
+	lookPath       = exec.LookPath
+	commandContext = exec.CommandContext
 )
 
 var ComposeFiles = []string{"compose.yml", "compose.yaml", "docker-compose.yml", "docker-compose.yaml"}
@@ -63,14 +69,45 @@ func Running(ctx context.Context, current string) (bool, error) {
 	}
 	args := append([]string{}, prefix...)
 	args = append(args, "-f", filepath.Base(d.ComposeFile), "ps", "-q")
-	cmd := exec.CommandContext(ctx, exe, args...)
+	cmd := commandContext(ctx, exe, args...)
 	cmd.Dir = current
-	out, err := cmd.Output()
-	if err != nil {
-		return false, fmt.Errorf("Docker Compose Status fehlgeschlagen: %w", err)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if runErr := cmd.Run(); runErr != nil {
+		return false, commandFailure("Docker Compose Status fehlgeschlagen", exe, args, current, runErr, stdout.String(), stderr.String())
 	}
-	return strings.TrimSpace(string(out)) != "", nil
+	return strings.TrimSpace(stdout.String()) != "", nil
 }
+func commandFailure(summary, exe string, args []string, cwd string, runErr error, stdout, stderr string) error {
+	command := strings.TrimSpace(filepath.Base(exe) + " " + strings.Join(args, " "))
+	exitCode := -1
+	var exitErr *exec.ExitError
+	if errors.As(runErr, &exitErr) {
+		exitCode = exitErr.ExitCode()
+	}
+	lines := []string{
+		summary,
+		"Kommando: " + command,
+		"Arbeitsverzeichnis: " + cwd,
+	}
+	if exitCode >= 0 {
+		lines = append(lines, fmt.Sprintf("Exit-Code: %d", exitCode))
+	} else {
+		lines = append(lines, "Fehler: "+runErr.Error())
+	}
+	if text := strings.TrimSpace(stderr); text != "" {
+		lines = append(lines, "stderr:", text)
+	}
+	if text := strings.TrimSpace(stdout); text != "" {
+		lines = append(lines, "stdout:", text)
+	}
+	if strings.TrimSpace(stderr) == "" && strings.TrimSpace(stdout) == "" && exitCode >= 0 {
+		lines = append(lines, "Fehler: "+runErr.Error())
+	}
+	return errors.New(strings.Join(lines, "\n"))
+}
+
 func Stop(ctx context.Context, current string) (Result, error)  { return invoke(ctx, current, "down") }
 func Start(ctx context.Context, current string) (Result, error) { return invoke(ctx, current, "up") }
 func invoke(ctx context.Context, current, action string) (Result, error) {
@@ -95,29 +132,36 @@ func invoke(ctx context.Context, current, action string) (Result, error) {
 		args = append(args, "up", "-d", "--remove-orphans")
 	}
 	r.Command = filepath.Base(exe) + " " + strings.Join(args, " ")
-	cmd := exec.CommandContext(ctx, exe, args...)
+	cmd := commandContext(ctx, exe, args...)
 	cmd.Dir = current
-	out, runErr := cmd.CombinedOutput()
-	if runErr != nil {
-		detail := strings.TrimSpace(string(out))
-		if detail != "" {
-			return r, fmt.Errorf("Docker Compose %s fehlgeschlagen (%s): %w: %s", action, r.Command, runErr, detail)
-		}
-		return r, fmt.Errorf("Docker Compose %s fehlgeschlagen (%s): %w", action, r.Command, runErr)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if runErr := cmd.Run(); runErr != nil {
+		return r, commandFailure(fmt.Sprintf("Docker Compose %s fehlgeschlagen", action), exe, args, current, runErr, stdout.String(), stderr.String())
 	}
 	r.Changed = true
 	return r, nil
 }
 func composeCommand(ctx context.Context, dir string) (string, []string, error) {
-	if d, err := exec.LookPath("docker"); err == nil {
-		cmd := exec.CommandContext(ctx, d, "compose", "version")
+	var dockerComposeErr error
+	if d, err := lookPath("docker"); err == nil {
+		cmd := commandContext(ctx, d, "compose", "version")
 		cmd.Dir = dir
-		if cmd.Run() == nil {
+		var stdout, stderr bytes.Buffer
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+		if runErr := cmd.Run(); runErr == nil {
 			return d, []string{"compose"}, nil
+		} else {
+			dockerComposeErr = commandFailure("Docker Compose ist nicht verfügbar", d, []string{"compose", "version"}, dir, runErr, stdout.String(), stderr.String())
 		}
 	}
-	if d, err := exec.LookPath("docker-compose"); err == nil {
+	if d, err := lookPath("docker-compose"); err == nil {
 		return d, nil, nil
 	}
-	return "", nil, errors.New("Docker-Compose-Projekt erkannt, aber docker compose/docker-compose fehlt")
+	if dockerComposeErr != nil {
+		return "", nil, dockerComposeErr
+	}
+	return "", nil, errors.New("Docker-Compose-Projekt erkannt, aber weder docker noch docker-compose ist verfügbar")
 }

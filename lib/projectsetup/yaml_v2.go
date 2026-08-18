@@ -31,6 +31,10 @@ type yamlLogicalLine struct {
 }
 
 func detectSetupSchemaVersion(data []byte) int {
+	// schemaVersion is authoritative in the current manifest format. A plain
+	// top-level version field may describe the project/application version, so
+	// it must never win merely because it appears earlier in the file.
+	legacyVersion := 0
 	for _, raw := range strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n") {
 		if len(raw) > 0 && (raw[0] == ' ' || raw[0] == '\t') {
 			continue
@@ -40,13 +44,22 @@ func detectSetupSchemaVersion(data []byte) int {
 			continue
 		}
 		k, v, ok := splitKV(trim)
-		if !ok || (k != "schemaVersion" && k != "version") {
+		if !ok {
 			continue
 		}
-		n, _ := strconv.Atoi(unquote(v))
-		return n
+		switch k {
+		case "schemaVersion":
+			n, _ := strconv.Atoi(unquote(v))
+			return n
+		case "version":
+			// Keep the historical `version: 1` schema alias as a fallback only.
+			// Non-integer values are application versions, not schema selectors.
+			if n, err := strconv.Atoi(unquote(v)); err == nil {
+				legacyVersion = n
+			}
+		}
 	}
-	return 0
+	return legacyVersion
 }
 
 func parseManifestV2(path string, data []byte) (Manifest, error) {
@@ -58,7 +71,7 @@ func parseManifestV2(path string, data []byte) (Manifest, error) {
 		return Manifest{}, fmt.Errorf("setup.yaml: Top-Level muss eine Map sein")
 	}
 	allowedTop := map[string]bool{
-		"schemaVersion": true, "project": true, "defaults": true, "variables": true,
+		"schemaVersion": true, "version": true, "project": true, "defaults": true, "variables": true,
 		"requirements": true, "workflows": true, "tasks": true,
 	}
 	for key, node := range root.m {
@@ -81,6 +94,12 @@ func parseManifestV2(path string, data []byte) (Manifest, error) {
 		Defaults:     SetupDefaults{FailFast: true},
 		LegacySchema: false,
 	}
+	if n := root.m["version"]; n != nil {
+		m.ProjectVersion, err = nodeString(n)
+		if err != nil {
+			return m, lineError(n, "version muss ein skalarer Wert sein")
+		}
+	}
 	if n := root.m["project"]; n != nil {
 		if n.kind != yamlMap {
 			return m, lineError(n, "project muss eine Map sein")
@@ -89,6 +108,8 @@ func parseManifestV2(path string, data []byte) (Manifest, error) {
 			switch k {
 			case "name":
 				m.ProjectName, err = nodeString(v)
+			case "slug":
+				m.ProjectSlug, err = nodeString(v)
 			case "description":
 				m.ProjectDescription, err = nodeString(v)
 			case "type":
@@ -496,6 +517,14 @@ func parseSimpleList(lines []yamlLogicalLine, idx *int, indent int) (*simpleYAML
 		}
 		rest := strings.TrimSpace(strings.TrimPrefix(l.trim, "-"))
 		(*idx)++
+		if isBlockScalar(rest) {
+			content, err := collectLogicalBlockScalar(lines, idx, indent, l.line)
+			if err != nil {
+				return nil, err
+			}
+			out.list = append(out.list, &simpleYAMLNode{kind: yamlScalar, scalar: content, line: l.line})
+			continue
+		}
 		if rest == "" {
 			if *idx >= len(lines) || lines[*idx].indent <= indent {
 				return nil, fmt.Errorf("setup.yaml Zeile %d: leerer Listeneintrag", l.line)

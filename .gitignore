@@ -4,7 +4,6 @@ update-cli
 .DS_Store
 .updater-cli/
 .release-update.lock/
-
 .release-project
 .release-source
 .release-version

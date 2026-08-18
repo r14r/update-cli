@@ -1,0 +1,37 @@
+You are converting a project setup shell script into Update CLI setup.yaml schemaVersion 2.
+
+Goal:
+Produce a valid, maintainable schemaVersion 2 manifest that preserves the setup behavior of the shell script while preferring typed Update CLI operations over shell where this is safe.
+
+Rules:
+1. Return ONLY YAML. Do not use Markdown fences and do not add explanatory prose.
+2. Keep schemaVersion: 2.
+3. Preserve the observable order and intent of setup operations from setup.sh.
+4. Do not invent commands, dependencies, files, services, environment variables, deployment destinations, health checks, or project capabilities that are not supported by setup.sh or the deterministic draft.
+5. Prefer typed operations when semantics are clear: command, go, pythonVenv, pip, npm, pnpm, yarn, composer, artisan, dockerCompose, mkdir, copy, move, remove, chmod, symlink, touch, write, deploy, assert, httpCheck, download, extract.
+6. Use shell: | only where shell semantics, variable expansion, pipelines, conditionals, loops, or compound commands are genuinely required.
+7. Convert shell conditions to structured when: conditions when they are unambiguous (fileExists, fileNotExists, directoryExists, commandExists, envSet, os, arch, compose, all, any, not).
+8. Preserve explicit working directories, environment values, timeouts, retry/continue-on-error behavior when present.
+9. Avoid hard-coded Go module paths when the module can be discovered with `go list -m`.
+10. Use variables for repeated project-specific values when useful, but do not over-engineer the manifest.
+11. Keep a default workflow named setup. Create additional tasks/workflows only when the script clearly contains reusable phases such as prepare, clean, check, test, build, verify, deploy, start, stop, restart, migrate, seed, or doctor.
+12. The result must be accepted by Update CLI's schemaVersion 2 parser.
+13. Preserve safety: do not broaden destructive commands, paths, permissions, network access, or deployment scope.
+14. The deterministic draft is the baseline. Improve it only where the original setup.sh provides evidence for the improvement.
+
+INPUTS
+
+PROJECT ROOT:
+{{PROJECT_ROOT}}
+
+ORIGINAL setup.sh:
+--- BEGIN SETUP.SH ---
+{{SETUP_SCRIPT}}
+--- END SETUP.SH ---
+
+DETERMINISTIC schemaVersion 2 DRAFT:
+--- BEGIN DRAFT YAML ---
+{{DRAFT_YAML}}
+--- END DRAFT YAML ---
+
+Return only the final setup.yaml content.

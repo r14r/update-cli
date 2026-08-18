@@ -10,7 +10,9 @@ import (
 
 type Manifest struct {
 	Version            int
+	ProjectVersion     string
 	ProjectName        string
+	ProjectSlug        string
 	ProjectDescription string
 	ProjectType        string
 	LegacySchema       bool
@@ -95,6 +97,9 @@ func ParseManifest(path string) (Manifest, error) {
 }
 
 func parseManifestV1(path string, data []byte) (Manifest, error) {
+	if structuredLegacyV1(data) {
+		return parseStructuredLegacyV1(path, data)
+	}
 	lines := strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n")
 	m := Manifest{}
 	section := ""
@@ -164,6 +169,9 @@ func parseManifestV1(path string, data []byte) (Manifest, error) {
 			switch k {
 			case "name":
 				m.ProjectName = unquote(v)
+			case "slug":
+				m.ProjectSlug = strings.TrimSpace(unquote(v))
+				m.LegacySchema = true
 			case "description":
 				m.ProjectDescription = unquote(v)
 				m.LegacySchema = true

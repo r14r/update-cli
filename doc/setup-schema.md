@@ -5,25 +5,35 @@ Update CLI can manage setup files directly:
 
 ```bash
 update-cli --convert-yaml
-update-cli --create-yaml
+update-cli --create-yaml --from project
+update-cli --create-yaml --from setup-script
+update-cli --create-yaml --from setup-script --with-ai
 update-cli --create-setup-script
 ```
 
-`--convert-yaml` converts schema 1 to schema 2 while preserving the old file as a backup. `--create-yaml` detects project markers for Go, Python, Node, Laravel and Docker Compose and generates an editable schema-2 sample. `--create-setup-script` creates the generic executable wrapper. Add `--dry-run` to preview and `--force` to overwrite generated files.
+`--convert-yaml` converts schema 1 to schema 2 while preserving the old file as a backup. `--create-yaml --from project` detects project markers for Go, Python, Node, Laravel and Docker Compose. `--create-yaml --from setup-script` deterministically analyzes `setup.sh` and emits ordered schema-2 steps. Add `--with-ai` to refine that deterministic draft with a configured Ollama or OpenAI-compatible model. The AI receives the original script plus the deterministic draft and its response must parse as schemaVersion 2 before it is accepted. The conversion prompt is shipped as `prompts/setup-script-to-yaml.txt` and installed to `/usr/local/etc/update-cli/prompts/setup-script-to-yaml.txt`. `--create-setup-script` creates the generic executable wrapper. Add `--dry-run` to preview and `--force` to overwrite generated files.
+
+### AI configuration for setup.sh conversion
+
+Default configuration file: `/usr/local/etc/update-cli/ai.json` (see `doc/examples/ai.json`). Environment overrides: `UPDATE_CLI_AI_PROVIDER`, `UPDATE_CLI_AI_BASE_URL`, `UPDATE_CLI_AI_MODEL`, `UPDATE_CLI_AI_API_KEY`, `UPDATE_CLI_AI_API_KEY_ENV`, `UPDATE_CLI_AI_CONFIG`, `UPDATE_CLI_AI_PROMPT`; `OPENAI_API_KEY` is also accepted for OpenAI-compatible endpoints. Providers: `ollama`, `openai-compatible`, `nvidia`.
 
 # setup.yaml schema
 
-Update CLI 3.1.0 supports two manifest generations:
+Update CLI 0.8.4 supports two manifest generations (schemaVersion 2 was introduced on the previous 3.1.x development line):
 
 - **schemaVersion 1**: full backward compatibility with the established Update CLI 2.14 `id/name/when/run/cwd/allowFailure` format and the typed 3.0 handler format.
 - **schemaVersion 2**: declarative workflows, reusable tasks, dependencies, variables, requirements, structured conditions, execution controls, typed operations, and `command`/`shell` escape hatches.
 
-Schema 1 is not deprecated by 3.1.0; existing project archives continue to work unchanged.
+Schema 1 remains supported in the 0.8.x line; existing project archives continue to work unchanged.
+
+In schema 2, `schemaVersion` is always authoritative. An optional top-level `version` scalar may describe the project/application version and can appear before or after `schemaVersion`.
 
 ## Schema 2 overview
 
 ```yaml
 schemaVersion: 2
+# Optional project/application version metadata. This does not select the schema.
+version: 1.4.0
 
 project:
   name: Example Project
@@ -148,6 +158,7 @@ Built-ins:
 
 - `{{ project.root }}`
 - `{{ project.name }}`
+- `{{ project.slug }}`
 - `{{ project.type }}`
 - `{{ os }}`
 - `{{ arch }}`
@@ -525,3 +536,7 @@ steps:
 ```
 
 Schema-1 conditions remain `always`, `file:`, `not-file:`, `dir:`, `command:`, `env:`, `compose`, and `os:`. Existing typed version-1 handlers (`go`, `python`, `node`, `laravel`, `docker-compose`, `copy`, `deploy`, `command`) remain available.
+
+## Legacy structured schemaVersion 1 compatibility
+
+Update CLI also accepts the older generated schemaVersion-1 configuration format with top-level `version`, `build`, `runtime`, `go`, `setup`, and `commands` sections. The `version` section may be a map containing `file`, `required`, and `pattern`. These manifests are translated into executable legacy setup steps and can be migrated to schemaVersion 2 with `update-cli --convert-yaml`.

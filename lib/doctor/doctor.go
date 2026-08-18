@@ -91,17 +91,28 @@ func Run(ctx context.Context, root string, cfg config.Config) Report {
 	} else {
 		r.Add("Projekt-Setup", LevelWarning, "Legacy-Setup: "+p)
 	}
-	d, e := projectdocker.Detect(cfg.CurrentDir)
-	if e != nil {
-		r.Add("Docker Compose", LevelError, e.Error())
-	} else if !d.Detected {
-		r.Add("Docker Compose", LevelOK, "kein Compose-Projekt erkannt")
-	} else if _, e := exec.LookPath("docker"); e == nil {
-		r.Add("Docker Compose", LevelOK, filepath.Base(d.ComposeFile)+" erkannt")
-	} else if _, e := exec.LookPath("docker-compose"); e == nil {
-		r.Add("Docker Compose", LevelOK, filepath.Base(d.ComposeFile)+" erkannt")
+	r.Add("Docker lifecycle", LevelOK, cfg.Docker.Lifecycle)
+	if cfg.Docker.Lifecycle == "disabled" {
+		r.Add("Docker Compose", LevelOK, "übersprungen; Docker-Lifecycle deaktiviert")
 	} else {
-		r.Add("Docker Compose", LevelError, "Compose-Datei erkannt, aber Docker fehlt")
+		d, e := projectdocker.Detect(cfg.CurrentDir)
+		if e != nil {
+			if cfg.Docker.Lifecycle == "required" {
+				r.Add("Docker Compose", LevelError, e.Error())
+			} else {
+				r.Add("Docker Compose", LevelWarning, e.Error())
+			}
+		} else if !d.Detected {
+			r.Add("Docker Compose", LevelOK, "kein Compose-Projekt erkannt")
+		} else if _, e := projectdocker.Running(ctx, cfg.CurrentDir); e != nil {
+			if cfg.Docker.Lifecycle == "required" {
+				r.Add("Docker Compose", LevelError, e.Error())
+			} else {
+				r.Add("Docker Compose", LevelWarning, e.Error())
+			}
+		} else {
+			r.Add("Docker Compose", LevelOK, filepath.Base(d.ComposeFile)+" erkannt; Statusabfrage erfolgreich")
+		}
 	}
 	local, e := inventory.ListLocal(cfg)
 	if e != nil {

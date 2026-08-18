@@ -1,4 +1,253 @@
-# Release notes
+# Update CLI 1.0.0
+
+Stable 1.0 release after the 0.8.x hardening cycle. Existing flag commands, command-token aliases, config schema 6, setup schema 2, command-ui discovery, TUI and `--no-ui` behavior remain compatible.
+
+## 1.0.0 review and hardening
+
+- Fixed Update CLI's release-epoch comparison so `1.0.0` is a normal upgrade from both `0.8.x` and the historical pre-reset `2.x/3.x` line.
+- Release swaps no longer pre-delete a PID-derived `.old-*` path; every swap uses a unique recovery path.
+- Transaction snapshot and release staging directories use unique temporary directories instead of reusable PID names.
+- Lock metadata is written atomically; incomplete locks become recoverable after a grace period instead of remaining permanently ambiguous.
+- `restore latest` selects only validated backups, and explicit backup paths reject symlink escapes.
+- Post-commit history write failures are warnings instead of falsely turning a successful update/rollback/restore/backup/cleanup into a failed operation.
+- ZIP update/verify processing now uses a metadata preflight plus one extraction/checksum pass instead of repeated full decompression; duplicate ZIP paths are rejected.
+- rsync checksum comparison is skipped for guaranteed-new release/snapshot destinations while remaining enabled for existing-tree synchronization and restore verification.
+- An incomplete unterminated final `history.jsonl` record from a crash is ignored; malformed committed history lines remain errors.
+- Removed dead duplicate no-parameter normalization code.
+
+See `CODE_REVIEW.md` and `IMPLEMENTATION_REPORT.md` for details and validation results.
+
+## 0.8.23
+
+- Align fullscreen `Projekt-Setup` metadata with the setup-step output gutter.
+- Render `Projekt:` and `Schema:` at the same horizontal position as child command stdout/stderr below `[NN/NN]` step rows.
+- Derive the metadata gutter from the actual step-counter width instead of hard-coding indentation, including manifests with three-digit step counts.
+- Apply the same content-region alignment to nested schemaVersion 1 setup manifests.
+- Add UI regression coverage for metadata/output alignment.
+
+## 0.8.22
+
+- Fullscreen TUI header now shows the currently installed project version next to the project name, e.g. `life-os v0.1.1`.
+- Project name and project version remain separate internal values; status/history output keeps the original project name.
+- Successful updates refresh the header to the newly installed version before the TUI closes.
+- Standalone setup manifests show a version when a sibling `VERSION` file can be detected.
+
+## 0.8.21
+
+- Added project-level Docker lifecycle configuration: `auto`, `disabled`, `required`.
+- Existing projects without a `docker` block resolve to `auto`.
+- `auto` no longer aborts filesystem updates when Docker/Compose/status detection is unavailable; it warns and disables Docker lifecycle management for that transaction.
+- `disabled` guarantees that update transactions and recovery do not invoke Docker, even when a Compose file exists.
+- `required` retains strict Docker behavior when a Compose file exists; Docker failures abort the transaction. No Compose file remains a valid no-op.
+- Transaction recovery now remembers whether Docker lifecycle management was actually established, so degraded `auto` and `disabled` never attempt Docker recovery actions.
+- Docker command diagnostics preserve command, working directory, exit code, stdout and stderr, including failures of `docker compose version`.
+- `status` exposes the configured Docker lifecycle; `doctor` distinguishes disabled/auto/required severity.
+- Added deterministic transaction, recovery, doctor, config and Life OS integration coverage without requiring a real Docker daemon.
+
+# Release Notes
+
+## 0.8.20
+
+- Remove `Task: <name>` headings and task separator rules from `--setup --no-ui`; direct setup output now starts immediately with numbered step blocks.
+- Add `--noui` as a compatibility alias for the canonical `--no-ui` option while retaining `---no-ui`.
+- Expose `--noui` in machine-readable command discovery and generated setup-script wrappers.
+- Expand Docker Compose transaction failures with the exact command, working directory, exit code, stderr, and stdout.
+- Apply the same detailed command diagnostics to Docker Compose status, start, and stop operations.
+- Add parser, direct-output, Docker failure-detail, and PTY regression coverage.
+
+## 0.8.19
+
+- Align fullscreen setup stdout/stderr beneath each `[NN/NN]` step using a fixed visual output gutter.
+- Normalize leading child-process whitespace so `VALIDATE`, `CHECK`, build output, and other tool messages start at one consistent column.
+- Render stderr in the same gutter with an additional `!` marker.
+- Keep wrapped long process-output lines aligned with a hanging indent instead of jumping back to the left edge.
+- Align command-detail lines (`❯ ...`) with the same step-output gutter.
+- Add regression tests for output alignment, stderr alignment, and wrapped continuation indentation.
+
+## 0.8.18
+
+- Treat an update to the already installed project version as a successful no-op instead of an error.
+- Fullscreen TUI marks the version-policy step successful and shows `Version <version> ist bereits installiert` on a green content background.
+- Same-version no-op uses the normal `Update beenden | Enter zum Schließen` footer and exits with code 0.
+- `--force` retains its existing behavior and explicitly reinstalls the same version.
+- `--no-ui` reports the already-installed state as normal information and leaves the installed version in the final shell status line.
+- Added unit, integration, and PTY regression coverage for the already-installed update path.
+
+## 0.8.17
+
+- Refined `--setup --no-ui` step rendering: each step heading now carries its horizontal separator inline, e.g. `[04/09] Validate project ─────`.
+- Command/stdout/stderr remain grouped below the heading with the existing `│` guide and `└─` completion marker.
+- Added regression coverage for the 72-column inline step rule and skipped-step rendering.
+
+## 0.8.16
+
+- Redesign `--setup --no-ui` step output into visually grouped step blocks.
+- Add a vertical `│` guide for command stdout/stderr so process output remains attached to the step that produced it.
+- Close each setup step with `└─ ✓ <step>` or `└─ ✗ <step>` instead of repeating the old flat `[NN/NN] ✓ ...` row.
+- Separate setup tasks with a visible `Task: <name>` heading and horizontal rule.
+- Render skipped direct-mode steps with the same closed-block layout.
+- Add unit regressions for direct step grouping, process-output indentation, task separation, and skipped-step rendering.
+- Document the new plain/no-UI setup layout in README.md.
+
+## 0.8.15
+
+- Add machine-readable CLI discovery through `update-cli --help --json` and `update-cli help --json` using command-ui schemaVersion 1.
+- Add non-breaking command-token aliases (`check`, `update`, `rollback`, `restore`, `status`, `list`, `doctor`, `init`, and others) that normalize into the existing flag-based execution path.
+- Add the `setup list/task/workflow/manifest` command hierarchy while retaining all legacy setup flags.
+- Add command aliases for YAML lifecycle, configuration, and template operations supported by the current implementation.
+- Add structured `setup list --json` output for dynamic setup task/workflow selectors.
+- Describe rollback releases and restore backups through dynamic `list --json` value sources in the discovery contract.
+- Guarantee that help discovery is deterministic, side-effect free, ANSI/TUI free, and writes JSON only to stdout.
+- Add discovery-contract, JSON-safety, dynamic-source, setup-catalog, and flag/token equivalence regressions.
+- Document command-ui validation/launch commands and the backward-compatible command aliases in README.md.
+
+## 0.8.14
+
+- Align all fullscreen project/update information values to one fixed second column.
+- Render `Release Update` as a normal information row so `from ...`, project name, source path, release path, current path, and protected paths start at the same value column.
+- Highlight only the target version in `from A to B` with a blue background and white bold text.
+- Apply the same aligned release-update row to plain output.
+- Add rendering regressions for column alignment and target-version highlighting.
+
+## 0.8.13
+
+- Added a persistent final console status line after version checks and successful updates.
+- Successful updates now end with `Update CLI Version X.Y.Z | <project> | Aktualisiert auf Version: vA.B.C`.
+- Version checks that do not install a release end with `Installierte Version: vA.B.C` (or `Keine Version installiert`).
+- In fullscreen mode the final status is printed only after leaving the alternate screen, so it remains visible in shell scrollback.
+- `--no-ui` receives the same final status line; JSON output is intentionally unchanged.
+- Added unit, integration, and PTY regression coverage for the final status contract.
+
+## 0.8.12
+
+- Added `update-cli config --set KEY=VALUE` for generic CLI-based editing of `.updater-cli/config.json`.
+- Added `config` as the preferred subcommand spelling while retaining `--config` compatibility.
+- Added dotted-path updates for nested fields such as `backup.keep`, `security.allowHttp`, and `source.url`.
+- Added tolerant key matching, so `no-parameter`, `no_parameter`, and the JSON key `no parameter` resolve to the same setting.
+- Added typed value conversion for strings, booleans, integers, floating-point values, and string lists.
+- Added repeatable `--set` assignments; all changes are validated together and written atomically only when the resulting configuration is valid.
+- Updated README Quickstart to configure automatic post-update setup with `update-cli config --set no-parameter="check,setup"`.
+
+
+## 0.8.11
+
+- Rewrite the README Quickstart around the current no-parameter workflow introduced in 0.8.x.
+- Document that new `--init` projects default to `"no parameter": ["check"]` and can normally be operated with a bare `update-cli` command.
+- Document `"no parameter": ["check", "setup"]` as the streamlined workflow that automatically runs setup after an accepted update without a second setup confirmation.
+- Clarify that update and setup confirmation modals default to YES and Enter immediately accepts the highlighted action.
+- Add explicit examples for `--update --setup`, `--update --no-setup`, setup-only execution, and CI/`--no-ui`.
+- Add a compact workflow comparison table to the Quickstart.
+
+## 0.8.10
+
+- Replace the low-contrast inverted project badge in the fullscreen header with a single consistent blue/white header line.
+- Render the header as `Update CLI Version X.Y.Z   |   <project>   |   <phase>` for version check, update, and setup screens.
+- Keep the version and current phase visible when terminal width is constrained by truncating the project segment first.
+- Add unit and PTY regression coverage for the three-part header layout.
+
+## 0.8.9
+
+- Update confirmation modal now selects **YES** by default.
+- Project-setup confirmation modal now selects **YES** by default.
+- Pressing Enter immediately confirms the highlighted YES action; cursor, Tab, and explicit j/n controls remain unchanged.
+- PTY regression coverage verifies the default-YES behavior for both update and setup confirmation flows.
+
+## 0.8.8
+
+- Add the project name to the right edge of the fullscreen TUI header.
+- Render the project badge with a white background and blue bold text while preserving the existing blue/white header title.
+- Keep the project badge visible when the TUI changes from version check to update or setup.
+- Populate the header project name from configured projects and standalone `setup.yaml` manifests.
+- Add unit and PTY regression coverage for the project badge.
+
+## 0.8.7
+
+- New projects created with `--init` now default `"no parameter"` to `["check"]`.
+- Built-in project templates also use `check`, so applying a template during initialization preserves the new default behavior.
+- Existing project configurations are not modified.
+- Add regression coverage for both plain initialization and built-in templates.
+
+## 0.8.6
+
+- Protect `.gitignore` during rsync synchronization and restore.
+- Add `.gitignore` to the default `sync.preserve` list and generated project templates.
+- Automatically append `.gitignore` to older/custom preserve lists at runtime.
+- Add regression coverage that verifies a project-local `.gitignore` is never overwritten by a release.
+
+## 0.8.5
+
+- Add compatibility parsing for the structured schemaVersion-1 setup manifest used by older generated setup files.
+- Accept `version` as a map with `file`, `required`, and `pattern` instead of misinterpreting it as the manifest schema version.
+- Translate legacy `build`, `runtime`, `go`, `setup.steps`, and grouped `commands` sections into executable setup steps.
+- Preserve folded multiline `ldflagsTemplate` and command-list block scalars.
+- Support the legacy built-in step IDs used by generated setup scripts, including Go, Node, Python, Composer, Docker, command groups, build, version verification, and post commands.
+- Add regression coverage based on the x-cli structured schemaVersion-1 manifest that previously failed with `ungültige version`.
+
+## 0.8.3
+
+- Fix the Justfile duplicate `clean` recipe that prevented commands such as `just deploy` from parsing.
+- Keep `clean` for `update-cli --clean`, add `clear-releases` as an explicit release-cleanup alias, and preserve local build-artifact cleanup as `clear-build`.
+- Detect unknown or misspelled CLI flags before standard flag parsing and suggest the closest supported option when confidence is high.
+- Example: `--vesion` now reports `Meinten Sie --version?` instead of only returning a generic unknown-flag error.
+- Add regression tests for unique Justfile recipe names and typo suggestions.
+
+## 0.8.2
+
+- Hardens setup bootstrap selection by validating the actual `setup.yaml` with each candidate binary before using it.
+- Prevents older schemaVersion-2 binaries that reject newer metadata such as `project.slug` from being selected just because they expose workflow/task flags.
+- Adds a regression test for fallback from a slug-incompatible candidate to a compatible local binary.
+
+
+## 0.8.1
+
+- refine fullscreen confirmation modal styling so YES/NO button borders remain neutral
+- apply green/red styling only to the selected button content area, matching the header/footer visual treatment
+- preserve LEFT/RIGHT selection, Enter confirmation, direct j/y/n shortcuts, and default-NO behavior
+- add regression coverage preventing selection background colors from leaking into button borders
+
+## 3.3.4
+
+- Accept optional `project.slug` in schemaVersion 1 and 2 setup manifests.
+- Expose the slug as `{{ project.slug }}` to schemaVersion 2 variables and operations.
+- Preserve `project.slug` during schemaVersion 1 to 2 conversion.
+- Show the project slug in setup metadata when present.
+- Add regression coverage for manifests containing `project.slug`.
+
+
+## 3.3.3
+
+- add a polished repository/README hero image under `docs/update-cli-readme-header.png`
+- add a 2:1 GitHub social-preview asset under `docs/update-cli-social-preview.png`
+- display the README hero directly below the project title while keeping Quickstart as the first functional section
+- ignore `.release-project`, `.release-source`, and `.release-version` generated release-state files
+
+## 3.3.2
+
+- move Quickstart to the beginning of the GitHub README, immediately after the product introduction
+- document a complete typical workflow: initialize project, generate setup automation, check for a release, run the transactional update, execute project setup, and verify the final status
+- add six GitHub-renderable terminal screenshots under `doc/images/quickstart/`, one for each Quickstart step
+- show the interactive YES/NO update modal with cursor-key controls in the Quickstart
+- explain the default local release naming convention and `--no-ui` alternative in the walkthrough
+
+## 3.3.1
+
+- refresh the GitHub-facing README to document the complete current CLI surface, transactional update model, TUI/`--no-ui`, schemaVersion-2 setup engine, setup-file lifecycle, deterministic setup-script conversion, and optional AI refinement
+- add interactive LEFT/RIGHT selection to fullscreen confirmation modals
+- LEFT selects `YES`, RIGHT selects `NO`, and Enter confirms the highlighted button
+- repaint the selected button immediately while cursor keys are used
+- retain direct `j`/`y` and `n` shortcuts plus Tab selection toggling
+- keep both update and post-update setup confirmations defaulted to `NO`
+- add PTY regression coverage for LEFT -> YES and LEFT -> RIGHT -> NO confirmation sequences
+
+## 3.3.0
+
+- extend `--create-yaml` with `--from project|setup-script`
+- deterministically analyze legacy `setup.sh` files and produce ordered schemaVersion-2 setup drafts
+- add `--with-ai` refinement for `--create-yaml --from setup-script`
+- pass both the original setup script and deterministic draft to AI and accept the result only after schemaVersion-2 parser validation
+- support `ollama`, `openai-compatible`, and `nvidia` AI provider identifiers
+- install an editable setup-script conversion prompt and AI configuration example under the global Update CLI config path
+- preserve unrecognized setup-script behavior as `shell: |` rather than inventing typed semantics
 
 ## 3.2.2
 

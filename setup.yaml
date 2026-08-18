@@ -131,6 +131,29 @@ tasks:
         when:
           fileExists: setup-template.sh
 
+      - id: prompt-dir
+        name: Globalen Prompt-Ordner vorbereiten
+        shell: |
+          mkdir -p "{{ configDir }}/prompts"
+
+      - id: setup-script-ai-prompt
+        name: AI-Prompt für setup.sh-Konvertierung installieren
+        deploy:
+          source: prompts/setup-script-to-yaml.txt
+          target: "{{ configDir }}/prompts/setup-script-to-yaml.txt"
+          mode: "0644"
+        when:
+          fileExists: prompts/setup-script-to-yaml.txt
+
+      - id: ai-config-example
+        name: AI-Konfigurationsbeispiel installieren
+        deploy:
+          source: doc/examples/ai.json
+          target: "{{ configDir }}/ai.json.example"
+          mode: "0644"
+        when:
+          fileExists: doc/examples/ai.json
+
       - id: deploy-binary
         name: Update CLI deployen
         deploy:

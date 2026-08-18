@@ -94,12 +94,12 @@ func listReleases(c config.Config, installed versionutil.Version, found bool) ([
 		info, _ := e.Info()
 		p := filepath.Join(c.ReleaseRoot, e.Name())
 		valid := marker(filepath.Join(p, ".release-version"), v.String()) && marker(filepath.Join(p, ".release-project"), c.ProjectName)
-		out = append(out, Release{Path: p, Version: v.String(), Active: found && v.Compare(installed) == 0, Modified: info.ModTime(), Validated: valid})
+		out = append(out, Release{Path: p, Version: v.String(), Active: found && versionutil.CompareForProject(c.ProjectName, v, installed) == 0, Modified: info.ModTime(), Validated: valid})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		a, _ := versionutil.Parse(out[i].Version)
 		b, _ := versionutil.Parse(out[j].Version)
-		return a.Compare(b) > 0
+		return versionutil.CompareForProject(c.ProjectName, a, b) > 0
 	})
 	return out, nil
 }
@@ -136,7 +136,7 @@ func FindRelease(c config.Config, requested string) (Release, error) {
 	}
 	for _, r := range local.Releases {
 		v, _ := versionutil.Parse(r.Version)
-		if r.Validated && v.Compare(installed) < 0 {
+		if r.Validated && versionutil.CompareForProject(c.ProjectName, v, installed) < 0 {
 			return r, nil
 		}
 	}

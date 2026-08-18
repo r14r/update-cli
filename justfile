@@ -41,6 +41,9 @@ restore backup="latest" *args:
 history *args:
     go run -ldflags "-X main.version={{version}}" . --history {{args}}
 
+clean *args:
+    go run -ldflags "-X main.version={{version}}" . --clean {{args}}
+
 cleanup *args:
     go run -ldflags "-X main.version={{version}}" . --cleanup {{args}}
 
@@ -68,11 +71,23 @@ setup-list:
 setup-task task *args:
     go run -ldflags "-X main.version={{version}}" . --setup-task "{{task}}" {{args}}
 
+convert-yaml *args:
+    go run -ldflags "-X main.version={{version}}" . --convert-yaml {{args}}
+
+create-yaml from="project" *args:
+    go run -ldflags "-X main.version={{version}}" . --create-yaml --from "{{from}}" {{args}}
+
+create-yaml-ai *args:
+    go run -ldflags "-X main.version={{version}}" . --create-yaml --from setup-script --with-ai {{args}}
+
+create-setup-script *args:
+    go run -ldflags "-X main.version={{version}}" . --create-setup-script {{args}}
+
 setup-workflow workflow *args:
     go run -ldflags "-X main.version={{version}}" . --setup-workflow "{{workflow}}" {{args}}
 
 config *args:
-    go run -ldflags "-X main.version={{version}}" . --config {{args}}
+    go run -ldflags "-X main.version={{version}}" . config {{args}}
 
 templates *args:
     go run -ldflags "-X main.version={{version}}" . --templates {{args}}
@@ -118,9 +133,14 @@ build-all: build-macos-amd64 build-macos-arm64 build-linux-amd64
 deploy: build
     destination="$(go run ./cmd/buildconfig --field defaultDeploymentPath --expand)"; \
     config_path="$(go run ./cmd/buildconfig --field defaultConfigPath --expand)"; \
-    mkdir -p "$destination" "$config_path"; \
+    mkdir -p "$destination" "$config_path" "$config_path/prompts"; \
     install -m 0755 dist/update-cli "$destination/update-cli"; \
-    install -m 0755 setup-template.sh "$config_path/setup-template.sh"
+    install -m 0755 setup-template.sh "$config_path/setup-template.sh"; \
+    install -m 0644 prompts/setup-script-to-yaml.txt "$config_path/prompts/setup-script-to-yaml.txt"; \
+    install -m 0644 doc/examples/ai.json "$config_path/ai.json.example"
 
-clean:
+clear-releases *args:
+    go run -ldflags "-X main.version={{version}}" . --clean {{args}}
+
+clear-build:
     rm -rf dist update-cli

@@ -13,6 +13,7 @@ import (
 	"github.com/r14r/update-cli/lib/backup"
 	"github.com/r14r/update-cli/lib/cleanup"
 	"github.com/r14r/update-cli/lib/config"
+	"github.com/r14r/update-cli/lib/discovery"
 	"github.com/r14r/update-cli/lib/doctor"
 	"github.com/r14r/update-cli/lib/editor"
 	"github.com/r14r/update-cli/lib/history"
@@ -67,6 +68,14 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 		return &ExitError{Code: 2, Err: err}
 	}
 	if o.showHelp {
+		if o.jsonOutput {
+			b, marshalErr := discovery.Marshal(buildVersion)
+			if marshalErr != nil {
+				return marshalErr
+			}
+			_, marshalErr = os.Stdout.Write(append(b, '\n'))
+			return marshalErr
+		}
 		printHelp(buildVersion)
 		return nil
 	}
@@ -79,27 +88,31 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 		return nil
 	}
 	console := ui.New(o.noColor || o.jsonOutput)
+	console.SetApplicationVersion(buildVersion)
+	console.SuppressFinalStatus(o.jsonOutput)
+	defer console.PrintFinalStatus()
 	console.SetDirect(o.noUI)
 	console.SetDetails(o.details || o.noUI)
 	fullscreenTitle := ""
+	fullscreenBase := fmt.Sprintf("Update CLI Version %s", buildVersion)
 	switch {
 	case o.setupManifest != "" || (o.setup && !o.update) || o.setupList || o.setupTask != "" || o.setupWorkflow != "":
-		fullscreenTitle = "Update CLI Setup"
+		fullscreenTitle = fullscreenBase + " — Setup"
 	case o.check:
-		fullscreenTitle = "Update CLI — Versionsprüfung"
+		fullscreenTitle = fullscreenBase + " — Versionsprüfung"
 	case o.update && !o.plan && !o.dryRun:
-		fullscreenTitle = "Update CLI — Update"
+		fullscreenTitle = fullscreenBase + " — Update"
 	}
 	fullscreen := false
 	if fullscreenTitle != "" && !o.jsonOutput {
 		fullscreen = console.StartFullscreen(fullscreenTitle)
 		if fullscreen {
-			switch fullscreenTitle {
-			case "Update CLI Setup":
+			switch {
+			case strings.HasSuffix(fullscreenTitle, "— Setup"):
 				console.SetFooter("RUN  Projekt-Setup läuft")
-			case "Update CLI — Versionsprüfung":
+			case strings.HasSuffix(fullscreenTitle, "— Versionsprüfung"):
 				console.SetFooter("RUN  Versionsprüfung läuft")
-			case "Update CLI — Update":
+			case strings.HasSuffix(fullscreenTitle, "— Update"):
 				console.SetFooter("RUN  Update läuft")
 			}
 		}
@@ -113,15 +126,20 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 		}()
 	}
 	if o.setupManifest != "" {
+		catalog, err := projectsetup.CatalogForManifest(o.setupManifest)
+		if err != nil {
+			return err
+		}
+		console.SetProjectName(catalog.Project)
+		console.SetProjectVersion(installedVersion(filepath.Dir(o.setupManifest)))
 		if o.setupList {
-			catalog, err := projectsetup.CatalogForManifest(o.setupManifest)
-			if err != nil {
-				return err
+			if o.jsonOutput {
+				return writeJSON(catalog)
 			}
 			printSetupCatalog(console, catalog)
 			return nil
 		}
-		_, err := projectsetup.RunStandaloneSelected(ctx, o.setupManifest, console, projectsetup.Selection{Workflow: o.setupWorkflow, Task: o.setupTask})
+		_, err = projectsetup.RunStandaloneSelected(ctx, o.setupManifest, console, projectsetup.Selection{Workflow: o.setupWorkflow, Task: o.setupTask})
 		return err
 	}
 	root, err := config.ResolveRoot(o.rootDir)
@@ -170,28 +188,94 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 			}
 			return nil
 		case o.createYAML:
-			if o.dryRun {
-				text, tech, previewErr := projectsetup.PreviewGeneratedManifest(targetDir)
-				if previewErr != nil {
-					return previewErr
+			from := strings.ToLower(strings.TrimSpace(o.sourceType))
+			if from == "" {
+				from = "project"
+			}
+			if from == "project" {
+				if o.dryRun {
+					text, tech, previewErr := projectsetup.PreviewGeneratedManifest(targetDir)
+					if previewErr != nil {
+						return previewErr
+					}
+					console.Header("setup.yaml Generator — Dry-Run")
+					console.Row("Quelle", "project")
+					console.Row("Projektordner", targetDir)
+					console.Row("Erkannt", strings.Join(tech, ", "))
+					fmt.Print(text)
+					return nil
 				}
-				console.Header("setup.yaml Generator — Dry-Run")
-				console.Row("Projektordner", targetDir)
-				console.Row("Erkannt", strings.Join(tech, ", "))
-				fmt.Print(text)
+				res, createErr := projectsetup.GenerateManifest(targetDir, "", o.force)
+				if createErr != nil {
+					return createErr
+				}
+				console.Header("setup.yaml erstellt")
+				console.Row("Quelle", "project")
+				console.Row("Datei", res.Path)
+				console.Row("Erkannt", strings.Join(res.Technologies, ", "))
+				if res.Overwritten {
+					console.Warn("Vorhandenes setup.yaml wurde mit --force ersetzt")
+				}
+				console.Success("SchemaVersion 2 Manifest wurde erzeugt; vor produktivem Einsatz prüfen")
 				return nil
 			}
-			res, createErr := projectsetup.GenerateManifest(targetDir, "", o.force)
+
+			scriptPath := filepath.Join(targetDir, "setup.sh")
+			targetManifest := filepath.Join(targetDir, "setup.yaml")
+			if !o.dryRun && !o.force {
+				if info, statErr := os.Stat(targetManifest); statErr == nil && !info.IsDir() {
+					return fmt.Errorf("setup.yaml existiert bereits: %s; --force verwenden", targetManifest)
+				} else if statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
+					return statErr
+				}
+			}
+			draft, tech, analysis, previewErr := projectsetup.PreviewGeneratedManifestFromSetupScript(targetDir, scriptPath)
+			if previewErr != nil {
+				return previewErr
+			}
+			finalText := draft
+			var aiResult projectsetup.AIRefineResult
+			if o.withAI {
+				console.Info("Deterministische setup.sh-Konvertierung abgeschlossen; AI-Verfeinerung starten")
+				refined, ai, aiErr := projectsetup.RefineSetupYAMLWithAI(ctx, targetDir, scriptPath, draft)
+				if aiErr != nil {
+					return fmt.Errorf("AI-Konvertierung fehlgeschlagen: %w", aiErr)
+				}
+				finalText = refined
+				aiResult = ai
+			}
+			if o.dryRun {
+				console.Header("setup.yaml Generator — Dry-Run")
+				console.Row("Quelle", "setup-script")
+				console.Row("Setup-Script", scriptPath)
+				console.Row("Erkannte Schritte", fmt.Sprintf("%d", analysis.Steps))
+				console.Row("Erkannt", strings.Join(tech, ", "))
+				if o.withAI {
+					console.Row("AI", aiResult.Provider+" / "+aiResult.Model)
+				}
+				fmt.Print(finalText)
+				return nil
+			}
+			res, analysis, createErr := projectsetup.GenerateManifestFromSetupScript(targetDir, scriptPath, "", o.force, finalText)
 			if createErr != nil {
 				return createErr
 			}
 			console.Header("setup.yaml erstellt")
+			console.Row("Quelle", "setup-script")
+			console.Row("Setup-Script", analysis.Path)
+			console.Row("Erkannte Schritte", fmt.Sprintf("%d", analysis.Steps))
 			console.Row("Datei", res.Path)
 			console.Row("Erkannt", strings.Join(res.Technologies, ", "))
+			if o.withAI {
+				console.Row("AI", aiResult.Provider+" / "+aiResult.Model)
+				if aiResult.PromptPath != "" {
+					console.Row("Prompt", aiResult.PromptPath)
+				}
+			}
 			if res.Overwritten {
 				console.Warn("Vorhandenes setup.yaml wurde mit --force ersetzt")
 			}
-			console.Success("SchemaVersion 2 Manifest wurde erzeugt; vor produktivem Einsatz prüfen")
+			console.Success("setup.sh wurde in ein validiertes SchemaVersion-2-Manifest konvertiert")
 			return nil
 		case o.createSetupScript:
 			if o.dryRun {
@@ -223,6 +307,8 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 			if loadErr != nil {
 				return loadErr
 			}
+			console.SetProjectName(cfg.ProjectName)
+			console.SetProjectVersion(installedVersion(cfg.CurrentDir))
 			if o.setup && !o.setupList && o.setupTask == "" && o.setupWorkflow == "" {
 				_, setupErr := projectsetup.Run(ctx, cfg, console)
 				return setupErr
@@ -235,6 +321,10 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 				catalog, catalogErr := projectsetup.CatalogForManifest(manifest)
 				if catalogErr != nil {
 					return catalogErr
+				}
+				console.SetProjectName(catalog.Project)
+				if o.jsonOutput {
+					return writeJSON(catalog)
 				}
 				printSetupCatalog(console, catalog)
 				return nil
@@ -252,6 +342,8 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 		if !ok {
 			if o.setup && !o.setupList && o.setupTask == "" && o.setupWorkflow == "" {
 				cfg := config.Config{ProjectName: filepath.Base(root), CurrentDir: root}
+				console.SetProjectName(cfg.ProjectName)
+				console.SetProjectVersion(installedVersion(cfg.CurrentDir))
 				_, setupErr := projectsetup.Run(ctx, cfg, console)
 				return setupErr
 			}
@@ -262,9 +354,20 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 			if catalogErr != nil {
 				return catalogErr
 			}
+			console.SetProjectName(catalog.Project)
+			console.SetProjectVersion(installedVersion(filepath.Dir(manifest)))
+			if o.jsonOutput {
+				return writeJSON(catalog)
+			}
 			printSetupCatalog(console, catalog)
 			return nil
 		}
+		catalog, catalogErr := projectsetup.CatalogForManifest(manifest)
+		if catalogErr != nil {
+			return catalogErr
+		}
+		console.SetProjectName(catalog.Project)
+		console.SetProjectVersion(installedVersion(filepath.Dir(manifest)))
 		_, setupErr := projectsetup.RunStandaloneSelected(ctx, manifest, console, selection)
 		return setupErr
 	}
@@ -300,6 +403,8 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 	if err != nil {
 		return err
 	}
+	console.SetProjectName(cfg.ProjectName)
+	console.SetProjectVersion(installedVersion(cfg.CurrentDir))
 	cfg, err = config.WithSourceOverrides(cfg, o.sourceType, firstNonEmpty(o.sourceFolder, o.downloadDir), o.sourceURL, o.repository)
 	if err != nil {
 		return err
@@ -315,6 +420,24 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 		}
 		printHistory(console, entries)
 		return nil
+	case o.clean:
+		lock, err := tools.AcquireLock(filepath.Join(root, ".release-update.lock"), "clean")
+		if err != nil {
+			return err
+		}
+		defer lock.Release()
+		res, err := cleanup.RunReleases(cfg, o.keep, o.plan)
+		if err != nil {
+			return err
+		}
+		if !o.plan {
+			appendSuccessHistory(console, cfg, history.Entry{Action: "clean", ProjectName: cfg.ProjectName, Status: "success", Message: fmt.Sprintf("%d obsolete Releases entfernt", len(res.RemovedRelease))})
+		}
+		if o.jsonOutput {
+			return writeJSON(res)
+		}
+		printCleanup(console, res)
+		return nil
 	case o.cleanup:
 		lock, err := tools.AcquireLock(filepath.Join(root, ".release-update.lock"), "cleanup")
 		if err != nil {
@@ -326,9 +449,7 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 			return err
 		}
 		if !o.plan {
-			if err := appendHistory(cfg, history.Entry{Action: "cleanup", ProjectName: cfg.ProjectName, Status: "success", Message: fmt.Sprintf("%d Releases und %d Backups entfernt", len(res.RemovedRelease), len(res.RemovedBackup))}); err != nil {
-				return err
-			}
+			appendSuccessHistory(console, cfg, history.Entry{Action: "cleanup", ProjectName: cfg.ProjectName, Status: "success", Message: fmt.Sprintf("%d Releases und %d Backups entfernt", len(res.RemovedRelease), len(res.RemovedBackup))})
 		}
 		if o.jsonOutput {
 			return writeJSON(res)
@@ -371,12 +492,12 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 		}
 		printCheck(console, res)
 		if !o.noAsk && console.Interactive() && res.SourceError == "" && (res.Status == updatecheck.StatusUpdateAvailable || res.Status == updatecheck.StatusNotInstalled) {
-			yes, confirmErr := console.Confirm("Update jetzt installieren?", false)
+			yes, confirmErr := console.Confirm("Update jetzt installieren?", true)
 			if confirmErr != nil {
 				return confirmErr
 			}
 			if yes {
-				console.StartFullscreen("Update CLI — Update")
+				console.StartFullscreen(fullscreenBase + " — Update")
 				console.SetFooter("RUN  Update läuft")
 				updateOpts := options{update: true, noWait: o.noWait, wait: o.wait, noUI: o.noUI, noColor: o.noColor}
 				for _, action := range cfg.NoParameterActions {
@@ -387,6 +508,7 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 				return runUpdate(ctx, console, cfg, updateOpts)
 			}
 		}
+		setCheckFinalStatus(console, res)
 		return nil
 	case o.doctor:
 		res := doctor.Run(ctx, root, cfg)
@@ -479,9 +601,7 @@ func runBackup(ctx context.Context, console *ui.Console, cfg config.Config, json
 	if err != nil {
 		return err
 	}
-	if err := appendHistory(cfg, history.Entry{Action: "backup", ProjectName: cfg.ProjectName, FromVersion: res.Backup.Version, Backup: res.Backup.Path, Status: "success"}); err != nil {
-		return err
-	}
+	appendSuccessHistory(console, cfg, history.Entry{Action: "backup", ProjectName: cfg.ProjectName, FromVersion: res.Backup.Version, Backup: res.Backup.Path, Status: "success"})
 	if jsonOut {
 		return writeJSON(res)
 	}
@@ -517,15 +637,21 @@ func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o op
 	}
 
 	phase = "version-policy"
+	var alreadyInstalled *VersionAlreadyInstalledError
 	if err := progress.run("Zielversion und Update-Regeln prüfen", func() error {
-		return enforceVersionPolicy(cfg, s.version, o.allowDowngrade, o.force, o.plan || o.dryRun)
-	}); err != nil {
-		var same *VersionAlreadyInstalledError
-		if errors.As(err, &same) && !o.jsonOutput {
-			console.ErrorNotice(err.Error(), "Phase: "+updatePhaseLabel(phase)+"\nZur erneuten Installation --update --force verwenden")
-			return &ExitError{Code: 1}
+		policyErr := enforceVersionPolicy(cfg, s.version, o.allowDowngrade, o.force, o.plan || o.dryRun)
+		if errors.As(policyErr, &alreadyInstalled) {
+			// Selecting the currently installed version is a successful no-op, not
+			// a failed update phase. --force still bypasses this branch and performs
+			// the existing reinstall path.
+			return nil
 		}
+		return policyErr
+	}); err != nil {
 		return failUpdateBeforeTransaction(console, cfg, s, phase, err)
+	}
+	if alreadyInstalled != nil {
+		return finishAlreadyInstalledUpdate(console, cfg, s, alreadyInstalled)
 	}
 
 	s.releaseDir = filepath.Join(cfg.ReleaseRoot, s.version.String())
@@ -630,7 +756,7 @@ func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o op
 	}
 	setupConfirmedInteractively := false
 	if !o.noSetup && !o.setup && setupAvailable && console.Interactive() {
-		yes, confirmErr := console.Confirm("Projekt-Setup ist verfügbar. Jetzt ausführen?", false)
+		yes, confirmErr := console.Confirm("Projekt-Setup ist verfügbar. Jetzt ausführen?", true)
 		if confirmErr != nil {
 			return recoverOnError(confirmErr)
 		}
@@ -669,7 +795,11 @@ func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o op
 			return recoverOnError(err)
 		}
 	} else {
-		progress.skip("Vorher laufende Docker-Dienste starten", "vor dem Update war kein Compose-Stack aktiv")
+		reason := tx.dockerSkipReason
+		if reason == "" {
+			reason = "vor dem Update war kein Compose-Stack aktiv"
+		}
+		progress.skip("Vorher laufende Docker-Dienste starten", reason)
 	}
 
 	phase = "healthcheck"
@@ -721,11 +851,20 @@ func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o op
 		console.Warn("Legacy-Release-Marker konnten nicht vollständig geschrieben werden: " + err.Error())
 	}
 	entry := history.Entry{Action: "update", ProjectName: cfg.ProjectName, FromVersion: s.fromVersion, ToVersion: s.version.String(), Source: sourceRef(s), Backup: backupPath, Setup: runSetup, Status: "success", Phase: "committed"}
-	if err := appendHistory(cfg, entry); err != nil {
-		console.ErrorNotice("Update installiert, Historie konnte nicht geschrieben werden", err.Error())
-		return err
-	}
+	appendSuccessHistory(console, cfg, entry)
+	console.SetProjectVersion(s.version.String())
 	printUpdateResult(console, s, runSetup)
+	return nil
+}
+
+func finishAlreadyInstalledUpdate(console *ui.Console, cfg config.Config, s *state, same *VersionAlreadyInstalledError) error {
+	version := strings.TrimSpace(same.Version)
+	if version == "" {
+		version = s.version.String()
+	}
+	console.SuccessBanner(fmt.Sprintf("Version %s ist bereits installiert", version))
+	console.SetFinishFooter("Update beenden")
+	console.SetFinalStatus(cfg.ProjectName, "Installierte Version: v"+version)
 	return nil
 }
 
@@ -871,9 +1010,7 @@ func runRollback(ctx context.Context, console *ui.Console, cfg config.Config, o 
 	if err := writeLegacyRootMarkers(cfg, rel.Version, "rollback:"+rel.Version); err != nil {
 		console.Warn("Legacy-Release-Marker konnten nicht vollständig geschrieben werden: " + err.Error())
 	}
-	if err := appendHistory(cfg, history.Entry{Action: "rollback", ProjectName: cfg.ProjectName, FromVersion: from, ToVersion: rel.Version, Setup: o.setup, Status: "success", Phase: "committed"}); err != nil {
-		return err
-	}
+	appendSuccessHistory(console, cfg, history.Entry{Action: "rollback", ProjectName: cfg.ProjectName, FromVersion: from, ToVersion: rel.Version, Setup: o.setup, Status: "success", Phase: "committed"})
 	if o.jsonOutput {
 		return writeJSON(res)
 	}
@@ -915,9 +1052,7 @@ func runRestore(ctx context.Context, console *ui.Console, cfg config.Config, o o
 	if err := writeLegacyRootMarkers(cfg, to, "backup:"+item.Name); err != nil {
 		console.Warn("Legacy-Release-Marker konnten nicht vollständig geschrieben werden: " + err.Error())
 	}
-	if err := appendHistory(cfg, history.Entry{Action: "restore", ProjectName: cfg.ProjectName, FromVersion: from, ToVersion: to, Backup: item.Path, Status: "success", Phase: "committed"}); err != nil {
-		return err
-	}
+	appendSuccessHistory(console, cfg, history.Entry{Action: "restore", ProjectName: cfg.ProjectName, FromVersion: from, ToVersion: to, Backup: item.Path, Status: "success", Phase: "committed"})
 	if o.jsonOutput {
 		return writeJSON(map[string]any{"backup": item, "sync": res, "fromVersion": from, "toVersion": to})
 	}
@@ -974,9 +1109,6 @@ func prepareContent(ctx context.Context, s *state) error {
 		s.contentDir = s.artifact.ContentDir
 		return nil
 	}
-	if err := archive.Validate(ctx, s.artifact.ArchivePath, limits); err != nil {
-		return err
-	}
 	if err := archive.Extract(ctx, s.artifact.ArchivePath, s.extractDir, limits); err != nil {
 		return err
 	}
@@ -1007,10 +1139,13 @@ func prepareRelease(ctx context.Context, s *state, simulation bool) error {
 	if err := os.MkdirAll(s.cfg.ReleaseRoot, 0o755); err != nil {
 		return err
 	}
-	stage := filepath.Join(s.cfg.ReleaseRoot, fmt.Sprintf(".%s.new-%d", s.version.String(), os.Getpid()))
-	_ = tools.RemoveTree(stage)
-	if err := os.MkdirAll(stage, 0o755); err != nil {
-		return err
+	stage, err := os.MkdirTemp(s.cfg.ReleaseRoot, "."+s.version.String()+".new-")
+	if err != nil {
+		return fmt.Errorf("Release-Staging kann nicht erstellt werden: %w", err)
+	}
+	if err := os.Chmod(stage, 0o755); err != nil {
+		_ = tools.RemoveTree(stage)
+		return fmt.Errorf("Release-Staging kann nicht vorbereitet werden: %w", err)
 	}
 	r, err := rsyncutil.Release(ctx, s.contentDir, stage, log)
 	if err != nil {
@@ -1121,7 +1256,7 @@ func enforceVersionPolicy(c config.Config, target versionutil.Version, allow, fo
 	if !found {
 		return nil
 	}
-	cmp := target.Compare(installed)
+	cmp := versionutil.CompareForProject(c.ProjectName, target, installed)
 	if cmp < 0 && !allow {
 		return fmt.Errorf("Downgrade wird blockiert: installiert %s, ausgewählt %s; --allow-downgrade verwenden", installed.String(), target.String())
 	}
@@ -1147,6 +1282,17 @@ func sourceRef(s *state) string {
 	return s.artifact.ArchivePath
 }
 func appendHistory(c config.Config, e history.Entry) error { return history.Append(c.HistoryFile, e) }
+
+// appendSuccessHistory treats history as audit metadata, not as part of the
+// filesystem transaction. Once an operation has committed successfully, an
+// unavailable history file must not turn that success into a false operational
+// failure. The warning is written to stderr and therefore preserves JSON-only
+// stdout for structured commands.
+func appendSuccessHistory(console *ui.Console, c config.Config, e history.Entry) {
+	if err := appendHistory(c, e); err != nil {
+		console.Warn("Vorgang erfolgreich, Historie konnte nicht geschrieben werden: " + err.Error())
+	}
+}
 func recordFailure(c config.Config, action, phase, from, to, src string, cause error) error {
 	hErr := appendHistory(c, history.Entry{Action: action, Phase: phase, ProjectName: c.ProjectName, FromVersion: from, ToVersion: to, Source: src, Status: "failed", Message: cause.Error()})
 	if hErr != nil {
@@ -1186,16 +1332,13 @@ func verifyArchive(ctx context.Context, c config.Config, explicit string) (verif
 	if s.artifact.Type == source.Repository {
 		return verificationResult{}, errors.New("--verify erwartet ein ZIP-Archiv")
 	}
-	stats, err := archive.Inspect(ctx, s.artifact.ArchivePath, archiveLimits(c))
-	if err != nil {
-		return verificationResult{}, err
-	}
 	tmp, err := os.MkdirTemp("", "update-cli-verify-*")
 	if err != nil {
 		return verificationResult{}, err
 	}
 	defer tools.RemoveTree(tmp)
-	if err := archive.Extract(ctx, s.artifact.ArchivePath, tmp, archiveLimits(c)); err != nil {
+	stats, err := archive.ExtractWithStats(ctx, s.artifact.ArchivePath, tmp, archiveLimits(c))
+	if err != nil {
 		return verificationResult{}, err
 	}
 	root, err := archive.ResolveContentRoot(tmp)
@@ -1264,6 +1407,23 @@ func initialize(console *ui.Console, root string, o options) error {
 	return nil
 }
 func runConfig(ctx context.Context, console *ui.Console, root string, o options) error {
+	if len(o.configSet) > 0 {
+		result, err := config.Set(root, o.configSet)
+		if err != nil {
+			return err
+		}
+		if o.jsonOutput {
+			return writeJSON(result)
+		}
+		console.Header("Updater-Konfiguration geändert")
+		console.Row("Datei", result.ConfigFile)
+		for _, change := range result.Changes {
+			b, _ := json.Marshal(change.Value)
+			console.Row(change.Key, string(b))
+		}
+		console.Success("config.json wurde aktualisiert und validiert")
+		return nil
+	}
 	cfg, err := config.Load(root, "")
 	if err != nil {
 		return err

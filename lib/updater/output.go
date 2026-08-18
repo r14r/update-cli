@@ -37,11 +37,13 @@ Usage:
   update-cli --setup-workflow NAME [--details] [--no-ui]
   update-cli --setup-manifest ./setup.yaml [--setup-list|--setup-task NAME|--setup-workflow NAME] [--details] [--wait|--no-wait] [--no-ui]
   update-cli --convert-yaml [--dry-run]
-  update-cli --create-yaml [--force] [--dry-run]
+  update-cli --create-yaml [--from project|setup-script] [--with-ai] [--force] [--dry-run]
   update-cli --create-setup-script [--force] [--dry-run]
+  update-cli --clean [--keep N] [--plan]
   update-cli --cleanup [--keep N] [--plan]
   update-cli --history [--limit N]
-  update-cli --config [--list|--edit|--use-template NAME]
+  update-cli config [--set KEY=VALUE ...] [--list|--edit|--use-template NAME]
+  update-cli --config [--set KEY=VALUE ...] [--list|--edit|--use-template NAME]
   update-cli --templates --list [--details]
   update-cli --init PROJECTNAME
   update-cli --upgrade
@@ -64,10 +66,16 @@ Safety model:
   * setup.yaml schemaVersion 2 adds workflows, reusable tasks, dependencies, variables, requirements, structured conditions and typed project operations.
   * --setup runs workflow 'setup'; --setup-list shows available workflows/tasks; --setup-task and --setup-workflow run a selected entry.
   * --convert-yaml upgrades setup.yaml to the newest supported schema and keeps a backup of schemaVersion 1.
-  * --create-yaml detects Go, Python, Node, Laravel and Docker files and generates a schemaVersion 2 sample manifest.
+  * --create-yaml --from project detects Go, Python, Node, Laravel and Docker files and generates a schemaVersion 2 sample manifest.
+  * --create-yaml --from setup-script analyzes setup.sh and converts the detected ordered operations into schemaVersion 2.
+  * --with-ai optionally refines the deterministic setup.sh conversion using a configured Ollama or OpenAI-compatible model; the AI result must validate as schemaVersion 2.
   * --create-setup-script generates a generic setup.sh bootstrap that delegates execution to Update CLI.
+  * --clean removes obsolete release-directory entries only; installed and rollback-safe previous releases are preserved and backups are untouched.
+  * --cleanup applies the broader configured retention policy to releases and backups.
+  * config --set KEY=VALUE changes config.json values by dotted JSON path; multiple --set options are validated and written atomically.
   * Legacy setup.sh/config.setup.commands remain as fallback.
   * Interactive check/update/setup use the fullscreen TUI by default; --no-ui or UPDATE_CLI_TUI=plain disables it.
+  * --noui is accepted as an alias for --no-ui.
   * --no-ui streams setup/process output directly to stdout/stderr without alternate-screen rendering.
 
 Release archive:
@@ -103,12 +111,21 @@ func printHistory(c *ui.Console, e []history.Entry) {
 }
 func printCleanup(c *ui.Console, r cleanup.Result) {
 	title := "Cleanup abgeschlossen"
+	if r.ReleaseOnly {
+		title = "Release-Cleanup abgeschlossen"
+	}
 	if r.Plan {
-		title = "Cleanup-Plan"
+		if r.ReleaseOnly {
+			title = "Release-Cleanup-Plan"
+		} else {
+			title = "Cleanup-Plan"
+		}
 	}
 	c.Header(title)
 	c.Row("Releases entfernen", fmt.Sprint(len(r.RemovedRelease)))
-	c.Row("Backups entfernen", fmt.Sprint(len(r.RemovedBackup)))
+	if !r.ReleaseOnly {
+		c.Row("Backups entfernen", fmt.Sprint(len(r.RemovedBackup)))
+	}
 	for _, p := range r.RemovedRelease {
 		fmt.Fprintln(os.Stdout, "  -", p)
 	}
@@ -146,6 +163,7 @@ func printStatus(c *ui.Console, r projectstatus.Result) {
 	c.Row("Installiert", empty(r.InstalledVersion))
 	c.Row("Verfügbar", empty(r.AvailableVersion))
 	c.Row("Setup", fmt.Sprintf("%t %s", r.SetupAvailable, r.SetupPath))
+	c.Row("Docker lifecycle", r.DockerLifecycle)
 	c.Row("Backups", fmt.Sprint(r.BackupCount))
 	c.Row("Status", r.State)
 	if r.SourceError != "" {
@@ -211,9 +229,12 @@ func printVerify(c *ui.Console, r verificationResult) {
 	c.Success("Archiv ist gültig")
 }
 func printUpdatePlan(c *ui.Console, s *state, o options) {
-	title := fmt.Sprintf("Release Update     from %s to %s", empty(s.fromVersion), s.version.String())
+	fromVersion := empty(s.fromVersion)
+	toVersion := s.version.String()
+	updateValue := fmt.Sprintf("from %s to %s", fromVersion, toVersion)
 	if c.Fullscreen() {
-		c.SetInfoTitle(title)
+		c.SetInfoTitle("")
+		c.InfoHighlightedRow("Release Update", updateValue, toVersion)
 		c.InfoRow("Projekt", s.cfg.ProjectName)
 		c.InfoRow("Quelle", sourceRef(s))
 		c.InfoRow("Release", s.releaseDir)
@@ -226,7 +247,8 @@ func printUpdatePlan(c *ui.Console, s *state, o options) {
 		}
 		return
 	}
-	c.Banner(title)
+	c.Banner("Update-Plan")
+	c.InfoHighlightedRow("Release Update", updateValue, toVersion)
 	c.Row("Projekt", s.cfg.ProjectName)
 	c.Row("Quelle", sourceRef(s))
 	c.Row("Release", s.releaseDir)
@@ -256,6 +278,7 @@ func printDryRun(c *ui.Console, s *state) {
 	c.Success("Dateisystem unverändert")
 }
 func printUpdateResult(c *ui.Console, s *state, setup bool) {
+	c.SetFinalStatus(s.cfg.ProjectName, "Aktualisiert auf Version: v"+s.version.String())
 	if c.Fullscreen() {
 		c.SetFooterSuccess("OK   Update abgeschlossen")
 		return
@@ -268,6 +291,14 @@ func printUpdateResult(c *ui.Console, s *state, setup bool) {
 	c.Row("Current", s.cfg.CurrentDir)
 	c.Row("Setup", fmt.Sprint(setup))
 	c.Success("Update committed")
+}
+
+func setCheckFinalStatus(c *ui.Console, r updatecheck.Result) {
+	if r.InstalledFound && strings.TrimSpace(r.InstalledVersion) != "" {
+		c.SetFinalStatus(r.ProjectName, "Installierte Version: v"+r.InstalledVersion)
+		return
+	}
+	c.SetFinalStatus(r.ProjectName, "Keine Version installiert")
 }
 func empty(s string) string {
 	if strings.TrimSpace(s) == "" {

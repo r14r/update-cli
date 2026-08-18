@@ -62,3 +62,47 @@ func TestValidateTreeRejectsSymlink(t *testing.T) {
 		t.Fatalf("expected symlink rejection, got %v", err)
 	}
 }
+
+func TestExtractWithStatsReturnsStatsAndExtracts(t *testing.T) {
+	p := makeZip(t, map[string]string{"VERSION": "1.2.3", "dir/file.txt": "payload"})
+	dest := t.TempDir()
+	stats, err := ExtractWithStats(context.Background(), p, dest, Limits{MaxEntries: 100, MaxFileBytes: 1000, MaxUncompressedBytes: 10000, MaxCompressionRatio: 1000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stats.Files != 2 || stats.UncompressedBytes == 0 {
+		t.Fatalf("unexpected stats: %+v", stats)
+	}
+	b, err := os.ReadFile(filepath.Join(dest, "dir", "file.txt"))
+	if err != nil || string(b) != "payload" {
+		t.Fatalf("unexpected extracted file: %q, %v", b, err)
+	}
+}
+
+func TestRejectsDuplicateZipPath(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "duplicate.zip")
+	f, err := os.Create(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := zip.NewWriter(f)
+	for _, body := range []string{"first", "second"} {
+		e, err := w.Create("same.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := e.Write([]byte(body)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	_, err = ExtractWithStats(context.Background(), p, t.TempDir(), Limits{MaxEntries: 100, MaxFileBytes: 1000, MaxUncompressedBytes: 10000, MaxCompressionRatio: 1000})
+	if err == nil || !strings.Contains(err.Error(), "doppelter ZIP-Pfad") {
+		t.Fatalf("expected duplicate path rejection, got %v", err)
+	}
+}

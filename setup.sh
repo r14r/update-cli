@@ -8,7 +8,7 @@ FORWARD_ARGS=()
 
 usage() {
     cat <<'TXT'
-Usage: ./setup.sh [--details] [--wait|--no-wait] [--fullscreen|--no-fullscreen] [--no-ui] [--list|--task NAME|--workflow NAME] [--config FILE]
+Usage: ./setup.sh [--details] [--wait|--no-wait] [--fullscreen|--no-fullscreen] [--no-ui|--noui] [--list|--task NAME|--workflow NAME] [--config FILE]
 TXT
 }
 
@@ -32,7 +32,7 @@ while (($# > 0)); do
             FORWARD_ARGS+=("--setup-workflow" "$2")
             shift 2
             ;;
-        --no-ui|---no-ui)
+        --no-ui|--noui|---no-ui)
             export UPDATE_CLI_TUI=plain
             FORWARD_ARGS+=("--no-ui")
             shift
@@ -68,12 +68,19 @@ done
 
 manifest_schema() {
     awk '
-        /^[[:space:]]*(schemaVersion|version)[[:space:]]*:/ {
+        /^[[:space:]]*schemaVersion[[:space:]]*:/ {
             line=$0
             sub(/^[^:]*:[[:space:]]*/, "", line)
             gsub(/[[:space:]#].*$/, "", line)
-            if (line ~ /^[0-9]+$/) { print line; exit }
+            if (line ~ /^[0-9]+$/) { print line; found=1; exit }
         }
+        /^[[:space:]]*version[[:space:]]*:/ {
+            line=$0
+            sub(/^[^:]*:[[:space:]]*/, "", line)
+            gsub(/[[:space:]#].*$/, "", line)
+            if (line ~ /^[0-9]+$/) { legacy=line }
+        }
+        END { if (!found && legacy != "") print legacy }
     ' "$1"
 }
 

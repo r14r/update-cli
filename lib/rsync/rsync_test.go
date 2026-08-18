@@ -22,9 +22,11 @@ func TestCurrentPreservesPersistentPaths(t *testing.T) {
 	must(filepath.Join(src, "app.txt"), "new")
 	must(filepath.Join(src, "data", "db.txt"), "release-data")
 	must(filepath.Join(src, ".env"), "release-secret")
+	must(filepath.Join(src, ".gitignore"), "release-ignore")
 	must(filepath.Join(dst, "app.txt"), "old")
 	must(filepath.Join(dst, "data", "db.txt"), "user-data")
 	must(filepath.Join(dst, ".env"), "user-secret")
+	must(filepath.Join(dst, ".gitignore"), "user-ignore")
 	_, err := Current(context.Background(), src, dst, log, false, []string{"data/", ".env"})
 	if err != nil {
 		t.Fatal(err)
@@ -40,6 +42,10 @@ func TestCurrentPreservesPersistentPaths(t *testing.T) {
 	b, _ = os.ReadFile(filepath.Join(dst, ".env"))
 	if string(b) != "user-secret" {
 		t.Fatalf("env overwritten: %q", b)
+	}
+	b, _ = os.ReadFile(filepath.Join(dst, ".gitignore"))
+	if string(b) != "user-ignore" {
+		t.Fatalf(".gitignore overwritten: %q", b)
 	}
 }
 func TestSnapshotExcludesSecrets(t *testing.T) {
@@ -62,5 +68,19 @@ func TestSnapshotExcludesSecrets(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dst, "app.txt")); err != nil {
 		t.Fatal("app.txt missing")
+	}
+}
+
+func TestMandatoryPreserveAlwaysIncludesGitignore(t *testing.T) {
+	got := mandatoryPreserve([]string{"data/", ".env"})
+	found := false
+	for _, value := range got {
+		if value == ".gitignore" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("mandatory preserve paths do not include .gitignore: %#v", got)
 	}
 }

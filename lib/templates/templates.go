@@ -25,7 +25,7 @@ type File struct {
 }
 
 func Defaults() File {
-	return File{SchemaVersion: 1, Templates: []Template{{Name: "Go", Description: "Go project with setup prompt", NoParameter: []string{"update"}}, {Name: "FastAPI", Description: "Python/FastAPI project", NoParameter: []string{"update"}, Preserve: []string{".git/", ".venv/", ".env", ".env.*", "data/", "storage/", "uploads/", "media/", "logs/", "var/"}}, {Name: "Laravel", Description: "Laravel project", NoParameter: []string{"update"}, Preserve: []string{".git/", ".env", ".env.*", "storage/", "uploads/", "media/", "logs/"}}, {Name: "Docker", Description: "Docker Compose project", NoParameter: []string{"update"}, Preserve: []string{".git/", ".env", ".env.*", "data/", "storage/", "uploads/", "media/", "logs/", "var/"}}}}
+	return File{SchemaVersion: 1, Templates: []Template{{Name: "Go", Description: "Go project with setup prompt", NoParameter: []string{"check"}}, {Name: "FastAPI", Description: "Python/FastAPI project", NoParameter: []string{"check"}, Preserve: []string{".git/", ".gitignore", ".venv/", ".env", ".env.*", "data/", "storage/", "uploads/", "media/", "logs/", "var/"}}, {Name: "Laravel", Description: "Laravel project", NoParameter: []string{"check"}, Preserve: []string{".git/", ".gitignore", ".env", ".env.*", "storage/", "uploads/", "media/", "logs/"}}, {Name: "Docker", Description: "Docker Compose project", NoParameter: []string{"check"}, Preserve: []string{".git/", ".gitignore", ".env", ".env.*", "data/", "storage/", "uploads/", "media/", "logs/", "var/"}}}}
 }
 func Ensure(path string) error {
 	if _, err := os.Stat(path); err == nil {

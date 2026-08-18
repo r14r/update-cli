@@ -188,3 +188,170 @@ steps:
 		t.Fatalf("expected indentation diagnostic, got %v", err)
 	}
 }
+
+func TestParseManifestAcceptsProjectSlug(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "setup.yaml")
+	data := `schemaVersion: 1
+project:
+  name: Demo
+  slug: demo-cli
+steps:
+  - id: test
+    name: Test
+    run: echo ok
+`
+	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m, err := ParseManifest(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.ProjectSlug != "demo-cli" {
+		t.Fatalf("slug = %q", m.ProjectSlug)
+	}
+}
+
+func TestParseStructuredSchema1ManifestWithVersionMap(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "setup.yaml")
+	manifest := `schemaVersion: 1
+
+project:
+  name: x-cli
+  slug: x-cli
+  description: x-cli prüfen, testen und bauen
+
+version:
+  file: VERSION
+  required: true
+  pattern: '^[0-9]+\.[0-9]+\.[0-9]+$'
+
+build:
+  configFile: ''
+  distDir: bin
+  binaryName: x-cli
+
+runtime:
+  requiredCommands:
+    - go
+  optionalCommands:
+    - just
+
+go:
+  package: ./...
+  buildPackage: ./cmd/x-cli
+  ldflagsTemplate: >-
+    -s -w
+    -X github.com/r14r/x-cli/internal/version.Version={{VERSION}}
+    -X github.com/r14r/x-cli/internal/version.Commit={{COMMIT}}
+    -X github.com/r14r/x-cli/internal/version.Date={{BUILD_DATE}}
+
+setup:
+  steps:
+    - pre-commands
+    - go-mod-download
+    - go-vet
+    - go-test
+    - custom-commands
+    - go-build
+    - binary-version-check
+    - post-commands
+
+commands:
+  pre:
+    - gofmt -w cmd internal
+  just: []
+  custom: []
+  post:
+    - ./bin/x-cli doctor
+    - >-
+      if [ -d /usr/local/bin ] && [ -w /usr/local/bin ]; then
+        install -m 0755 ./bin/x-cli /usr/local/bin/x-cli;
+      else
+        sudo mkdir -p /usr/local/bin && sudo install -m 0755 ./bin/x-cli /usr/local/bin/x-cli;
+      fi
+    - /usr/local/bin/x-cli --version
+    - /usr/local/bin/x-cli doctor
+`
+	if err := os.WriteFile(filepath.Join(root, "VERSION"), []byte("1.2.3\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m, err := ParseManifest(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Version != 1 || !m.LegacySchema || m.ProjectSlug != "x-cli" || m.ProjectVersion != "1.2.3" {
+		t.Fatalf("unexpected manifest metadata: %#v", m)
+	}
+	if len(m.Steps) != 8 {
+		t.Fatalf("steps = %d, want 8: %#v", len(m.Steps), m.Steps)
+	}
+	if m.Steps[0].ID != "pre-commands" || !strings.Contains(m.Steps[0].Command, "gofmt -w cmd internal") {
+		t.Fatalf("unexpected pre step: %#v", m.Steps[0])
+	}
+	build := m.Steps[5].Command
+	for _, marker := range []string{"./cmd/x-cli", "bin/x-cli", "${VERSION_VALUE}", "${COMMIT_VALUE}", "${BUILD_DATE_VALUE}"} {
+		if !strings.Contains(build, marker) {
+			t.Fatalf("build command missing %q:\n%s", marker, build)
+		}
+	}
+	post := m.Steps[7].Command
+	if !strings.Contains(post, "install -m 0755 ./bin/x-cli /usr/local/bin/x-cli") || !strings.Contains(post, "/usr/local/bin/x-cli doctor") {
+		t.Fatalf("unexpected post command:\n%s", post)
+	}
+}
+
+func TestRunStructuredSchema1CommandGroups(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "setup.yaml")
+	manifest := `schemaVersion: 1
+project:
+  name: demo
+  slug: demo
+version:
+  file: VERSION
+  required: true
+  pattern: '^[0-9]+\.[0-9]+\.[0-9]+$'
+build:
+  distDir: bin
+  binaryName: demo
+runtime:
+  requiredCommands: []
+  optionalCommands: []
+setup:
+  steps:
+    - pre-commands
+    - custom-commands
+    - post-commands
+commands:
+  pre:
+    - printf pre > pre.txt
+  custom:
+    - printf custom > custom.txt
+  post:
+    - printf post > post.txt
+`
+	if err := os.WriteFile(filepath.Join(root, "VERSION"), []byte("1.0.0\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, err := RunStandalone(context.Background(), path, ui.New(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.StepsExecuted != 3 {
+		t.Fatalf("steps executed = %d, want 3", res.StepsExecuted)
+	}
+	for _, name := range []string{"pre.txt", "custom.txt", "post.txt"} {
+		if _, err := os.Stat(filepath.Join(root, name)); err != nil {
+			t.Fatalf("%s not created: %v", name, err)
+		}
+	}
+}

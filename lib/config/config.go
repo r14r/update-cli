@@ -57,6 +57,10 @@ type SecurityConfig struct {
 	MaxEntries           int     `json:"maxEntries"`
 	MaxCompressionRatio  float64 `json:"maxCompressionRatio"`
 }
+type DockerConfig struct {
+	Lifecycle string `json:"lifecycle"`
+}
+
 type HealthcheckConfig struct {
 	Type           string `json:"type,omitempty"`
 	URL            string `json:"url,omitempty"`
@@ -93,6 +97,7 @@ type FileConfig struct {
 	Retention     *RetentionConfig   `json:"retention,omitempty"`
 	Sync          *SyncConfig        `json:"sync,omitempty"`
 	Security      *SecurityConfig    `json:"security,omitempty"`
+	Docker        *DockerConfig      `json:"docker,omitempty"`
 	Healthcheck   *HealthcheckConfig `json:"healthcheck,omitempty"`
 }
 
@@ -116,6 +121,7 @@ type Config struct {
 	LegacySetupCommands []string          `json:"legacySetupCommands,omitempty"`
 	Preserve            []string          `json:"preserve"`
 	Security            SecurityConfig    `json:"security"`
+	Docker              DockerConfig      `json:"docker"`
 	Healthcheck         HealthcheckConfig `json:"healthcheck"`
 	HistoryFile         string            `json:"historyFile"`
 	TemplatesFile       string            `json:"templatesFile"`
@@ -136,13 +142,30 @@ type UpgradeResult struct {
 }
 
 func defaultPreserve() []string {
-	return []string{".git/", ".venv/", ".env", ".env.*", "data/", "storage/", "uploads/", "media/", "logs/", "var/"}
+	return []string{".git/", ".gitignore", ".venv/", ".env", ".env.*", "data/", "storage/", "uploads/", "media/", "logs/", "var/"}
 }
+func ensurePreserve(values []string, required ...string) []string {
+	out := append([]string(nil), values...)
+	seen := make(map[string]bool, len(out))
+	for _, value := range out {
+		seen[filepath.ToSlash(strings.TrimSpace(value))] = true
+	}
+	for _, value := range required {
+		key := filepath.ToSlash(strings.TrimSpace(value))
+		if key == "" || seen[key] {
+			continue
+		}
+		out = append(out, value)
+		seen[key] = true
+	}
+	return out
+}
+
 func defaultSecurity() SecurityConfig {
 	return SecurityConfig{MaxArchiveBytes: 2 << 30, MaxUncompressedBytes: 8 << 30, MaxFileBytes: 2 << 30, MaxEntries: 100000, MaxCompressionRatio: 200}
 }
 func defaultFile(project string) FileConfig {
-	return FileConfig{SchemaVersion: SchemaVersion, ProjectName: project, Source: &SourceConfig{Type: "download", Folder: buildconfig.Current().DefaultDownloadFolder}, ReleaseDir: "release", CurrentDir: "current", NoParameter: NoParameterConfig{"help"}, Setup: &SetupConfig{Commands: []string{}}, Backup: &BackupConfig{Directory: "backup", Keep: 3}, Retention: &RetentionConfig{Releases: 5}, Sync: &SyncConfig{Preserve: defaultPreserve()}, Security: ptrSecurity(defaultSecurity()), Healthcheck: &HealthcheckConfig{}}
+	return FileConfig{SchemaVersion: SchemaVersion, ProjectName: project, Source: &SourceConfig{Type: "download", Folder: buildconfig.Current().DefaultDownloadFolder}, ReleaseDir: "release", CurrentDir: "current", NoParameter: NoParameterConfig{"check"}, Setup: &SetupConfig{Commands: []string{}}, Backup: &BackupConfig{Directory: "backup", Keep: 3}, Retention: &RetentionConfig{Releases: 5}, Sync: &SyncConfig{Preserve: defaultPreserve()}, Security: ptrSecurity(defaultSecurity()), Docker: &DockerConfig{Lifecycle: "auto"}, Healthcheck: &HealthcheckConfig{}}
 }
 func ptrSecurity(s SecurityConfig) *SecurityConfig { return &s }
 
@@ -273,6 +296,10 @@ func Load(root, downloadOverride string) (Config, error) {
 	}
 	pres := append([]string(nil), fc.Sync.Preserve...)
 	sec := *fc.Security
+	docker := DockerConfig{Lifecycle: "auto"}
+	if fc.Docker != nil {
+		docker = *fc.Docker
+	}
 	hc := HealthcheckConfig{}
 	if fc.Healthcheck != nil {
 		hc = *fc.Healthcheck
@@ -281,7 +308,7 @@ func Load(root, downloadOverride string) (Config, error) {
 	if fc.Setup != nil {
 		legacy = append(legacy, fc.Setup.Commands...)
 	}
-	return Config{RootDir: root, ConfigDir: filepath.Join(root, ConfigDirName), ConfigFile: file, ProjectName: fc.ProjectName, Source: src, SourceType: src.Type, SourceFolder: src.Folder, SourceURL: src.URL, SourceRepository: src.Repository, DownloadDir: src.Folder, ReleaseRoot: rel, CurrentDir: cur, BackupRoot: back, KeepBackups: keepB, KeepReleases: keepR, NoParameterActions: append([]string(nil), fc.NoParameter...), LegacySetupCommands: legacy, Preserve: pres, Security: sec, Healthcheck: hc, HistoryFile: filepath.Join(root, ConfigDirName, "history.jsonl"), TemplatesFile: filepath.Join(root, ConfigDirName, TemplatesFileName), GlobalConfigDir: gdir, GlobalTemplatesFile: filepath.Join(gdir, TemplatesFileName)}, nil
+	return Config{RootDir: root, ConfigDir: filepath.Join(root, ConfigDirName), ConfigFile: file, ProjectName: fc.ProjectName, Source: src, SourceType: src.Type, SourceFolder: src.Folder, SourceURL: src.URL, SourceRepository: src.Repository, DownloadDir: src.Folder, ReleaseRoot: rel, CurrentDir: cur, BackupRoot: back, KeepBackups: keepB, KeepReleases: keepR, NoParameterActions: append([]string(nil), fc.NoParameter...), LegacySetupCommands: legacy, Preserve: pres, Security: sec, Docker: docker, Healthcheck: hc, HistoryFile: filepath.Join(root, ConfigDirName, "history.jsonl"), TemplatesFile: filepath.Join(root, ConfigDirName, TemplatesFileName), GlobalConfigDir: gdir, GlobalTemplatesFile: filepath.Join(gdir, TemplatesFileName)}, nil
 }
 func WithSourceOverrides(c Config, kind, folder, u, repo string) (Config, error) {
 	kind = strings.TrimSpace(strings.ToLower(kind))
@@ -479,6 +506,8 @@ func migrate(v FileConfig) (FileConfig, bool, error) {
 	}
 	if len(v.Sync.Preserve) == 0 {
 		v.Sync.Preserve = defaultPreserve()
+	} else {
+		v.Sync.Preserve = ensurePreserve(v.Sync.Preserve, ".gitignore")
 	}
 	if v.Security == nil {
 		v.Security = ptrSecurity(defaultSecurity())
@@ -500,6 +529,13 @@ func migrate(v FileConfig) (FileConfig, bool, error) {
 			v.Security.MaxCompressionRatio = d.MaxCompressionRatio
 		}
 	}
+	if v.Docker == nil {
+		v.Docker = &DockerConfig{Lifecycle: "auto"}
+	}
+	if strings.TrimSpace(v.Docker.Lifecycle) == "" {
+		v.Docker.Lifecycle = "auto"
+	}
+	v.Docker.Lifecycle = strings.ToLower(strings.TrimSpace(v.Docker.Lifecycle))
 	if v.Healthcheck == nil {
 		v.Healthcheck = &HealthcheckConfig{}
 	}
@@ -556,6 +592,13 @@ func validateFile(v FileConfig) error {
 	}
 	if v.Source.Type == "url" && strings.HasPrefix(strings.ToLower(v.Source.URL), "http://") && !s.AllowHTTP {
 		return errors.New("unsichere HTTP-Quelle ist deaktiviert; security.allowHttp=true wäre erforderlich")
+	}
+	if v.Docker != nil {
+		switch strings.ToLower(strings.TrimSpace(v.Docker.Lifecycle)) {
+		case "auto", "disabled", "required":
+		default:
+			return fmt.Errorf("ungültiger Docker-Lifecycle %q; erlaubt: auto, disabled, required", v.Docker.Lifecycle)
+		}
 	}
 	if v.Healthcheck != nil {
 		switch v.Healthcheck.Type {

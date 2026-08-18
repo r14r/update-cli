@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 func EnsureDir(path string) error {
@@ -39,8 +40,10 @@ func SwapDirectory(stage, target string) (*DirectorySwap, error) {
 	if _, err := os.Stat(stage); err != nil {
 		return nil, fmt.Errorf("Staging-Ordner fehlt: %w", err)
 	}
-	backup := target + fmt.Sprintf(".old-%d", os.Getpid())
-	_ = RemoveTree(backup)
+	backup, err := uniqueSwapBackupPath(target)
+	if err != nil {
+		return nil, err
+	}
 	swap := &DirectorySwap{Target: target, Backup: backup}
 	if _, err := os.Stat(target); err == nil {
 		swap.HadTarget = true
@@ -57,6 +60,19 @@ func SwapDirectory(stage, target string) (*DirectorySwap, error) {
 		return nil, fmt.Errorf("neues Release kann nicht aktiviert werden: %w", err)
 	}
 	return swap, nil
+}
+
+func uniqueSwapBackupPath(target string) (string, error) {
+	stamp := time.Now().UnixNano()
+	for i := 0; i < 1000; i++ {
+		p := fmt.Sprintf("%s.old-%d-%d-%03d", target, os.Getpid(), stamp, i)
+		if _, err := os.Lstat(p); errors.Is(err, os.ErrNotExist) {
+			return p, nil
+		} else if err != nil {
+			return "", fmt.Errorf("Release-Swap-Pfad kann nicht geprüft werden: %w", err)
+		}
+	}
+	return "", fmt.Errorf("kein eindeutiger Release-Swap-Pfad für %s verfügbar", target)
 }
 
 func (s *DirectorySwap) Commit() error {

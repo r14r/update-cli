@@ -87,3 +87,34 @@ func TestDirectorySwapCommitRemovesPreviousTarget(t *testing.T) {
 		t.Fatalf("committed target is wrong: %q, %v", data, err)
 	}
 }
+
+func TestDirectorySwapDoesNotDeletePreexistingOldDirectory(t *testing.T) {
+	root := t.TempDir()
+	stage := filepath.Join(root, "stage")
+	target := filepath.Join(root, "target")
+	if err := os.MkdirAll(stage, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(target, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	stale := target + ".old-stale"
+	if err := os.MkdirAll(stale, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(stale, "keep.txt"), []byte("keep"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	swap, err := SwapDirectory(stage, target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer swap.Rollback()
+	if _, err := os.Stat(filepath.Join(stale, "keep.txt")); err != nil {
+		t.Fatalf("pre-existing recovery directory was touched: %v", err)
+	}
+	if swap.Backup == stale {
+		t.Fatalf("swap reused pre-existing recovery directory %s", stale)
+	}
+}

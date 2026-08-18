@@ -283,6 +283,90 @@ func TestSetupTemplateForwardsSchemaV2SelectionFlags(t *testing.T) {
 	}
 }
 
+func TestSetupTemplateRejectsSchemaV2CandidateThatCannotParseActualManifest(t *testing.T) {
+	root := t.TempDir()
+	template, err := os.ReadFile("setup-template.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "setup-template.sh"), template, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	manifest := `schemaVersion: 2
+project:
+  name: Demo CLI
+  slug: demo-cli
+  type: go
+workflows:
+  setup:
+    tasks: [build]
+tasks:
+  build:
+    steps:
+      - shell: true
+`
+	if err := os.WriteFile(filepath.Join(root, "setup.yaml"), []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
+		t.Skip("template platform candidate is only defined for darwin/linux")
+	}
+	if runtime.GOARCH != "amd64" && runtime.GOARCH != "arm64" {
+		t.Skip("template platform candidate is only defined for amd64/arm64")
+	}
+	if err := os.MkdirAll(filepath.Join(root, "dist"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	incompatibleMarker := filepath.Join(root, "incompatible-used")
+	incompatible := `#!/usr/bin/env bash
+if [[ "${1:-}" == "--help" ]]; then
+  echo 'update-cli --setup-manifest FILE --setup-list --setup-task NAME --setup-workflow NAME'
+  exit 0
+fi
+if [[ " $* " == *" --setup-list "* ]]; then
+  echo 'ERROR setup.yaml Zeile 5: unbekanntes project-Feld "slug"' >&2
+  exit 1
+fi
+: > "` + incompatibleMarker + `"
+exit 0
+`
+	incompatiblePath := filepath.Join(root, "dist", "update-cli-"+runtime.GOOS+"-"+runtime.GOARCH)
+	if err := os.WriteFile(incompatiblePath, []byte(incompatible), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	compatibleMarker := filepath.Join(root, "compatible-used")
+	compatible := `#!/usr/bin/env bash
+if [[ "${1:-}" == "--help" ]]; then
+  echo 'update-cli --setup-manifest FILE --setup-list --setup-task NAME --setup-workflow NAME'
+  exit 0
+fi
+if [[ " $* " == *" --setup-list "* ]]; then
+  exit 0
+fi
+: > "` + compatibleMarker + `"
+exit 0
+`
+	if err := os.WriteFile(filepath.Join(root, "dist", "update-cli"), []byte(compatible), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := exec.Command("bash", filepath.Join(root, "setup-template.sh"), "--no-ui")
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(), "NO_COLOR=1")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("template failed: %v\n%s", err, out)
+	}
+	if _, err := os.Stat(incompatibleMarker); !os.IsNotExist(err) {
+		t.Fatalf("candidate that rejected actual manifest must not be selected; stat err=%v\n%s", err, out)
+	}
+	if _, err := os.Stat(compatibleMarker); err != nil {
+		t.Fatalf("compatible fallback candidate was not used: %v\n%s", err, out)
+	}
+}
+
 func TestProjectSetupManifestUsesSchemaV2(t *testing.T) {
 	manifest, err := projectsetup.ParseManifest("setup.yaml")
 	if err != nil {
@@ -426,5 +510,75 @@ exit 99
 	text := string(data)
 	if !strings.Contains(text, "--setup-manifest") || !strings.Contains(text, "--no-ui") || !strings.Contains(text, "version=9.8.7") {
 		t.Fatalf("unexpected source bootstrap args/version:\n%s", text)
+	}
+}
+
+func TestDeployInstallsSetupScriptConversionPrompt(t *testing.T) {
+	setupData, err := os.ReadFile("setup.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(setupData), `prompts/setup-script-to-yaml.txt`) || !strings.Contains(string(setupData), `{{ configDir }}/prompts/setup-script-to-yaml.txt`) {
+		t.Fatal("setup.yaml must install the setup.sh AI conversion prompt")
+	}
+	justData, err := os.ReadFile("justfile")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(justData), `install -m 0644 prompts/setup-script-to-yaml.txt "$config_path/prompts/setup-script-to-yaml.txt"`) {
+		t.Fatal("just deploy must install the setup.sh AI conversion prompt")
+	}
+	prompt, err := os.ReadFile(filepath.Join("prompts", "setup-script-to-yaml.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(prompt)
+	for _, marker := range []string{"{{SETUP_SCRIPT}}", "{{DRAFT_YAML}}", "Return ONLY YAML", "schemaVersion 2"} {
+		if !strings.Contains(text, marker) {
+			t.Fatalf("prompt missing %q", marker)
+		}
+	}
+}
+
+func TestEmbeddedAndInstalledSetupScriptPromptsStayInSync(t *testing.T) {
+	embedded, err := os.ReadFile(filepath.Join("lib", "projectsetup", "setup-script-ai-prompt.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	installed, err := os.ReadFile(filepath.Join("prompts", "setup-script-to-yaml.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(embedded) != string(installed) {
+		t.Fatal("embedded and installed setup-script conversion prompts diverged")
+	}
+}
+
+func TestJustfileRecipeNamesAreUnique(t *testing.T) {
+	data, err := os.ReadFile("justfile")
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]int{}
+	for lineNo, line := range strings.Split(string(data), "\n") {
+		if line == "" || line[0] == ' ' || line[0] == '\t' || strings.HasPrefix(strings.TrimSpace(line), "#") || strings.Contains(line, ":=") {
+			continue
+		}
+		colon := strings.IndexByte(line, ':')
+		if colon < 0 {
+			continue
+		}
+		head := strings.TrimSpace(line[:colon])
+		if head == "" {
+			continue
+		}
+		name := strings.Fields(head)[0]
+		if previous, ok := seen[name]; ok {
+			t.Fatalf("justfile recipe %q is duplicated on lines %d and %d", name, previous, lineNo+1)
+		}
+		seen[name] = lineNo + 1
+	}
+	if _, ok := seen["clear-releases"]; !ok {
+		t.Fatal("justfile must provide clear-releases recipe")
 	}
 }

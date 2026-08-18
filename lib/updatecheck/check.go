@@ -57,7 +57,7 @@ func Run(ctx context.Context, c config.Config) (Result, error) {
 		r.Status = StatusNotInstalled
 		return r, nil
 	}
-	switch installed.Compare(m.Version) {
+	switch versionutil.CompareForProject(c.ProjectName, installed, m.Version) {
 	case -1:
 		r.Status = StatusUpdateAvailable
 	case 0:

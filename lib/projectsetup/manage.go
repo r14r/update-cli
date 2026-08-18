@@ -195,6 +195,9 @@ func renderConvertedV1(m Manifest) string {
 	if m.ProjectName != "" {
 		fmt.Fprintf(&b, "  name: %s\n", yamlQuote(m.ProjectName))
 	}
+	if m.ProjectSlug != "" {
+		fmt.Fprintf(&b, "  slug: %s\n", yamlQuote(m.ProjectSlug))
+	}
 	if m.ProjectType != "" {
 		fmt.Fprintf(&b, "  type: %s\n", yamlQuote(m.ProjectType))
 	}

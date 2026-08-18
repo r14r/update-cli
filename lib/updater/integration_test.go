@@ -3,6 +3,10 @@ package updater
 import (
 	"archive/zip"
 	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -380,5 +384,164 @@ func TestCreateSetupScriptAlias(t *testing.T) {
 	}
 	if info.Mode()&0o111 == 0 {
 		t.Fatal("generated setup.sh is not executable")
+	}
+}
+
+func TestCreateYAMLFromSetupScriptTargetsConfiguredCurrentDirectory(t *testing.T) {
+	root := t.TempDir()
+	downloads := t.TempDir()
+	cfg, err := config.Init(root, config.InitOptions{ProjectName: "demo", SourceType: "download", Folder: downloads})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(cfg.CurrentDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cfg.CurrentDir, "go.mod"), []byte("module example.com/demo\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	script := "#!/bin/sh\nset -e\ngo mod download\ngo vet ./...\ngo test ./...\n"
+	if err := os.WriteFile(filepath.Join(cfg.CurrentDir, "setup.sh"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := Run(context.Background(), "3.3.0", []string{"--create-yaml", "--from", "setup-script", "--root", root}); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(cfg.CurrentDir, "setup.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(data)
+	if !strings.Contains(text, "schemaVersion: 2") || !strings.Contains(text, "Go-Tests ausführen") || !strings.Contains(text, "In setup.sh erkannte") {
+		t.Fatalf("unexpected generated manifest:\n%s", text)
+	}
+}
+
+func TestCreateYAMLFromSetupScriptWithAIRefinement(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "setup.sh"), []byte("#!/bin/sh\ngo test ./...\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	refined := `schemaVersion: 2
+project:
+  name: Demo AI
+  type: go
+  description: AI refined
+defaults:
+  failFast: true
+workflows:
+  setup:
+    tasks: [test]
+tasks:
+  test:
+    steps:
+      - id: test
+        name: Tests
+        go:
+          action: test
+`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{"choices": []any{map[string]any{"message": map[string]any{"content": refined}}}})
+	}))
+	defer server.Close()
+	t.Setenv("UPDATE_CLI_AI_PROVIDER", "openai-compatible")
+	t.Setenv("UPDATE_CLI_AI_BASE_URL", server.URL)
+	t.Setenv("UPDATE_CLI_AI_MODEL", "test-model")
+	t.Setenv("UPDATE_CLI_CONFIG_PATH", t.TempDir())
+	if err := Run(context.Background(), "3.3.0", []string{"--create-yaml", "--from", "setup-script", "--with-ai", "--root", dir}); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "setup.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "AI refined") || !strings.Contains(string(data), "schemaVersion: 2") {
+		t.Fatalf("AI result not written:\n%s", data)
+	}
+}
+
+func TestSuccessfulUpdatePrintsInstalledVersionAsFinalConsoleLine(t *testing.T) {
+	root := t.TempDir()
+	downloads := t.TempDir()
+	if _, err := config.Init(root, config.InitOptions{ProjectName: "nvidia-cli", SourceType: "download", Folder: downloads}); err != nil {
+		t.Fatal(err)
+	}
+	archive := releaseZip(t, downloads, "nvidia-cli", "1.2.4", map[string]string{"app.txt": "new"})
+
+	oldStdout := os.Stdout
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = writer
+	defer func() { os.Stdout = oldStdout }()
+
+	if err := Run(context.Background(), "0.8.13", []string{"--update", archive, "--root", root, "--no-ui", "--no-setup"}); err != nil {
+		_ = writer.Close()
+		t.Fatal(err)
+	}
+	_ = writer.Close()
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	if len(lines) == 0 {
+		t.Fatal("no console output")
+	}
+	got := strings.TrimSpace(lines[len(lines)-1])
+	want := "Update CLI Version 0.8.13 | nvidia-cli | Aktualisiert auf Version: v1.2.4"
+	if got != want {
+		t.Fatalf("last console line = %q, want %q\nfull output:\n%s", got, want, output)
+	}
+}
+
+func TestUpdateAlreadyInstalledIsSuccessfulNoOp(t *testing.T) {
+	root := t.TempDir()
+	downloads := t.TempDir()
+	if _, err := config.Init(root, config.InitOptions{ProjectName: "demo", SourceType: "download", Folder: downloads}); err != nil {
+		t.Fatal(err)
+	}
+	archive := releaseZip(t, downloads, "demo", "1.0.3", map[string]string{"app.txt": "same"})
+	if err := Run(context.Background(), "0.8.18", []string{"--update", archive, "--root", root, "--no-ui", "--no-setup"}); err != nil {
+		t.Fatalf("initial update: %v", err)
+	}
+
+	oldStdout, oldStderr := os.Stdout, os.Stderr
+	outR, outW, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	errR, errW, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout, os.Stderr = outW, errW
+	defer func() { os.Stdout, os.Stderr = oldStdout, oldStderr }()
+
+	runErr := Run(context.Background(), "0.8.18", []string{"--update", archive, "--root", root, "--no-ui", "--no-setup"})
+	_ = outW.Close()
+	_ = errW.Close()
+	out, _ := io.ReadAll(outR)
+	errOut, _ := io.ReadAll(errR)
+	if runErr != nil {
+		t.Fatalf("same-version update must succeed: %v\nstdout:\n%s\nstderr:\n%s", runErr, out, errOut)
+	}
+	if len(errOut) != 0 {
+		t.Fatalf("same-version update wrote stderr:\n%s", errOut)
+	}
+	text := string(out)
+	if !strings.Contains(text, "Version 1.0.3 ist bereits installiert") {
+		t.Fatalf("missing already-installed notice:\n%s", text)
+	}
+	if strings.Contains(text, "FAIL") || strings.Contains(text, "Zur erneuten Installation") {
+		t.Fatalf("same-version update still looks like an error:\n%s", text)
+	}
+	wantFinal := "Update CLI Version 0.8.18 | demo | Installierte Version: v1.0.3"
+	if !strings.Contains(text, wantFinal) {
+		t.Fatalf("missing final installed-version line %q:\n%s", wantFinal, text)
 	}
 }

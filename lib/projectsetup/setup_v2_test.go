@@ -15,6 +15,7 @@ func writeV2Manifest(t *testing.T, root string) string {
 	data := `schemaVersion: 2
 project:
   name: demo
+  slug: demo-cli
   type: test
   description: Declarative setup test
 
@@ -94,7 +95,7 @@ func TestParseManifestV2(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if m.Version != 2 || m.ProjectName != "demo" || len(m.Tasks) != 4 || len(m.Workflows) != 2 {
+	if m.Version != 2 || m.ProjectName != "demo" || m.ProjectSlug != "demo-cli" || len(m.Tasks) != 4 || len(m.Workflows) != 2 {
 		t.Fatalf("unexpected manifest: %#v", m)
 	}
 	if got := m.Variables["marker"]; got != "{{ outputDir }}/marker.txt" {
@@ -102,6 +103,19 @@ func TestParseManifestV2(t *testing.T) {
 	}
 	if got := m.Tasks["build"].Requires; len(got) != 1 || got[0] != "check" {
 		t.Fatalf("unexpected requires %#v", got)
+	}
+}
+
+func TestResolveVariablesIncludesProjectSlug(t *testing.T) {
+	m := Manifest{ProjectName: "Demo", ProjectSlug: "demo-cli", ProjectType: "go", Variables: map[string]string{
+		"artifact": "{{ project.slug }}-{{ arch }}",
+	}}
+	vars := resolveVariables(t.TempDir(), m)
+	if vars["project.slug"] != "demo-cli" {
+		t.Fatalf("project.slug = %q", vars["project.slug"])
+	}
+	if !strings.HasPrefix(vars["artifact"], "demo-cli-") {
+		t.Fatalf("artifact = %q", vars["artifact"])
 	}
 }
 
@@ -204,5 +218,43 @@ tasks:
 	}
 	if string(got) != "works" {
 		t.Fatalf("unexpected result %q", got)
+	}
+}
+
+func TestManifestV2SchemaVersionWinsOverProjectVersionRegardlessOfOrder(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "setup.yaml")
+	data := `version: 0.1.7
+project:
+  name: Demo CLI
+  slug: demo-cli
+  type: go
+
+schemaVersion: 2
+
+workflows:
+  setup:
+    tasks: [build]
+
+tasks:
+  build:
+    steps:
+      - shell: true
+`
+	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m, err := ParseManifest(path)
+	if err != nil {
+		t.Fatalf("schemaVersion 2 must be authoritative even when project version appears first: %v", err)
+	}
+	if m.Version != 2 {
+		t.Fatalf("schema = %d, want 2", m.Version)
+	}
+	if m.ProjectVersion != "0.1.7" {
+		t.Fatalf("project version = %q, want 0.1.7", m.ProjectVersion)
+	}
+	if m.ProjectSlug != "demo-cli" {
+		t.Fatalf("project slug = %q, want demo-cli", m.ProjectSlug)
 	}
 }

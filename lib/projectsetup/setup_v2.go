@@ -93,10 +93,13 @@ func runManifestV2(ctx context.Context, root string, m Manifest, console *ui.Con
 	}
 
 	if console.Fullscreen() {
-		if console.Title() == "Update CLI Setup" {
+		if strings.HasSuffix(console.Title(), "— Setup") {
 			console.SetInfoTitle("Projekt-Setup")
 			if m.ProjectName != "" {
 				console.InfoRow("Projekt", m.ProjectName)
+			}
+			if m.ProjectSlug != "" {
+				console.InfoRow("Slug", m.ProjectSlug)
 			}
 			if m.ProjectDescription != "" {
 				console.InfoRow("Beschreibung", m.ProjectDescription)
@@ -117,14 +120,17 @@ func runManifestV2(ctx context.Context, root string, m Manifest, console *ui.Con
 			console.Append("")
 			console.Append("Projekt-Setup")
 			if m.ProjectName != "" {
-				console.Append("  Projekt: " + m.ProjectName)
+				console.SetupMeta(total, "Projekt: "+m.ProjectName)
 			}
-			console.Append(fmt.Sprintf("  Schema: 2 | Tasks: %d | Schritte: %d", len(taskNames), total))
+			console.SetupMeta(total, fmt.Sprintf("Schema: 2 | Tasks: %d | Schritte: %d", len(taskNames), total))
 		}
 	} else {
 		console.Header("Projekt-Setup")
 		if m.ProjectName != "" {
 			console.Row("Projekt", m.ProjectName)
+		}
+		if m.ProjectSlug != "" {
+			console.Row("Slug", m.ProjectSlug)
 		}
 		console.Row("Manifest", path)
 		console.Row("Schema", "2")
@@ -137,7 +143,7 @@ func runManifestV2(ctx context.Context, root string, m Manifest, console *ui.Con
 	for _, taskName := range taskNames {
 		task := m.Tasks[taskName]
 		if console.Details() {
-			console.Append("Task: " + taskName)
+			console.Task(taskName)
 		}
 		for stepIndex := range task.Steps {
 			original := task.Steps[stepIndex]
@@ -262,6 +268,7 @@ func resolveVariables(root string, m Manifest) map[string]string {
 	vars := map[string]string{
 		"project.root": root,
 		"project.name": m.ProjectName,
+		"project.slug": m.ProjectSlug,
 		"project.type": m.ProjectType,
 		"os":           runtime.GOOS,
 		"arch":         runtime.GOARCH,

@@ -38,40 +38,54 @@ func Require() error {
 	return nil
 }
 func Release(ctx context.Context, source, dest, log string) (Result, error) {
-	return run(ctx, source, dest, log, false, []string{"--exclude=/.git/", "--exclude=/.venv/", "--exclude=/.env", "--exclude=/.env.*", "--exclude=/__MACOSX/", "--exclude=/.DS_Store"})
+	return run(ctx, source, dest, log, false, false, []string{"--exclude=/.git/", "--exclude=/.venv/", "--exclude=/.env", "--exclude=/.env.*", "--exclude=/__MACOSX/", "--exclude=/.DS_Store"})
 }
 func Current(ctx context.Context, source, dest, log string, dry bool, preserve []string) (Result, error) {
 	extra := []string{}
-	for _, p := range preserve {
+	for _, p := range mandatoryPreserve(preserve) {
 		pat := normalizePattern(p)
 		extra = append(extra, "--filter=protect /"+pat, "--exclude=/"+pat)
 	}
-	return run(ctx, source, dest, log, dry, extra)
+	return run(ctx, source, dest, log, dry, true, extra)
 }
 func Snapshot(ctx context.Context, source, dest, log string, dry bool) (Result, error) {
-	return run(ctx, source, dest, log, dry, []string{"--exclude=/.git/", "--exclude=/.venv/", "--exclude=/.env", "--exclude=/.env.*", "--exclude=/node_modules/", "--exclude=/vendor/", "--exclude=/dist/", "--exclude=/build/", "--exclude=/__pycache__/"})
+	return run(ctx, source, dest, log, dry, false, []string{"--exclude=/.git/", "--exclude=/.venv/", "--exclude=/.env", "--exclude=/.env.*", "--exclude=/node_modules/", "--exclude=/vendor/", "--exclude=/dist/", "--exclude=/build/", "--exclude=/__pycache__/"})
 }
 func TransactionSnapshot(ctx context.Context, source, dest, log string) (Result, error) {
-	return run(ctx, source, dest, log, false, nil)
+	return run(ctx, source, dest, log, false, false, nil)
 }
 func Restore(ctx context.Context, source, dest, log string, dry bool, preserve []string) (Result, error) {
 	extra := []string{"--exclude=/.backup.json"}
-	for _, p := range preserve {
+	for _, p := range mandatoryPreserve(preserve) {
 		pat := normalizePattern(p)
 		extra = append(extra, "--filter=protect /"+pat, "--exclude=/"+pat)
 	}
-	return run(ctx, source, dest, log, dry, extra)
+	return run(ctx, source, dest, log, dry, true, extra)
 }
 func RestoreExact(ctx context.Context, source, dest, log string) (Result, error) {
-	return run(ctx, source, dest, log, false, nil)
+	return run(ctx, source, dest, log, false, true, nil)
 }
+func mandatoryPreserve(preserve []string) []string {
+	out := make([]string, 0, len(preserve)+1)
+	seen := map[string]bool{}
+	for _, p := range append([]string{".gitignore"}, preserve...) {
+		pat := normalizePattern(p)
+		if pat == "" || seen[pat] {
+			continue
+		}
+		seen[pat] = true
+		out = append(out, pat)
+	}
+	return out
+}
+
 func normalizePattern(p string) string {
 	p = filepath.ToSlash(strings.TrimSpace(p))
 	p = strings.TrimPrefix(p, "./")
 	p = strings.TrimPrefix(p, "/")
 	return p
 }
-func run(ctx context.Context, source, dest, log string, dry bool, extra []string) (Result, error) {
+func run(ctx context.Context, source, dest, log string, dry, checksum bool, extra []string) (Result, error) {
 	if err := os.MkdirAll(dest, 0o755); err != nil {
 		return Result{}, fmt.Errorf("rsync-Ziel kann nicht erstellt werden: %w", err)
 	}
@@ -80,7 +94,10 @@ func run(ctx context.Context, source, dest, log string, dry bool, extra []string
 			return Result{}, err
 		}
 	}
-	args := []string{"-a", "--delete", "--checksum", "--itemize-changes", "--out-format=%i|%n%L"}
+	args := []string{"-a", "--delete", "--itemize-changes", "--out-format=%i|%n%L"}
+	if checksum {
+		args = append(args, "--checksum")
+	}
 	if dry {
 		args = append(args, "--dry-run")
 	}

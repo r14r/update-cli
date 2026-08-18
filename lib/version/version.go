@@ -46,6 +46,44 @@ func (v Version) Compare(o Version) int {
 	return 0
 }
 
+// CompareForProject compares versions using the historical Update CLI release
+// epochs. Update CLI used 1.x-3.x during early development, reset its public
+// numbering to 0.8.x, and promotes that line to stable 1.x starting with
+// 1.0.0. For update-cli itself the chronological order is therefore:
+//
+//	legacy 2.x/3.x < transitional 0.8.x+ < stable 1.x
+//
+// This preserves upgrades from both 3.3.4 and 0.8.x to 1.0.0. Other projects
+// always use strict SemVer. The special rule intentionally remains scoped to
+// update-cli; it must not affect projects managed by Update CLI.
+func CompareForProject(project string, a, b Version) int {
+	if !strings.EqualFold(strings.TrimSpace(project), "update-cli") {
+		return a.Compare(b)
+	}
+	aEpoch := updateCLIReleaseEpoch(a)
+	bEpoch := updateCLIReleaseEpoch(b)
+	if aEpoch != bEpoch {
+		if aEpoch < bEpoch {
+			return -1
+		}
+		return 1
+	}
+	return a.Compare(b)
+}
+
+func updateCLIReleaseEpoch(v Version) int {
+	switch {
+	case v.Major == 1:
+		return 3 // stable line starting with 1.0.0
+	case v.Major == 0 && v.Minor >= 8:
+		return 2 // public 0.8.x/0.9.x transition line
+	case v.Major == 2 || v.Major == 3:
+		return 1 // pre-reset development releases
+	default:
+		return 0
+	}
+}
+
 type ArchiveInfo struct {
 	Path     string    `json:"path"`
 	Name     string    `json:"name"`
@@ -85,7 +123,7 @@ func ListArchives(dir, project string) ([]ArchiveInfo, error) {
 		out = append(out, ArchiveInfo{Path: p, Name: e.Name(), Version: v, VersionS: v.String(), Size: info.Size(), Modified: info.ModTime()})
 	}
 	sort.Slice(out, func(i, j int) bool {
-		c := out[i].Version.Compare(out[j].Version)
+		c := CompareForProject(project, out[i].Version, out[j].Version)
 		if c == 0 {
 			return out[i].Modified.After(out[j].Modified)
 		}

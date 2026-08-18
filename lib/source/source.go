@@ -287,7 +287,7 @@ func discoverRepository(ctx context.Context, o Options) (Metadata, error) {
 		return Metadata{Type: Repository, Reference: repo, Version: v, VersionText: v.String(), Commit: commit}, nil
 	}
 	if strings.TrimSpace(o.Source.Ref) == "" && strings.TrimSpace(o.Source.Commit) == "" {
-		if v, commit, ok, err := latestSemverTag(ctx, repo); err != nil {
+		if v, commit, ok, err := latestSemverTag(ctx, repo, o.ProjectName); err != nil {
 			return Metadata{}, err
 		} else if ok {
 			return Metadata{Type: Repository, Reference: repo, Version: v, VersionText: v.String(), Commit: commit}, nil
@@ -377,7 +377,7 @@ func fetchRepository(ctx context.Context, o Options) (Artifact, error) {
 	}
 	return Artifact{Metadata: Metadata{Type: Repository, Reference: repo, Version: v, VersionText: v.String(), Commit: commit}, ContentDir: dest, StagingDir: dest}, nil
 }
-func latestSemverTag(ctx context.Context, repo string) (versionutil.Version, string, bool, error) {
+func latestSemverTag(ctx context.Context, repo, project string) (versionutil.Version, string, bool, error) {
 	cmd := exec.CommandContext(ctx, "git", "ls-remote", "--tags", "--refs", repo)
 	out, err := cmd.Output()
 	if err != nil {
@@ -396,7 +396,7 @@ func latestSemverTag(ctx context.Context, repo string) (versionutil.Version, str
 		if err != nil {
 			continue
 		}
-		if !found || v.Compare(best) > 0 {
+		if !found || versionutil.CompareForProject(project, v, best) > 0 {
 			best, bestCommit, found = v, fields[0], true
 		}
 	}

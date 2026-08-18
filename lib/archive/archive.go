@@ -30,105 +30,144 @@ func Inspect(ctx context.Context, path string, limits Limits) (Stats, error) {
 		return Stats{}, fmt.Errorf("ZIP kann nicht geöffnet werden: %w", err)
 	}
 	defer r.Close()
-	if len(r.File) == 0 {
-		return Stats{}, errors.New("ZIP-Archiv ist leer")
+	stats, err := inspectMetadata(ctx, r.File, limits)
+	if err != nil {
+		return Stats{}, err
 	}
-	if limits.MaxEntries > 0 && len(r.File) > limits.MaxEntries {
-		return Stats{}, fmt.Errorf("ZIP enthält zu viele Einträge: %d > %d", len(r.File), limits.MaxEntries)
+	for _, e := range r.File {
+		if e.FileInfo().IsDir() {
+			continue
+		}
+		if err := verifyEntryData(ctx, e); err != nil {
+			return Stats{}, err
+		}
 	}
-	s := Stats{Entries: len(r.File)}
+	return stats, nil
+}
+
+func Validate(ctx context.Context, path string, limits Limits) error {
+	_, err := Inspect(ctx, path, limits)
+	return err
+}
+
+// ExtractWithStats performs a metadata preflight and then extracts each entry
+// exactly once. The extraction pass itself validates the real uncompressed size
+// and ZIP checksum. This avoids the previous Validate -> Inspect -> Extract
+// triple decompression for normal update and verify operations while preserving
+// the same safety limits.
+func ExtractWithStats(ctx context.Context, path, dest string, limits Limits) (Stats, error) {
+	r, err := zip.OpenReader(path)
+	if err != nil {
+		return Stats{}, fmt.Errorf("ZIP kann nicht geöffnet werden: %w", err)
+	}
+	defer r.Close()
+	stats, err := inspectMetadata(ctx, r.File, limits)
+	if err != nil {
+		return Stats{}, err
+	}
+	if err := os.MkdirAll(dest, 0o755); err != nil {
+		return Stats{}, err
+	}
 	for _, e := range r.File {
 		if err := ctx.Err(); err != nil {
 			return Stats{}, err
 		}
-		if _, err := safeRelativePath(e.Name); err != nil {
+		rel, err := safeRelativePath(e.Name)
+		if err != nil {
 			return Stats{}, err
+		}
+		if rel == "" || shouldIgnore(rel) {
+			continue
+		}
+		target := filepath.Join(dest, filepath.FromSlash(rel))
+		if e.FileInfo().IsDir() {
+			if err := os.MkdirAll(target, directoryMode(e.Mode())); err != nil {
+				return Stats{}, err
+			}
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			return Stats{}, err
+		}
+		if err := extractFile(ctx, e, target, limits.MaxFileBytes); err != nil {
+			return Stats{}, err
+		}
+	}
+	return stats, nil
+}
+
+func Extract(ctx context.Context, path, dest string, limits Limits) error {
+	_, err := ExtractWithStats(ctx, path, dest, limits)
+	return err
+}
+
+func inspectMetadata(ctx context.Context, files []*zip.File, limits Limits) (Stats, error) {
+	if len(files) == 0 {
+		return Stats{}, errors.New("ZIP-Archiv ist leer")
+	}
+	if limits.MaxEntries > 0 && len(files) > limits.MaxEntries {
+		return Stats{}, fmt.Errorf("ZIP enthält zu viele Einträge: %d > %d", len(files), limits.MaxEntries)
+	}
+	stats := Stats{Entries: len(files)}
+	seen := make(map[string]struct{}, len(files))
+	for _, e := range files {
+		if err := ctx.Err(); err != nil {
+			return Stats{}, err
+		}
+		rel, err := safeRelativePath(e.Name)
+		if err != nil {
+			return Stats{}, err
+		}
+		if rel != "" && !shouldIgnore(rel) {
+			if _, exists := seen[rel]; exists {
+				return Stats{}, fmt.Errorf("doppelter ZIP-Pfad ist nicht erlaubt: %s", rel)
+			}
+			seen[rel] = struct{}{}
 		}
 		if e.Mode()&os.ModeSymlink != 0 {
 			return Stats{}, fmt.Errorf("symbolischer Link im ZIP ist nicht erlaubt: %s", e.Name)
 		}
 		if e.FileInfo().IsDir() {
-			s.Directories++
+			stats.Directories++
 			continue
 		}
-		s.Files++
+		stats.Files++
 		u := int64(e.UncompressedSize64)
 		c := int64(e.CompressedSize64)
-		s.UncompressedBytes += u
-		s.CompressedBytes += c
+		stats.UncompressedBytes += u
+		stats.CompressedBytes += c
 		if limits.MaxFileBytes > 0 && u > limits.MaxFileBytes {
 			return Stats{}, fmt.Errorf("ZIP-Datei %s ist zu groß: %d Bytes", e.Name, u)
 		}
-		if limits.MaxUncompressedBytes > 0 && s.UncompressedBytes > limits.MaxUncompressedBytes {
-			return Stats{}, fmt.Errorf("ZIP überschreitet maximale entpackte Größe: %d Bytes", s.UncompressedBytes)
+		if limits.MaxUncompressedBytes > 0 && stats.UncompressedBytes > limits.MaxUncompressedBytes {
+			return Stats{}, fmt.Errorf("ZIP überschreitet maximale entpackte Größe: %d Bytes", stats.UncompressedBytes)
 		}
 		if limits.MaxCompressionRatio > 0 && c > 0 && float64(u)/float64(c) > limits.MaxCompressionRatio {
 			return Stats{}, fmt.Errorf("verdächtiges Kompressionsverhältnis in %s: %.1f", e.Name, float64(u)/float64(c))
 		}
-		f, err := e.Open()
-		if err != nil {
-			return Stats{}, err
-		}
-		n, copyErr := copyLimitedContext(ctx, io.Discard, f, u+1)
-		closeErr := f.Close()
-		if copyErr != nil {
-			return Stats{}, fmt.Errorf("ZIP-Prüfung fehlgeschlagen (%s): %w", e.Name, copyErr)
-		}
-		if closeErr != nil {
-			return Stats{}, closeErr
-		}
-		if n != u {
-			return Stats{}, fmt.Errorf("ZIP-Größe stimmt nicht (%s): erwartet %d, gelesen %d", e.Name, u, n)
-		}
 	}
-	return s, nil
+	return stats, nil
 }
-func Validate(ctx context.Context, path string, limits Limits) error {
-	_, err := Inspect(ctx, path, limits)
-	return err
-}
-func Extract(ctx context.Context, path, dest string, limits Limits) error {
-	if _, err := Inspect(ctx, path, limits); err != nil {
-		return err
-	}
-	r, err := zip.OpenReader(path)
+
+func verifyEntryData(ctx context.Context, e *zip.File) error {
+	f, err := e.Open()
 	if err != nil {
 		return err
 	}
-	defer r.Close()
-	if err := os.MkdirAll(dest, 0o755); err != nil {
-		return err
+	n, copyErr := copyLimitedContext(ctx, io.Discard, f, int64(e.UncompressedSize64)+1)
+	closeErr := f.Close()
+	if copyErr != nil {
+		return fmt.Errorf("ZIP-Prüfung fehlgeschlagen (%s): %w", e.Name, copyErr)
 	}
-	for _, e := range r.File {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		rel, err := safeRelativePath(e.Name)
-		if err != nil {
-			return err
-		}
-		if rel == "" || shouldIgnore(rel) {
-			continue
-		}
-		if e.Mode()&os.ModeSymlink != 0 {
-			return fmt.Errorf("symbolischer Link im ZIP ist nicht erlaubt: %s", e.Name)
-		}
-		target := filepath.Join(dest, filepath.FromSlash(rel))
-		if e.FileInfo().IsDir() {
-			if err := os.MkdirAll(target, directoryMode(e.Mode())); err != nil {
-				return err
-			}
-			continue
-		}
-		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-			return err
-		}
-		if err := extractFile(ctx, e, target, limits.MaxFileBytes); err != nil {
-			return err
-		}
+	if closeErr != nil {
+		return closeErr
+	}
+	if n != int64(e.UncompressedSize64) {
+		return fmt.Errorf("ZIP-Größe stimmt nicht (%s): erwartet %d, gelesen %d", e.Name, e.UncompressedSize64, n)
 	}
 	return nil
 }
+
 func ValidateTree(ctx context.Context, root string, limits Limits) (Stats, error) {
 	s := Stats{}
 	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {

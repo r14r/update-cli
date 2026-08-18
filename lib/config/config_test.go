@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -155,5 +156,103 @@ func TestResolveRootFindsProjectConfigurationFromCurrentSubdirectory(t *testing.
 	}
 	if got != want {
 		t.Fatalf("ResolveRoot from current subdirectory = %q, want canonical %q", got, want)
+	}
+}
+
+func TestLoadAddsGitignoreToExistingPreserveList(t *testing.T) {
+	root := t.TempDir()
+	downloads := t.TempDir()
+	dir := filepath.Join(root, ConfigDirName)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	data := `{"schemaVersion":6,"projectName":"demo","source":{"type":"download","folder":"` + downloads + `"},"releaseDir":"release","currentDir":"current","no parameter":["help"],"setup":{"commands":[]},"backup":{"directory":"backup","keep":3},"retention":{"releases":5},"sync":{"preserve":[".env","data/"]}}`
+	if err := os.WriteFile(filepath.Join(dir, ConfigFileName), []byte(data), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(root, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, value := range cfg.Preserve {
+		if value == ".gitignore" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf(".gitignore not added to existing preserve list: %#v", cfg.Preserve)
+	}
+}
+
+func TestInitDefaultsNoParameterToCheck(t *testing.T) {
+	root := t.TempDir()
+	downloads := t.TempDir()
+	cfg, err := Init(root, InitOptions{ProjectName: "demo", SourceType: "download", Folder: downloads})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.NoParameterActions) != 1 || cfg.NoParameterActions[0] != "check" {
+		t.Fatalf("new project no parameter = %#v, want [check]", cfg.NoParameterActions)
+	}
+	b, err := os.ReadFile(filepath.Join(root, ConfigDirName, ConfigFileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var raw map[string]any
+	if err := json.Unmarshal(b, &raw); err != nil {
+		t.Fatal(err)
+	}
+	got, ok := raw["no parameter"].([]any)
+	if !ok || len(got) != 1 || got[0] != "check" {
+		t.Fatalf("persisted no parameter = %#v, want [check]", raw["no parameter"])
+	}
+}
+
+func TestDockerLifecycleDefaultsAndValidation(t *testing.T) {
+	for _, tc := range []struct {
+		name, lifecycle string
+		wantErr         bool
+	}{
+		{name: "default", lifecycle: ""},
+		{name: "auto", lifecycle: "auto"},
+		{name: "disabled", lifecycle: "disabled"},
+		{name: "required", lifecycle: "required"},
+		{name: "invalid", lifecycle: "foo", wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			downloads := t.TempDir()
+			dir := filepath.Join(root, ConfigDirName)
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			docker := ""
+			if tc.lifecycle != "" {
+				docker = `,"docker":{"lifecycle":"` + tc.lifecycle + `"}`
+			}
+			data := `{"schemaVersion":6,"projectName":"demo","source":{"type":"download","folder":"` + downloads + `"},"releaseDir":"release","currentDir":"current","no parameter":["check"]` + docker + `}`
+			if err := os.WriteFile(filepath.Join(dir, ConfigFileName), []byte(data), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			cfg, err := Load(root, "")
+			if tc.wantErr {
+				if err == nil || !strings.Contains(err.Error(), `ungültiger Docker-Lifecycle "foo"; erlaubt: auto, disabled, required`) {
+					t.Fatalf("expected lifecycle validation error, got %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := tc.lifecycle
+			if want == "" {
+				want = "auto"
+			}
+			if cfg.Docker.Lifecycle != want {
+				t.Fatalf("Docker lifecycle = %q, want %q", cfg.Docker.Lifecycle, want)
+			}
+		})
 	}
 }

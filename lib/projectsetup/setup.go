@@ -108,10 +108,13 @@ func runManifestSelected(ctx context.Context, c config.Config, console *ui.Conso
 		return Result{}, errors.New("--setup-task/--setup-workflow benötigen setup.yaml schemaVersion 2")
 	}
 	if console.Fullscreen() {
-		if console.Title() == "Update CLI Setup" {
+		if strings.HasSuffix(console.Title(), "— Setup") {
 			console.SetInfoTitle("Projekt-Setup")
 			if m.ProjectName != "" {
 				console.InfoRow("Projekt", m.ProjectName)
+			}
+			if m.ProjectSlug != "" {
+				console.InfoRow("Slug", m.ProjectSlug)
 			}
 			if m.ProjectDescription != "" {
 				console.InfoRow("Beschreibung", m.ProjectDescription)
@@ -129,14 +132,18 @@ func runManifestSelected(ctx context.Context, c config.Config, console *ui.Conso
 			console.Append("")
 			console.Append("Projekt-Setup")
 			if m.ProjectName != "" {
-				console.Append("  Projekt: " + m.ProjectName)
+				console.SetupMeta(len(m.Steps), "Projekt: "+m.ProjectName)
 			}
-			console.Append(fmt.Sprintf("  Manifest: %s | Schema: %d | Schritte: %d", path, m.Version, len(m.Steps)))
+			console.SetupMeta(len(m.Steps), "Manifest: "+path)
+			console.SetupMeta(len(m.Steps), fmt.Sprintf("Schema: %d | Schritte: %d", m.Version, len(m.Steps)))
 		}
 	} else {
 		console.Header("Projekt-Setup")
 		if m.ProjectName != "" {
 			console.Row("Projekt", m.ProjectName)
+		}
+		if m.ProjectSlug != "" {
+			console.Row("Slug", m.ProjectSlug)
 		}
 		if m.ProjectDescription != "" {
 			console.Row("Beschreibung", m.ProjectDescription)
@@ -284,7 +291,7 @@ func runLegacy(ctx context.Context, c config.Config, console *ui.Console) (Resul
 	}
 
 	if console.Fullscreen() {
-		if console.Title() == "Update CLI Setup" {
+		if strings.HasSuffix(console.Title(), "— Setup") {
 			console.SetInfoTitle("Legacy-Projekt-Setup")
 			if c.ProjectName != "" {
 				console.InfoRow("Projekt", c.ProjectName)

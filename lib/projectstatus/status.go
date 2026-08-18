@@ -29,10 +29,11 @@ type Result struct {
 	LatestBackup     string `json:"latestBackup,omitempty"`
 	HistoryEntries   int    `json:"historyEntries"`
 	LockState        string `json:"lockState,omitempty"`
+	DockerLifecycle  string `json:"dockerLifecycle"`
 }
 
 func Run(ctx context.Context, c config.Config) (Result, error) {
-	r := Result{ProjectName: c.ProjectName, SourceType: c.Source.Type, ConfigFile: c.ConfigFile, CurrentDir: c.CurrentDir, ReleaseDir: c.ReleaseRoot}
+	r := Result{ProjectName: c.ProjectName, SourceType: c.Source.Type, ConfigFile: c.ConfigFile, CurrentDir: c.CurrentDir, ReleaseDir: c.ReleaseRoot, DockerLifecycle: c.Docker.Lifecycle}
 	if c.Source.Type == "url" {
 		r.SourceReference = c.Source.URL
 	} else if c.Source.Type == "repository" {

@@ -111,6 +111,8 @@ def release_zip(
 def main() -> int:
     root = pathlib.Path(__file__).resolve().parents[1]
     binary = root / "dist" / "update-cli"
+    version = (root / "VERSION").read_text(encoding="utf-8").strip()
+    header = f"Update CLI Version {version}".encode("utf-8")
     if not binary.exists():
         raise SystemExit(f"binary missing: {binary}")
 
@@ -118,6 +120,7 @@ def main() -> int:
         tmpdir = pathlib.Path(tmp)
 
         success_manifest = tmpdir / "success.yaml"
+        (tmpdir / "VERSION").write_text("7.8.9\n", encoding="utf-8")
         success_manifest.write_text(
             "schemaVersion: 1\n"
             "project:\n"
@@ -139,10 +142,12 @@ def main() -> int:
                 "alternate-screen enter": b"\x1b[?1049h",
                 "line-wrap disable": b"\x1b[?7l",
                 "framed content": "┌".encode("utf-8"),
+                "three-part header with project version": b"\x1b[44m\x1b[97m\x1b[1m " + header + b"   |   TUI Test v7.8.9   |   Setup",
                 "project type": b"go",
                 "umlaut text": "Prüft Umlaute äöü".encode("utf-8"),
                 "single-line setup step": b"[01/01]",
                 "step output in content": b"sichtbare-schrittausgabe",
+                "aligned setup output gutter": "│         │ sichtbare-schrittausgabe".encode("utf-8"),
                 "green setup completion": b"\x1b[32m\x1b[1m" + "✓".encode("utf-8"),
                 "alternate-screen exit": b"\x1b[?1049l",
             },
@@ -172,6 +177,27 @@ def main() -> int:
         )
         if b"\x1b[?1049h" in no_ui or b"\x1b[?1049l" in no_ui:
             raise SystemExit("--no-ui unexpectedly entered the fullscreen alternate screen")
+        if b"Task:" in no_ui:
+            raise SystemExit("--no-ui still renders Task headings")
+
+        # --noui is a supported alias for --no-ui and must have identical
+        # alternate-screen suppression semantics.
+        noui = run_pty(
+            binary,
+            ["--setup-manifest", str(success_manifest), "--noui", "--no-wait"],
+            0,
+        )
+        require(
+            noui,
+            {
+                "noui direct step": b"[01/01] Pr",
+                "noui direct command output": b"sichtbare-schrittausgabe",
+            },
+        )
+        if b"\x1b[?1049h" in noui or b"\x1b[?1049l" in noui:
+            raise SystemExit("--noui unexpectedly entered the fullscreen alternate screen")
+        if b"Task:" in noui:
+            raise SystemExit("--noui still renders Task headings")
 
         # --setup must also work when invoked directly inside a deployed
         # current/ directory that contains setup.yaml but no project config.
@@ -194,7 +220,8 @@ def main() -> int:
         require(
             standalone,
             {
-                "standalone setup title": b"Update CLI Setup",
+                "standalone setup title": header,
+                "standalone setup mode": b"Setup",
                 "standalone manifest": b"setup.yaml",
                 "standalone step": "Current setup ausführen".encode("utf-8"),
             },
@@ -227,7 +254,8 @@ def main() -> int:
             template_output,
             {
                 "template fullscreen": b"\x1b[?1049h",
-                "template setup title": b"Update CLI Setup",
+                "template setup title": header,
+                "template setup mode": b"Setup",
                 "template step": b"Template-Schritt",
                 "template fullscreen exit": b"\x1b[?1049l",
             },
@@ -295,8 +323,8 @@ def main() -> int:
             },
         )
 
-        # Setup-after-update must be a German default-No question. Sending an
-        # empty answer must skip setup and still commit the update.
+        # Setup-after-update defaults to YES. Pressing Enter without moving the
+        # selection must execute setup and still commit the update.
         prompt_root = tmpdir / "prompt-project"
         prompt_downloads = tmpdir / "prompt-downloads"
         prompt_downloads.mkdir()
@@ -322,7 +350,7 @@ def main() -> int:
             binary,
             ["--update", str(prompt_archive), "--root", str(prompt_root), "--no-wait"],
             0,
-            input_data=b"\n",
+            input_data=b"\r",
         )
         require(
             prompt_output,
@@ -332,10 +360,13 @@ def main() -> int:
                 ),
                 "setup confirmation YES button": b"YES",
                 "setup confirmation NO button": b"NO",
-                "setup modal default": b"Enter = NO",
+                "setup modal cursor hint": "←/→ = auswählen".encode("utf-8"),
                 "aligned progress row": "[01/13] [".encode("utf-8"),
                 "transaction phase": b"Transaktions-Snapshot von current erstellen",
                 "green completed-step icon": b"\x1b[32m\x1b[1m" + "✓".encode("utf-8"),
+                "final installed version": (
+                    f"Update CLI Version {version} | prompt-demo | Aktualisiert auf Version: v1.0.0"
+                ).encode("utf-8"),
             },
         )
         if b"INFO  Transaktions-Snapshot von current erstellen" in prompt_output:
@@ -346,10 +377,59 @@ def main() -> int:
             raise SystemExit("update phase still contains INFO prefix")
         if b"INFO  [" in prompt_output:
             raise SystemExit("an update/setup step still contains INFO prefix")
-        if "Projekt-Setup ist verfügbar. Jetzt ausführen? [j/N]".encode("utf-8") in prompt_output:
-            raise SystemExit("fullscreen setup confirmation still uses inline [j/N] footer prompt")
-        if (prompt_root / "current" / "setup-ran.txt").exists():
-            raise SystemExit("empty modal answer unexpectedly ran project setup")
+        if (
+            "Projekt-Setup ist verfügbar. Jetzt ausführen? [j/N]".encode("utf-8") in prompt_output
+            or "Projekt-Setup ist verfügbar. Jetzt ausführen? [J/n]".encode("utf-8") in prompt_output
+        ):
+            raise SystemExit("fullscreen setup confirmation still uses an inline footer prompt")
+        if not (prompt_root / "current" / "setup-ran.txt").exists():
+            raise SystemExit("default-YES setup modal did not run project setup on Enter")
+
+        # Re-selecting the currently installed release is a successful no-op.
+        # It must not paint the version-policy step or footer as FAIL. Instead
+        # the content shows a green success banner and the normal blue close
+        # footer remains available until Enter.
+        same_root = tmpdir / "same-version-project"
+        same_downloads = tmpdir / "same-version-downloads"
+        same_downloads.mkdir()
+        write_config(same_root, same_downloads, "same-demo")
+        same_archive = release_zip(
+            same_downloads, "same-demo", "1.0.3", {"app.txt": "same\n"}
+        )
+        run_pty(
+            binary,
+            [
+                "--update",
+                str(same_archive),
+                "--root",
+                str(same_root),
+                "--no-ui",
+                "--no-setup",
+                "--no-wait",
+            ],
+            0,
+        )
+        same_output = run_pty(
+            binary,
+            ["--update", str(same_archive), "--root", str(same_root), "--no-setup"],
+            0,
+            input_data=b"\r",
+        )
+        require(
+            same_output,
+            {
+                "same version notice": "Version 1.0.3 ist bereits installiert".encode("utf-8"),
+                "green same-version content": (
+                    b"\x1b[42m\x1b[97m\x1b[1m Version 1.0.3 ist bereits installiert"
+                ),
+                "normal close footer": "Update beenden | Enter zum Schließen".encode("utf-8"),
+                "same-version final status": (
+                    f"Update CLI Version {version} | same-demo | Installierte Version: v1.0.3"
+                ).encode("utf-8"),
+            },
+        )
+        if b"FAIL" in same_output or "Zur erneuten Installation".encode("utf-8") in same_output:
+            raise SystemExit("same-version update still renders as a failure")
 
         # When the setup question is accepted, the update phase history must be
         # cleared from the scrollable content region before setup starts. Header,
@@ -380,7 +460,7 @@ def main() -> int:
             binary,
             ["--update", str(clear_archive), "--root", str(clear_root), "--no-wait"],
             0,
-            input_data=b"j\n",
+            input_data=b"\x1b[D\r",
         )
         final_frame = clear_output.rsplit(b"\x1b[H", 1)[-1].split(b"\x1b[?1049l", 1)[0]
         require(
@@ -435,7 +515,7 @@ def main() -> int:
             binary,
             ["--check", "--root", str(chained_root), "--no-wait"],
             0,
-            input_data=b"j\n",
+            input_data=b"\r",
         )
         require(
             chained_output,
@@ -444,11 +524,14 @@ def main() -> int:
                 "update confirmation modal": "Update jetzt installieren?".encode("utf-8"),
                 "update modal YES button": b"YES",
                 "update modal NO button": b"NO",
-                "update screen": b"Update CLI \xe2\x80\x94 Update",
+                "update screen": header + b"   |   chained-demo   |   Update",
                 "nested setup heading": b"Projekt-Setup",
                 "nested setup step": "Setup-Ausgabe prüfen".encode("utf-8"),
                 "nested setup stdout": b"nested-setup-output",
                 "stable update footer": b"RUN  Update l\xc3\xa4uft",
+                "chained final installed version": (
+                    f"Update CLI Version {version} | chained-demo | Aktualisiert auf Version: v1.0.0"
+                ).encode("utf-8"),
             },
         )
         for forbidden in (

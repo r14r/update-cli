@@ -12,7 +12,7 @@ FORWARD_ARGS=()
 
 usage() {
     cat <<'TXT'
-Usage: setup-template.sh [--details] [--wait|--no-wait] [--fullscreen|--no-fullscreen] [--no-ui] [--list|--task NAME|--workflow NAME] [--config FILE]
+Usage: setup-template.sh [--details] [--wait|--no-wait] [--fullscreen|--no-fullscreen] [--no-ui|--noui] [--list|--task NAME|--workflow NAME] [--config FILE]
 
 The default manifest is ./setup.yaml (or ./setup.yml) in the current project
 folder. If this template was copied into a project, its script directory is
@@ -44,12 +44,19 @@ resolve_manifest() {
 
 manifest_schema() {
     awk '
-        /^[[:space:]]*(schemaVersion|version)[[:space:]]*:/ {
+        /^[[:space:]]*schemaVersion[[:space:]]*:/ {
             line=$0
             sub(/^[^:]*:[[:space:]]*/, "", line)
             gsub(/[[:space:]#].*$/, "", line)
-            if (line ~ /^[0-9]+$/) { print line; exit }
+            if (line ~ /^[0-9]+$/) { print line; found=1; exit }
         }
+        /^[[:space:]]*version[[:space:]]*:/ {
+            line=$0
+            sub(/^[^:]*:[[:space:]]*/, "", line)
+            gsub(/[[:space:]#].*$/, "", line)
+            if (line ~ /^[0-9]+$/) { legacy=line }
+        }
+        END { if (!found && legacy != "") print legacy }
     ' "$1"
 }
 
@@ -75,6 +82,7 @@ candidate_help() {
 candidate_supports_manifest() {
     local candidate="$1"
     local schema="$2"
+    local manifest="$3"
     local help_text
     [[ -x "${candidate}" ]] || return 1
     help_text="$(candidate_help "${candidate}")"
@@ -84,6 +92,11 @@ candidate_supports_manifest() {
         grep -q -- '--setup-task' <<<"${help_text}" || return 1
         grep -q -- '--setup-workflow' <<<"${help_text}" || return 1
     fi
+
+    # Flag-level capability is not enough: older schema-v2 releases may know
+    # workflows/tasks but still reject newer optional manifest fields such as
+    # project.slug. Validate the actual manifest before selecting a candidate.
+    "${candidate}" --setup-manifest "${manifest}" --setup-list --no-ui --no-wait >/dev/null 2>&1 || return 1
     return 0
 }
 
@@ -100,7 +113,7 @@ while (($# > 0)); do
         --workflow)
             (($# >= 2)) || { printf 'ERROR --workflow benötigt einen Namen\n' >&2; exit 2; }
             FORWARD_ARGS+=("--setup-workflow" "$2"); shift 2 ;;
-        --no-ui|---no-ui)
+        --no-ui|--noui|---no-ui)
             export UPDATE_CLI_TUI=plain
             FORWARD_ARGS+=("--no-ui"); shift ;;
         --fullscreen)
@@ -132,7 +145,7 @@ export UPDATE_CLI_TUI="${UPDATE_CLI_TUI:-auto}"
 # UPDATE_CLI_BIN is an explicit override. Do not silently ignore an incompatible
 # binary because that would hide a broken deployment configuration.
 if [[ -n "${UPDATE_CLI_BIN:-}" ]]; then
-    if ! candidate_supports_manifest "${UPDATE_CLI_BIN}" "${SCHEMA}"; then
+    if ! candidate_supports_manifest "${UPDATE_CLI_BIN}" "${SCHEMA}" "${MANIFEST}"; then
         printf 'ERROR UPDATE_CLI_BIN unterstützt setup.yaml Schema %s nicht: %s\n' "${SCHEMA}" "${UPDATE_CLI_BIN}" >&2
         exit 1
     fi
@@ -153,7 +166,7 @@ installed_cli="$(command -v update-cli 2>/dev/null || true)"
 
 for candidate in "${candidates[@]}"; do
     [[ -n "${candidate}" ]] || continue
-    if candidate_supports_manifest "${candidate}" "${SCHEMA}"; then
+    if candidate_supports_manifest "${candidate}" "${SCHEMA}" "${MANIFEST}"; then
         exec "${candidate}" --setup-manifest "${MANIFEST}" "${FORWARD_ARGS[@]}"
     fi
 done
@@ -177,7 +190,7 @@ fi
 
 if (( SCHEMA >= 2 )); then
     printf 'ERROR setup.yaml verwendet Schema %s, aber kein kompatibles Update CLI wurde gefunden.\n' "${SCHEMA}" >&2
-    printf '      Benötigt wird Update CLI 3.1.0 oder neuer bzw. ein passendes lokales dist/update-cli-<os>-<arch>.\n' >&2
+    printf '      Benötigt wird ein Update CLI mit schemaVersion-2-Unterstützung (aktuelle Versionslinie 1.x (kompatibel ab 0.8.0)) bzw. ein passendes lokales dist/update-cli-<os>-<arch>.\n' >&2
 else
     printf 'ERROR kein kompatibles update-cli für setup.yaml gefunden.\n' >&2
 fi

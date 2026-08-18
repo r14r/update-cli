@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/r14r/update-cli/lib/config"
 	rsyncutil "github.com/r14r/update-cli/lib/rsync"
+	"github.com/r14r/update-cli/lib/tools"
 	"github.com/r14r/update-cli/lib/updatecheck"
 	"os"
 	"path/filepath"
@@ -81,10 +82,15 @@ func Resolve(c config.Config, id string) (Item, error) {
 		if err != nil {
 			return Item{}, err
 		}
+		for _, item := range items {
+			if item.Validated {
+				return item, nil
+			}
+		}
 		if len(items) == 0 {
 			return Item{}, errors.New("keine Backups vorhanden")
 		}
-		return items[0], nil
+		return Item{}, errors.New("kein validiertes Backup vorhanden")
 	}
 	p := id
 	if !filepath.IsAbs(p) {
@@ -97,7 +103,11 @@ func Resolve(c config.Config, id string) (Item, error) {
 	if !within(c.BackupRoot, a) {
 		return Item{}, fmt.Errorf("Backup liegt außerhalb von backup.directory: %s", a)
 	}
-	return inspect(a, c.ProjectName)
+	canonical, err := tools.CanonicalInside(c.BackupRoot, a, true)
+	if err != nil {
+		return Item{}, fmt.Errorf("Backup-Pfad ist unsicher: %w", err)
+	}
+	return inspect(canonical, c.ProjectName)
 }
 func List(c config.Config) ([]Item, error) {
 	entries, err := os.ReadDir(c.BackupRoot)

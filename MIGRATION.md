@@ -1,3 +1,13 @@
+# Update CLI 1.0.0 migration
+
+No project configuration migration is required when moving from 0.8.x to 1.0.0. Existing schemaVersion-6 `config.json` and setup manifests remain supported.
+
+For the `update-cli` project itself, the version comparison policy recognizes 1.0.0 as the stable successor to the 0.8.x reset line and as newer than the historical 2.x/3.x development releases. Other projects are unaffected and continue to use strict SemVer.
+
+Incomplete lock directories older than one minute can now be recovered automatically when lock metadata is missing/invalid. `restore latest` now intentionally skips unvalidated backup directories; use an explicit valid backup identifier when a specific restore is required.
+
+---
+
 # Migration to Update CLI 3.x
 
 Update CLI 3.0 changes the project configuration schema from version 5 to version 6 and introduces transactional deployment semantics.
@@ -22,7 +32,7 @@ Schema 6 adds:
 - optional repository `ref`, `commit` and `version` constraints.
 - optional source `sha256` verification.
 
-Default preserved paths include `.git/`, `.venv/`, `.env`, `.env.*`, `data/`, `storage/`, `uploads/`, `media/`, `logs/` and `var/`.
+Default preserved paths include `.git/`, `.gitignore`, `.venv/`, `.env`, `.env.*`, `data/`, `storage/`, `uploads/`, `media/`, `logs/` and `var/`. `.gitignore` is also enforced as a mandatory rsync-protected path for older/custom preserve lists.
 
 ## Setup compatibility
 
@@ -113,3 +123,7 @@ update-cli --convert-yaml
 
 Vor dem Ersetzen wird ein timestamped `setup.yaml.schema1-YYYYMMDD-HHMMSS.bak` angelegt. Mit `--dry-run` kann das Ergebnis vorher geprüft werden. Für Projekte ohne Manifest kann `update-cli --create-yaml` ein schemaVersion-2-Beispiel aus den vorhandenen Projektdateien erzeugen.
 
+
+## Structured schemaVersion 1 manifests
+
+Update CLI 0.8.5 restores compatibility with the older generated schemaVersion-1 format that uses sections such as `version`, `build`, `runtime`, `go`, `setup`, and `commands`. These manifests can be executed directly and can then be migrated with `update-cli --convert-yaml` to the current schemaVersion-2 task/workflow model.

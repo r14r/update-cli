@@ -1,37 +1,285 @@
 # Update CLI
 
-`update-cli` installs versioned application releases into a stable `current/` directory while keeping validated release copies, backups, history, setup automation, rollback, and recovery state.
+![Update CLI — transactional updates and project setup automation](docs/update-cli-readme-header.png)
 
-Version: **3.1.2**
+**Update CLI** is a transactional release updater and project setup/automation runner for versioned applications. It installs validated releases into a stable `current/` directory, keeps immutable release copies and recovery state, and can prepare, check, test, build, deploy, start, stop, migrate, and verify projects through `setup.yaml`.
 
-## Core safety model
+Current release: **1.0.0**
 
-A real update is transactional:
+### 1.0 stability baseline
 
-1. Resolve and validate the release source.
-2. Build a validated hidden release staging directory.
-3. Detect whether the existing Docker Compose stack is actually running.
-4. Stop that stack when necessary.
-5. Create an exact temporary transaction snapshot of `current/`.
-6. Optionally create a persistent user backup with `--backup`.
-7. Synchronize the staged release into `current/` while protecting configured persistent paths.
-8. Verify the installed marker and checksum-level rsync equivalence.
-9. Run `setup.yaml` when requested or confirmed interactively.
-10. Restore the previous service-running state.
-11. Run the configured health check.
-12. Activate the immutable release directory and commit the transaction.
+Version 1.0.0 promotes the hardened 0.8.x line to the stable release line. It keeps the existing CLI, command aliases, config schema, setup schema and transactional workflow compatible while tightening crash recovery and reducing unnecessary I/O. Notable 1.0 hardening includes unique release/transaction staging paths, recoverable incomplete locks, validated-only `restore latest`, canonical backup path checks, crash-tolerant trailing history records, and single-pass ZIP extraction during update/verify.
 
-Any failure after the transaction begins restores the previous `current/` snapshot. A Compose stack that was running before the operation is brought back after recovery.
+The Update CLI-specific version policy explicitly treats **1.0.0 as newer than both 0.8.x and the pre-reset 2.x/3.x development line**. Version ordering for every other managed project remains normal semantic versioning.
+
+See [CODE_REVIEW.md](CODE_REVIEW.md) for the complete pre-1.0 review.
+
+## Quickstart
+
+The normal day-to-day workflow is intentionally short: initialize a project once, generate or maintain `setup.yaml`, make a versioned release available, and then run Update CLI **without parameters**.
+
+New projects created with `--init` use `check` as their default no-parameter action. This means a bare `update-cli` invocation checks for a newer release first instead of installing anything immediately.
+
+### 1. Initialize the project
+
+Create or enter the project directory, then initialize Update CLI:
+
+```bash
+mkdir nvidia-cli
+cd nvidia-cli
+update-cli --init nvidia-cli
+```
+
+This creates `.updater-cli/config.json` and the standard `release/`, `current/`, and backup structure. A new project starts with:
+
+```json
+{
+  "no parameter": ["check"]
+}
+```
+
+Therefore the normal command after initialization is simply:
+
+```bash
+update-cli
+```
+
+which is equivalent to running the configured `check` action.
+
+![Quickstart — initialize project](doc/images/quickstart/01-init.png)
+
+### 2. Generate project setup automation
+
+Let Update CLI inspect the project and generate the current schemaVersion-2 setup manifest:
+
+```bash
+update-cli --create-yaml --from project
+update-cli --create-setup-script
+```
+
+The detector can combine multiple stacks, for example `go+node+docker`. Review the generated `setup.yaml` before using it in production.
+
+If the project already contains a legacy `setup.sh`, convert that instead:
+
+```bash
+update-cli --create-yaml --from setup-script
+```
+
+or optionally refine the deterministic conversion with the configured AI provider:
+
+```bash
+update-cli --create-yaml --from setup-script --with-ai
+```
+
+![Quickstart — generate setup.yaml](doc/images/quickstart/02-create-yaml.png)
+
+### 3. Choose how setup should run after an update
+
+There are two useful no-parameter configurations.
+
+The default created by `--init` is:
+
+```json
+{
+  "no parameter": ["check"]
+}
+```
+
+With this configuration the bare command performs this flow:
+
+```text
+update-cli
+   ↓
+check for a newer release
+   ↓
+Update jetzt installieren?     YES is selected by default
+   ↓ Enter
+transactional update
+   ↓
+Projekt-Setup jetzt ausführen? YES is selected by default
+   ↓ Enter
+setup
+```
+
+If you normally want the setup to run **automatically after an accepted update**, change the setting through the CLI:
+
+```bash
+update-cli config --set no-parameter="check,setup"
+```
+
+This updates `.updater-cli/config.json` to:
+
+```json
+{
+  "no parameter": ["check", "setup"]
+}
+```
+
+Then the normal workflow becomes:
+
+```text
+update-cli
+   ↓
+check for a newer release
+   ↓
+Update jetzt installieren?     YES is selected by default
+   ↓ Enter
+transactional update
+   ↓
+setup automatically            no second setup question
+```
+
+This is usually the most convenient configuration for projects whose `setup.yaml` is safe and expected to run after every release.
+
+### 4. Make a release available
+
+For the default `download` source, place a versioned ZIP in `$HOME/Downloads` using the naming convention:
+
+```text
+nvidia-cli-v0.1.5.zip
+```
+
+The archive name must match the configured project name and semantic version pattern:
+
+```text
+<PROJECT>-v<MAJOR>.<MINOR>.<PATCH>.zip
+```
+
+You can also configure an HTTPS or Git repository source; the daily workflow remains the same.
+
+### 5. Check and install the update
+
+With a newly initialized project, run:
+
+```bash
+update-cli
+```
+
+You can always request the check explicitly:
+
+```bash
+update-cli --check
+```
+
+If a newer release is available, the fullscreen UI displays the installed and available versions and opens the confirmation modal. **YES is preselected**, so pressing Enter immediately starts the update. Use `←` / `→` or Tab when you want to change the selection.
+
+![Quickstart — check for update](doc/images/quickstart/03-check.png)
+
+The update is transactional. Update CLI validates the artifact, creates a transaction snapshot, prepares the immutable release, synchronizes `current/`, verifies the installation, preserves configured persistent paths, and automatically restores the previous state if a later phase fails. The project `.gitignore` is always protected during rsync synchronization and restore.
+
+After the TUI closes, Update CLI leaves a compact final status line in the normal shell scrollback. After a successful update it contains both the Update CLI version and the project version that was installed:
+
+```text
+Update CLI Version 1.0.0 | nvidia-cli | Aktualisiert auf Version: v1.2.4
+```
+
+If a check completes without installing anything, the final line reports the currently installed project version instead:
+
+```text
+Update CLI Version 1.0.0 | nvidia-cli | Installierte Version: v1.2.4
+```
+
+This status line is also emitted in `--no-ui` mode. JSON output remains machine-readable and does not receive the extra line.
+
+If the selected release is already installed, Update CLI treats that as a successful no-op rather than a failed update. The version-policy step completes normally and the fullscreen content area shows a green notice:
+
+```text
+Version 1.2.4 ist bereits installiert
+```
+
+The footer remains in the normal close state (`Update beenden | Enter zum Schließen`) and the process exits with code `0`. Use `--force` only when you intentionally want to reinstall the same version.
+
+![Quickstart — transactional update](doc/images/quickstart/04-update.png)
+
+### 6. Run setup explicitly when needed
+
+Setup can also be run independently at any time:
+
+```bash
+update-cli --setup
+```
+
+To install a release directly and force setup without a setup confirmation:
+
+```bash
+update-cli --update --setup
+```
+
+To install a release without running setup:
+
+```bash
+update-cli --update --no-setup
+```
+
+For scripts or CI where fullscreen rendering is undesirable:
+
+```bash
+update-cli --update --setup --no-ui
+```
+
+`--no-ui` streams child-process stdout/stderr directly to the terminal.
+
+![Quickstart — project setup](doc/images/quickstart/05-setup.png)
+
+### 7. Verify the final state
+
+Inspect the active version and run environment diagnostics:
+
+```bash
+update-cli --status
+update-cli --doctor
+```
+
+`--status` shows the active/current release state; `--doctor` verifies configuration, release metadata, setup availability, required tools, and other project prerequisites.
+
+![Quickstart — verify status](doc/images/quickstart/06-status.png)
+
+### Typical workflows at a glance
+
+| Goal | Configuration / command | Prompts |
+|---|---|---|
+| Safe default for a new project | `"no parameter": ["check"]` + `update-cli` | update confirmation, then setup confirmation |
+| Check first, then always run setup | `"no parameter": ["check", "setup"]` + `update-cli` | update confirmation only |
+| Direct update and setup | `update-cli --update --setup` | none |
+| Direct update without setup | `update-cli --update --no-setup` | none |
+| Setup only | `update-cli --setup` | none |
+| CI/plain terminal execution | `update-cli --update --setup --no-ui` | none |
+
+If you use a shell alias such as `u=update-cli`, all examples above work identically with `u`.
+
+## Highlights
+
+- transactional updates with automatic recovery of `current/`
+- crash-safe unique transaction/release staging and recoverable stale locks
+- local ZIP, HTTPS URL, and Git repository release sources
+- single-pass ZIP extraction/verification path with duplicate-path rejection
+- semantic version handling and downgrade protection
+- protected persistent paths such as `.env`, `data/`, `storage/`, and uploads
+- temporary transaction snapshots plus optional persistent backups
+- validated-only `restore latest` with canonical backup path protection
+- Docker Compose stop/start state preservation
+- post-update setup and health checks
+- rollback, restore, cleanup, history, status, doctor, and archive verification
+- fullscreen terminal UI with fixed Header / Info / Steps / Footer regions
+- confirmation modals with selectable `YES` / `NO` buttons
+- `--no-ui` mode for direct stdout/stderr streaming
+- declarative `setup.yaml` schemaVersion 2 with workflows, tasks, conditions, variables, and typed operations
+- automatic `setup.yaml` generation from project files
+- deterministic conversion of legacy `setup.sh` into schemaVersion 2
+- optional AI refinement of `setup.sh` conversions
+- schemaVersion-1 setup compatibility and legacy `setup.sh` fallback
 
 ## Installation layout
 
-Defaults embedded into the binary:
+The default installation locations embedded in the binary are:
 
-- binary: `/usr/local/bin/update-cli`
-- global configuration: `/usr/local/etc/update-cli`
-- local release source: `$HOME/Downloads`
+```text
+Binary             /usr/local/bin/update-cli
+Global config      /usr/local/etc/update-cli
+Download folder    $HOME/Downloads
+```
 
-Project layout:
+A managed project normally looks like this:
 
 ```text
 project/
@@ -43,61 +291,403 @@ project/
 │   └── transactions/
 ├── release/
 ├── current/
+│   ├── setup.yaml
+│   └── ... application files ...
 ├── backup/
 └── .release-update.lock/
 ```
 
-## Basic commands
+Update CLI can resolve the project root while invoked from `current/` or a deeper subdirectory by walking upward to the nearest `.updater-cli/config.json`. An explicit `--root` always takes precedence.
+
+## Build from source
 
 ```bash
-update-cli --init my-project
-update-cli --check
-update-cli --update
-update-cli --update --backup
-update-cli --update --plan
-update-cli --update --force
-update-cli --rollback
+git clone <repository>
+cd update-cli
+just build
+```
+
+Or without `just`:
+
+```bash
+go vet ./...
+go test ./...
+go build -trimpath -ldflags "-s -w -X main.version=$(cat VERSION)" -o dist/update-cli .
+```
+
+Deploy the locally built binary and global setup template with the project's setup workflow or the Justfile deployment recipes.
+
+## Machine-readable CLI discovery
+
+Update CLI exposes a deterministic command contract for tools such as **command-ui**:
+
+```bash
+update-cli --help --json
+```
+
+The command writes **JSON only** to stdout and does not initialize the fullscreen TUI, perform release discovery, mutate configuration, or execute setup/update operations. The equivalent command-token form is:
+
+```bash
+update-cli help --json
+```
+
+The discovery document uses `schemaVersion: 1`, reports the currently running Update CLI version, describes command arguments and relevant options, and exposes dynamic value sources for rollback releases, restore backups, setup tasks, and setup workflows.
+
+If command-ui is installed, validate and open Update CLI with:
+
+```bash
+command-ui validate update-cli
+command-ui inspect update-cli
+command-ui update-cli
+```
+
+### Command-token aliases
+
+Update CLI remains fully backward compatible with the established flag-based interface. Command-token forms are aliases that are normalized to the same internal options and execution path:
+
+```bash
+update-cli check                       # same as: update-cli --check
+update-cli update release.zip          # same as: update-cli --update release.zip
+update-cli backup                      # same as: update-cli --backup
+update-cli rollback 1.2.3              # same as: update-cli --rollback 1.2.3
+update-cli restore latest              # same as: update-cli --restore latest
+update-cli status --json               # same as: update-cli --status --json
+update-cli list --json                 # same as: update-cli --list --json
+update-cli verify release.zip          # same as: update-cli --verify release.zip
+update-cli doctor                      # same as: update-cli --doctor
+update-cli cleanup                     # same as: update-cli --cleanup
+update-cli history                     # same as: update-cli --history
+update-cli init my-project             # same as: update-cli --init my-project
+update-cli upgrade                     # same as: update-cli --upgrade
+update-cli unlock                      # same as: update-cli --unlock
+```
+
+Setup automation also has a command hierarchy:
+
+```bash
+update-cli setup
+update-cli setup list
+update-cli setup list --json
+update-cli setup task build
+update-cli setup workflow ci
+update-cli setup manifest ./setup.yaml
+```
+
+The existing forms `--setup`, `--setup-list`, `--setup-task`, `--setup-workflow`, and `--setup-manifest` remain supported. The YAML lifecycle commands also accept token aliases:
+
+```bash
+update-cli convert-yaml
+update-cli create-yaml --from project
+update-cli create-setup-script
+```
+
+Configuration and template operations can be written command-first as well:
+
+```bash
+update-cli config
+update-cli config list
+update-cli config edit
+update-cli config use-template go
+update-cli config --set no-parameter="check,setup"
+
+update-cli templates list
+update-cli templates edit
+update-cli templates use go
+```
+
+Rollback and restore selectors in the discovery document use the structured inventory from `update-cli list --json`. Setup task/workflow selectors use `update-cli setup list --json`.
+
+## CLI reference
+
+### Release and recovery
+
+```bash
+update-cli --check [--no-ask] [--wait|--no-wait] [--no-ui]
+update-cli --update [ARCHIVE.zip] [--backup] [--setup|--no-setup] [--force]
+update-cli --update --plan [--json]
+update-cli --backup
+update-cli --rollback [VERSION] [--setup]
 update-cli --restore latest
-update-cli --status
-update-cli --list
-update-cli --doctor
-update-cli --history
-update-cli --cleanup
-update-cli --setup
+update-cli --verify ARCHIVE.zip
+update-cli --clean [--keep N] [--plan]      # release folder only
+update-cli --cleanup [--keep N] [--plan]    # release + backup retention
 update-cli --unlock
 ```
 
-Use `update-cli --help` for the short command list and `update-cli --howto` for operational details.
+### Typo suggestions
+
+Unknown command-line options are checked against the supported flag set. Close matches produce a correction hint instead of only a generic parser error:
+
+```bash
+update-cli --vesion
+# ERROR  unbekannter Parameter "--vesion"; meinten Sie "--version"?
+```
+
+Update CLI does not silently execute the suggested option; correct the command and run it again.
+
+### Information and diagnostics
+
+```bash
+update-cli --status [--json]
+update-cli --list [--json]
+update-cli --doctor
+update-cli --history [--limit N]
+update-cli --howto
+update-cli --version
+```
+
+### Configuration and templates
+
+The preferred configuration command is `update-cli config`. The historical `--config` spelling remains supported.
+
+```bash
+update-cli config
+update-cli config --list
+update-cli config --edit
+update-cli config --use-template NAME
+update-cli config --set KEY=VALUE
+update-cli --templates --list [--details]
+update-cli --init PROJECTNAME
+update-cli --upgrade
+```
+
+`config --set` can change any supported value in `.updater-cli/config.json`. Nested JSON fields use dotted paths; key matching accepts JSON camelCase as well as kebab-case, snake_case, and spaces. Lists can be supplied as comma-separated values or as a JSON array.
+
+Typical examples:
+
+```bash
+# Change the no-parameter workflow
+update-cli config --set no-parameter="check,setup"
+
+# Retention values are parsed as integers
+update-cli config --set backup.keep=7
+update-cli config --set retention.releases=10
+
+# Boolean values retain their JSON type
+update-cli config --set security.allow-http=true
+
+# Lists are accepted as comma-separated values
+update-cli config --set sync.preserve=".git/,.gitignore,.env,data/,storage/"
+
+# Multiple changes are validated together and written as one operation
+update-cli config \
+  --set source.type=url \
+  --set source.url=https://example.org/releases/my-app-v1.4.0.zip
+```
+
+Examples of supported dotted paths include:
+
+```text
+projectName
+source.type
+source.folder
+source.url
+source.repository
+source.ref
+source.commit
+source.version
+source.sha256
+releaseDir
+currentDir
+no-parameter              -> JSON key "no parameter"
+setup.commands
+backup.directory
+backup.keep
+retention.releases
+sync.preserve
+security.allowHttp
+security.maxArchiveBytes
+security.maxUncompressedBytes
+security.maxFileBytes
+security.maxEntries
+security.maxCompressionRatio
+healthcheck.type
+healthcheck.url
+healthcheck.command
+healthcheck.timeoutSeconds
+docker.lifecycle
+```
+
+All `--set` assignments are applied in memory first. Update CLI validates the complete resulting configuration and writes it atomically only if the combined configuration is valid. Unknown keys, invalid types, or invalid configurations are rejected without changing `config.json`.
+
+## Docker lifecycle
+
+Docker Compose handling during update transactions is controlled by the project configuration in `.updater-cli/config.json`. The setting is **not** part of `setup.yaml`. Existing projects without a `docker` block automatically behave as `auto`.
+
+```json
+{
+  "docker": {
+    "lifecycle": "auto"
+  }
+}
+```
+
+Supported values:
+
+- `auto` — default and backward-compatible mode. If no Compose file exists, Update CLI does nothing. If a Compose file exists and Docker status can be determined, previously running services are stopped before replacing `current` and restarted afterward. If Docker, Compose, the daemon, or `compose ps` status detection is unavailable, Update CLI emits a warning and continues the filesystem transaction without Docker lifecycle management.
+- `disabled` — never interact with Docker during update transactions or transaction recovery. Compose files may remain in `current/`; they are simply ignored by the updater lifecycle.
+- `required` — Docker lifecycle handling is mandatory whenever a Compose file exists. Docker/Compose/status failures abort the transaction. If no Compose file exists, this mode is allowed and behaves as a no-op for Docker.
+
+Set the value through the CLI:
+
+```bash
+update-cli config --set docker.lifecycle=auto
+update-cli config --set docker.lifecycle=disabled
+update-cli config --set docker.lifecycle=required
+```
+
+For a project such as **Life OS**, where `docker-compose.yml` is only an optional deployment mechanism and Docker Desktop may be stopped, use:
+
+```bash
+update-cli config --set docker.lifecycle=disabled
+```
+
+which persists conceptually as:
+
+```json
+{
+  "docker": {
+    "lifecycle": "disabled"
+  }
+}
+```
+
+Then:
+
+```bash
+update-cli --update --no-ui
+```
+
+updates the project without invoking Docker and without requiring the Compose file to be renamed or moved.
+
+In `auto` mode, a degraded Docker status check is reported as a warning rather than an update failure. In `required` mode the same condition remains fatal. `update-cli --status` exposes the configured Docker lifecycle, and `update-cli --doctor` reports disabled as skipped/OK, auto failures as warnings, and required failures as errors.
+
+### Setup execution
+
+```bash
+update-cli --setup [--details] [--wait|--no-wait] [--no-ui]
+update-cli --setup-list
+update-cli --setup-task NAME [--details] [--no-ui]
+update-cli --setup-workflow NAME [--details] [--no-ui]
+update-cli --setup-manifest ./setup.yaml
+update-cli --setup-manifest ./setup.yaml --setup-list
+update-cli --setup-manifest ./setup.yaml --setup-task NAME
+update-cli --setup-manifest ./setup.yaml --setup-workflow NAME
+```
+
+### Setup-file management
+
+```bash
+update-cli --convert-yaml [--dry-run]
+update-cli --create-yaml [--from project|setup-script] [--with-ai] [--force] [--dry-run]
+update-cli --create-setup-script [--force] [--dry-run]
+```
+
+The compatibility spelling `-create-setup-script` is accepted, but `--create-setup-script` is the documented form.
 
 ## Fullscreen TUI
 
-Interactive `--check`, real `--update`, and setup runs use the fullscreen TUI by default. The behavior is compatible with the 2.14 line:
+The header shows the project name together with the currently installed project version when available.
 
-- fixed header and footer
-- dedicated project/setup information area above the steps
-- framed, automatically scrolling installation-step area
-- one persistent row per step; successful rows end with a green `✓` instead of emitting a second `OK ... abgeschlossen` line
-- centered confirmation modal with separate `YES` / `NO` buttons; the footer remains status-only
-- automatic terminal line wrap disabled while fullscreen is active
-- rune-based width handling so German umlauts do not shift vertical borders
-- compact output after leaving the alternate screen
-- wait for Enter after success or failure by default
+
+Interactive `--check`, real `--update`, and setup execution use the fullscreen UI when stdout/stdin are terminals and colors are enabled.
+
+The screen has four independent regions:
+
+```text
+┌──────────────────────────────────────────────────────────────┐
+│ Update CLI Version 1.0.0   |   my-project v1.2.4   |   Setup       │
+└──────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│ Project / update / setup information                         │
+└──────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│ Scrollable steps and command stdout/stderr                   │
+│ [01/08] Prepare project                                  ✓   │
+│          │ PREPARE   workspace ... OK                         │
+│ [02/08] Run tests                                        …   │
+│          │ TEST      package ./... ... OK                      │
+└──────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│ High-level status / final state only                         │
+└──────────────────────────────────────────────────────────────┘
+```
+
+Only the step/output area scrolls. Process output never owns the footer. During setup, fullscreen stdout/stderr is rendered in a fixed gutter directly below its step. Setup metadata shown in the scrollable content region uses that same gutter, so `Projekt:` and `Schema:` align exactly with the command output below:
+
+```text
+│ Projekt-Setup
+│         │ Projekt: Update CLI
+│         │ Schema: 2 | Tasks: 5 | Schritte: 14
+│ [01/14] Go-Module laden                                               ✓
+│         │ ! go: no module dependencies to download
+```
+
+Leading padding emitted by child tools is normalized, so all output begins at the same column; wrapped continuation lines keep the same indentation. stderr uses `│ !` in the same gutter.
+
+### Confirmation modal
+
+Update and post-update setup confirmations are displayed as centered modal dialogs:
+
+```text
+┌──────────────────────────────────────────────────────────┐
+│                      Bestätigung                         │
+│                                                          │
+│                Update jetzt installieren?                │
+│                                                          │
+│       ┌───────────────┐       ┌───────────────┐          │
+│       │      YES      │       │      NO       │          │
+│       └───────────────┘       └───────────────┘          │
+│   ←/→ auswählen · Enter bestätigen · j/y YES · n NO     │
+└──────────────────────────────────────────────────────────┘
+```
 
 Controls:
+
+- `←` selects **YES**
+- `→` selects **NO**
+- `Enter` confirms the highlighted button
+- `j`, `ja`, `y`, `yes` immediately choose **YES**
+- `n`, `nein`, `no` immediately choose **NO**
+- `Tab` toggles the highlighted button
+
+Both update and setup confirmations default to **YES**. In fullscreen mode, YES is preselected; in plain/`--no-ui` mode the confirmation suffix is `[J/n]`.
+
+### TUI modes
 
 ```bash
 UPDATE_CLI_TUI=auto update-cli --update
 UPDATE_CLI_TUI=fullscreen update-cli --check
 UPDATE_CLI_TUI=plain update-cli --update
-update-cli --update --no-wait
-update-cli --check --no-ask --no-wait
 update-cli --update --no-ui
 update-cli --setup --no-ui
+update-cli --setup --noui     # alias for --no-ui
+update-cli --update --no-wait
 ```
 
-`--no-ui` disables the TUI entirely and streams setup/process stdout and stderr directly to the terminal. It keeps normal color output unless `--no-color`/`NO_COLOR=1` is also used. The compatibility spelling `---no-ui` is accepted, but `--no-ui` is the documented form.
+`--no-ui` completely disables the alternate-screen UI and streams command stdout/stderr directly. It does not disable colors; combine it with `--no-color` if plain uncolored output is required.
 
-`--no-color`, `NO_COLOR=1`, JSON output, and non-interactive stdout automatically avoid fullscreen rendering. `--wait` remains accepted explicitly; `--no-wait` is the opt-out from the default fullscreen wait behavior.
+Setup output in `--no-ui` mode is step-centric. Task headings and separate task rules are intentionally omitted; every visible block starts directly with its numbered step. Step stdout/stderr is indented behind a vertical guide, and a closing status line marks the end of each step:
+
+```text
+[01/03] Install Python dependencies ────────────────────────────────────
+│  ❯ .venv/bin/python -m pip install -r requirements.txt
+│  INSTALL   Python dependencies ... OK
+└─ ✓ Install Python dependencies
+
+[02/03] Install project CLI ────────────────────────────────────────────
+│  ❯ python static/scripts/install_cli.py
+│  INSTALL   dp-cli + digital-product-cli ... OK
+└─ ✓ Install project CLI
+```
+
+This keeps long command output visibly attached to the step that produced it. stderr lines use the same guide and receive an additional `!` marker. Skipped steps use a matching `└─ – ...` closing line.
+
+`--noui` is accepted as an alternative spelling of `--no-ui`. The historical compatibility spelling `---no-ui` also remains accepted. `--no-ui` remains the documented canonical option.
+
+`NO_COLOR=1`, `--no-color`, JSON output, non-interactive output, and `UPDATE_CLI_TUI=plain` avoid fullscreen rendering.
+
+External command failures now include the executed command, working directory, exit code, and captured stdout/stderr where available. This includes Docker Compose status/start/stop failures during update transactions.
 
 ## Release sources
 
@@ -112,10 +702,16 @@ update-cli --setup --no-ui
 }
 ```
 
-Archive naming:
+Release archives use:
 
 ```text
 <PROJECT>-v<MAJOR>.<MINOR>.<PATCH>.zip
+```
+
+Example:
+
+```text
+nvidia-cli-v0.1.5.zip
 ```
 
 ### HTTPS URL
@@ -125,12 +721,12 @@ Archive naming:
   "source": {
     "type": "url",
     "url": "https://downloads.example.com/demo-v1.2.3.zip",
-    "sha256": "...optional expected SHA-256..."
+    "sha256": "optional expected SHA-256"
   }
 }
 ```
 
-HTTP is blocked unless `security.allowHttp` is explicitly enabled. URL metadata checks use `HEAD`, with a range-request fallback for servers that reject `HEAD`; a normal `--check` does not need to download the complete archive.
+Plain HTTP is rejected unless `security.allowHttp` is enabled. Metadata checks use `HEAD` with a range-request fallback where necessary, so `--check` does not normally download the full artifact.
 
 ### Git repository
 
@@ -146,11 +742,11 @@ HTTP is blocked unless `security.allowHttp` is explicitly enabled. URL metadata 
 }
 ```
 
-Repository releases are normalized through the same artifact policy as ZIP releases. Symbolic links and unsupported special files are rejected.
+Repository content is validated under the same file policy as ZIP releases; unsupported special files and symbolic links are rejected.
 
-## No-parameter action
+## No-parameter behavior
 
-A project can define what `update-cli` does when started without CLI arguments. The historical JSON key remains `"no parameter"`.
+New projects created with `--init` default to:
 
 ```json
 {
@@ -158,14 +754,49 @@ A project can define what `update-cli` does when started without CLI arguments. 
 }
 ```
 
-Supported values are `help`, `check`, `update`, and `setup`. `check` and `help` are standalone actions; `update` may be combined with `setup`.
+A bare invocation therefore checks for a newer release. If an update is accepted and project setup is available, setup is offered separately; both confirmation modals select **YES** by default.
+
+To automatically run setup after an accepted update without a second setup question, configure:
+
+```json
+{
+  "no parameter": ["check", "setup"]
+}
+```
+
+This preserves the safe **check first** workflow: Update CLI still asks before installing the release, but once the update is accepted the configured project setup becomes part of the update transaction automatically.
+
+The configured list selects the primary action only for a genuinely argument-free invocation. Explicit commands such as `--upgrade`, `--doctor`, or `--version` are not combined with that default. The `setup` modifier of `["check", "setup"]` is also honored when `--check` is invoked explicitly, so an accepted checked update behaves consistently. For an explicit direct update with automatic setup, use `update-cli --update --setup`.
+
+## Transactional update model
+
+A normal update is represented as 13 explicit phases:
+
+1. resolve the release source
+2. validate target version and update policy
+3. validate archive/repository content
+4. prepare the versioned release
+5. create the transaction snapshot of `current/`
+6. optionally create a persistent user backup
+7. synchronize the release to `current/`
+8. verify the installed `current/` state
+9. run or skip project setup
+10. restore previously running Docker services
+11. run the configured health check
+12. activate the versioned release
+13. write status/history and commit the transaction
+
+A failure after the transaction begins restores the previous `current/` snapshot. If a Compose stack was running before the update, Update CLI attempts to restore that running state after recovery.
+
+If setup is accepted interactively, the step/output area is cleared before setup starts so installation phases and setup output are not mixed on one screen.
 
 ## Persistent paths
 
-The following paths are protected by default during `release -> current` synchronization:
+The default protected paths are:
 
 ```text
 .git/
+.gitignore
 .venv/
 .env
 .env.*
@@ -177,40 +808,66 @@ logs/
 var/
 ```
 
-Customize them in `config.json`:
+Override them in project configuration:
 
 ```json
 {
   "sync": {
-    "preserve": [".env", "data/", "storage/"]
+    "preserve": [".gitignore", ".env", "data/", "storage/"]
   }
 }
 ```
 
-Protected paths are neither overwritten by release content nor deleted by rsync.
+Protected paths are neither overwritten by release content nor removed by release synchronization.
 
-## Backups vs transaction snapshots
+## Backups and snapshots
 
-These are deliberately different concepts.
+### Transaction snapshots
 
-### Transaction snapshot
+Created automatically for update, rollback, and restore. They are exact temporary recovery copies and are removed after a successful commit.
 
-Created automatically for update, rollback, and restore. It is an exact temporary copy used only for failure recovery and is removed after a successful commit.
+### Persistent user backups
 
-### User backup
-
-Created with:
+Create one explicitly:
 
 ```bash
 update-cli --backup
 update-cli --update --backup
 ```
 
-Regenerable dependencies and secret-bearing `.env` files are excluded. User backups are retained according to `backup.keep`.
+Persistent backups exclude regenerable dependencies and secret-bearing `.env` files and are retained according to the configured backup policy.
 
-## Archive security limits
+## Health checks
 
-Schema v6 adds resource limits:
+HTTP health check:
+
+```json
+{
+  "healthcheck": {
+    "type": "http",
+    "url": "http://localhost:8080/health",
+    "timeoutSeconds": 30
+  }
+}
+```
+
+Command health check:
+
+```json
+{
+  "healthcheck": {
+    "type": "command",
+    "command": "./app doctor",
+    "timeoutSeconds": 30
+  }
+}
+```
+
+A failed post-update health check causes transaction recovery.
+
+## Archive and path security
+
+Project configuration schema v6 supports limits such as:
 
 ```json
 {
@@ -227,38 +884,32 @@ Schema v6 adds resource limits:
 
 ZIP validation rejects:
 
-- absolute paths and path traversal
+- absolute paths and traversal (`../`)
 - symbolic links
-- oversized entries
+- unsupported special files
+- excessive file/archive sizes
 - excessive entry counts
-- excessive total expanded size
+- excessive expanded size
 - suspicious compression ratios
 - CRC/read failures
 
-## Setup-Dateien verwalten
+Configured project/release/current/backup paths are canonicalized to prevent symlink-based containment escapes.
 
-Update CLI 3.2.0 kann die Setup-Dateien eines Projekts selbst migrieren bzw. erzeugen.
-Die Befehle verwenden bei einem konfigurierten Update-CLI-Projekt den `currentDir`; ohne Updater-Konfiguration den aktuellen Projektordner.
+## Locks
+
+The update lock stores PID, host, timestamp, and command metadata. A lock whose local owner PID is no longer alive is treated as stale.
+
+Explicitly remove a recoverable stale lock with:
 
 ```bash
-update-cli --convert-yaml
-update-cli --create-yaml
-update-cli --create-setup-script
+update-cli --unlock
 ```
 
-`--convert-yaml` migriert ein vorhandenes schemaVersion-1-Manifest auf das aktuelle schemaVersion 2 und legt vor dem Ersetzen ein Backup an. Ein bereits aktuelles Manifest bleibt unverändert.
+Active or ambiguous locks are not silently removed.
 
-`--create-yaml` erkennt vorhandene Projektdateien und erzeugt ein schemaVersion-2-Beispiel. Erkannt werden Go (`go.mod`), Python (`pyproject.toml`, `requirements.txt`, `setup.py`, `Pipfile`), Node (`package.json` und Lockfiles), Laravel (`artisan`/`composer.json` bzw. `laravel/framework`) und Docker Compose. Mehrere Stacks können gleichzeitig erkannt werden.
+## `setup.yaml` schemaVersion 2
 
-`--create-setup-script` erzeugt ein ausführbares generisches `setup.sh`, das die Ausführung an einen kompatiblen Update-CLI-Setup-Handler delegiert. Die Kompatibilitätsform `-create-setup-script` wird ebenfalls akzeptiert.
-
-Vorhandene erzeugte Dateien werden ohne `--force` nicht überschrieben. Mit `--dry-run` wird die geplante YAML-/Script-Ausgabe nur angezeigt.
-
-## `setup.yaml`
-
-Update CLI 3.1.0 introduces **schemaVersion 2** as a declarative project automation format while keeping all schema-1 manifests compatible.
-
-Schema 2 separates reusable **tasks** from entry-point **workflows**. A project can therefore describe operations such as `prepare`, `clean`, `check`, `test`, `build`, `verify`, `deploy`, `start`, `stop`, and `restart` once and compose them into workflows.
+SchemaVersion 2 turns `setup.yaml` into a declarative project automation manifest. Reusable **tasks** contain steps; **workflows** compose tasks into entry points such as `setup`, `ci`, `build`, or `clean`.
 
 ```yaml
 schemaVersion: 2
@@ -266,41 +917,60 @@ schemaVersion: 2
 project:
   name: Example CLI
   type: go
+  description: Build, test and deploy Example CLI
 
 variables:
   binary: example
   distDir: dist
 
+defaults:
+  failFast: true
+  timeout: 10m
+
 requirements:
-  commands: [go]
+  commands:
+    - go
 
 workflows:
   setup:
-    tasks: [deploy]
+    tasks:
+      - deploy
+
   ci:
-    tasks: [verify]
+    tasks:
+      - verify
 
 tasks:
   prepare:
     steps:
-      - name: Download modules
+      - id: modules
+        name: Download Go modules
         go:
           action: mod-download
+        when:
+          fileExists: go.mod
 
   check:
     requires: [prepare]
     steps:
-      - name: Static analysis
+      - id: vet
+        name: Static analysis
         go:
           action: vet
-      - name: Tests
+
+  test:
+    requires: [check]
+    steps:
+      - id: test
+        name: Tests
         go:
           action: test
 
   build:
-    requires: [check]
+    requires: [test]
     steps:
-      - name: Build
+      - id: build
+        name: Build binary
         shell: |
           mkdir -p "{{ distDir }}"
           go build -o "{{ distDir }}/{{ binary }}" .
@@ -308,49 +978,120 @@ tasks:
   verify:
     requires: [build]
     steps:
-      - name: Verify binary
+      - id: verify-binary
+        name: Verify binary
         assert:
           executable: "{{ distDir }}/{{ binary }}"
 
   deploy:
     requires: [verify]
     steps:
-      - name: Deploy
+      - id: deploy
+        name: Deploy binary
         deploy:
           source: "{{ distDir }}/{{ binary }}"
-          target: /usr/local/bin/example
+          target: "/usr/local/bin/{{ binary }}"
           mode: "0755"
 ```
 
-Run the default `setup` workflow or select individual project operations:
+### Workflow and task execution
 
 ```bash
 update-cli --setup
 update-cli --setup-list
-update-cli --setup-task test
-update-cli --setup-task clean
 update-cli --setup-workflow ci
-update-cli --setup-workflow setup --no-ui
+update-cli --setup-task test
+update-cli --setup-task build
+update-cli --setup-task clean
 ```
 
-Schema 2 includes:
+Task dependencies are topologically resolved, de-duplicated, and checked for cycles.
 
-- task dependencies with cycle detection and de-duplication
-- variables and `{{ env.NAME | fallback }}` expansion
-- required/optional tool checks
-- `all` / `any` / `not` conditions
-- file, directory, command, environment, OS and architecture conditions
-- per-step `cwd`, `env`, `timeout`, `retries`, and `allowFailure`
-- structured `command` plus unrestricted `shell` as the escape hatch
-- filesystem operations: `mkdir`, `copy`, `move`, `remove`, `chmod`, `symlink`, `touch`, `write`, `deploy`
-- assertions for files, directories, executables, commands, environment, ports, and HTTP
-- environment helpers: `pythonVenv`, `pip`
-- Go, npm/pnpm/yarn, Composer/Artisan and Docker Compose operations
-- HTTP checks, checksum-capable downloads, and safe ZIP extraction
+### Conditions
 
-The complete schema is documented in `doc/setup-schema.md`.
+Simple condition:
 
-Existing schema-1 files remain valid, including the established 2.14 format:
+```yaml
+when:
+  fileExists: go.mod
+```
+
+Compound condition:
+
+```yaml
+when:
+  all:
+    - fileExists: compose.yaml
+    - commandExists: docker
+    - not:
+        envSet: SKIP_DOCKER
+```
+
+Supported condition families include:
+
+```text
+fileExists
+fileNotExists
+directoryExists
+commandExists
+envSet
+os
+arch
+compose
+all
+any
+not
+```
+
+### Variables
+
+```yaml
+variables:
+  binary: app
+  deployPath: "{{ env.DEPLOY_PATH | /usr/local/bin }}"
+```
+
+Built-ins include project metadata, OS/architecture values, and environment-variable references.
+
+### Per-step controls
+
+SchemaVersion-2 steps can define:
+
+```yaml
+cwd: backend
+
+env:
+  APP_ENV: testing
+
+timeout: 5m
+retries: 2
+allowFailure: false
+```
+
+### Typed operations
+
+The current engine supports:
+
+| Category | Operations |
+|---|---|
+| Generic execution | `command`, `shell` |
+| Filesystem | `mkdir`, `copy`, `move`, `remove`, `chmod`, `symlink`, `touch`, `write`, `deploy` |
+| Validation | `assert` |
+| Python | `pythonVenv`, `pip` |
+| JavaScript | `npm`, `pnpm`, `yarn` |
+| PHP/Laravel | `composer`, `artisan` |
+| Go | `go` |
+| Containers | `dockerCompose` |
+| Network | `httpCheck`, `download` |
+| Archives | `extract` |
+
+`command` uses structured executable/argument handling. `shell: |` remains the escape hatch for project-specific logic that cannot safely be represented by a typed operation.
+
+The full schema is documented in [`doc/setup-schema.md`](doc/setup-schema.md).
+
+## SchemaVersion-1 and legacy setup compatibility
+
+Existing schemaVersion-1 manifests remain executable:
 
 ```yaml
 schemaVersion: 1
@@ -362,11 +1103,146 @@ steps:
     name: Run tests
     when: file:go.mod
     run: go test ./...
-    cwd: .
-    allowFailure: false
 ```
 
-The reusable setup wrapper supports task/workflow selection too:
+A legacy `setup.sh` can still be run when no manifest is available. Nested legacy scripts are executed without their own hidden wait/fullscreen cycle so the parent Update CLI owns the user interface.
+
+## Setup-file lifecycle
+
+### Convert an existing YAML
+
+```bash
+update-cli --convert-yaml
+```
+
+SchemaVersion 1 is converted to schemaVersion 2. The generated result is parsed before replacing the original and a timestamped backup is retained.
+
+Preview only:
+
+```bash
+update-cli --convert-yaml --dry-run
+```
+
+### Generate YAML from project files
+
+```bash
+update-cli --create-yaml
+update-cli --create-yaml --from project
+```
+
+Project detection is additive and currently recognizes:
+
+- Go: `go.mod`
+- Python: `pyproject.toml`, `requirements.txt`, `setup.py`, `Pipfile`
+- Node: `package.json` and npm/pnpm/yarn lockfiles
+- Laravel: `artisan`, `composer.json`, `laravel/framework`
+- Docker Compose: `compose.yml`, `compose.yaml`, `docker-compose.yml`, `docker-compose.yaml`
+
+A mixed project may therefore be described as, for example, `go+node+docker` and receive tasks for all detected stacks.
+
+### Generate YAML from `setup.sh`
+
+```bash
+update-cli --create-yaml --from setup-script
+```
+
+The deterministic converter analyzes the existing shell setup and recognizes template-style setup arrays and common Go, Python, Node, Composer, Docker, deployment, and command patterns. When a safe typed mapping is not possible, the original behavior is preserved as an ordered `shell: |` step rather than guessed away.
+
+### AI-assisted setup-script conversion
+
+```bash
+update-cli --create-yaml --from setup-script --with-ai
+```
+
+The conversion pipeline is:
+
+```text
+setup.sh
+   ↓
+deterministic converter
+   ↓
+schemaVersion-2 draft
+   ↓
+AI refinement
+   ↓
+schemaVersion-2 parser validation
+   ↓
+setup.yaml
+```
+
+AI receives both the **original setup script** and the **deterministic draft**. The deterministic conversion is always performed first. An AI result is accepted only if Update CLI can parse it as a valid schemaVersion-2 manifest.
+
+Supported provider identifiers:
+
+```text
+ollama
+openai-compatible
+nvidia
+```
+
+Default AI configuration file:
+
+```text
+/usr/local/etc/update-cli/ai.json
+```
+
+Example:
+
+```json
+{
+  "provider": "ollama",
+  "baseUrl": "http://localhost:11434",
+  "model": "qwen3:8b",
+  "timeout": "2m"
+}
+```
+
+Environment overrides:
+
+```text
+UPDATE_CLI_AI_PROVIDER
+UPDATE_CLI_AI_BASE_URL
+UPDATE_CLI_AI_MODEL
+UPDATE_CLI_AI_API_KEY
+UPDATE_CLI_AI_API_KEY_ENV
+UPDATE_CLI_AI_CONFIG
+UPDATE_CLI_AI_PROMPT
+OPENAI_API_KEY
+```
+
+The conversion prompt is shipped in the repository at:
+
+```text
+prompts/setup-script-to-yaml.txt
+```
+
+and installed by the Update CLI setup workflow to:
+
+```text
+/usr/local/etc/update-cli/prompts/setup-script-to-yaml.txt
+```
+
+### Generate the setup wrapper
+
+```bash
+update-cli --create-setup-script
+```
+
+This creates a generic executable `setup.sh` that resolves a compatible local/platform Update CLI binary and delegates manifest execution to the CLI setup engine.
+
+Generation commands protect existing files unless `--force` is specified. Use `--dry-run` to inspect generated output without writing files.
+
+## Global setup template
+
+The standard installation includes:
+
+```text
+/usr/local/etc/update-cli/setup-template.sh
+```
+
+It can be copied into a project or executed from a project/current directory. For schemaVersion 2 it deliberately avoids handing the manifest to an incompatible old CLI; it prefers matching local/platform binaries and can bootstrap from the Go source tree when necessary.
+
+Wrapper examples:
 
 ```bash
 ./setup.sh
@@ -375,100 +1251,58 @@ The reusable setup wrapper supports task/workflow selection too:
 ./setup.sh --workflow ci
 ./setup.sh --details
 ./setup.sh --no-ui
+./setup.sh --no-wait
 ```
 
-A manifest can also be selected explicitly:
+## Rollback and cleanup are local-only
 
-```bash
-update-cli --setup-manifest ./setup.yaml
-update-cli --setup-manifest ./setup.yaml --setup-list
-update-cli --setup-manifest ./setup.yaml --setup-task build
-```
+Rollback and cleanup use local release/backup inventory only. They do not need the configured URL or repository source, so recovery remains available during source-server or network outages.
 
-After an interactive update, Update CLI still runs the manifest's default `setup` workflow when setup is selected. In fullscreen mode, confirmations are shown in a centered modal with separate `YES` / `NO` buttons and default to **NO**. Plain and `--no-ui` output retain the compact `[j/N]` prompt. `--setup` and `--no-setup` make that choice deterministic.
+## Development and validation
 
-## Update transaction progress and errors
-
-A real update is rendered as an explicit 13-step transaction:
-
-1. resolve the release source
-2. validate target version/update policy
-3. validate archive/repository content
-4. prepare the versioned release stage
-5. prepare the transaction and current snapshot
-6. create the optional persistent backup
-7. synchronize the release to `current`
-8. verify the installed `current` tree
-9. run or explicitly skip project setup
-10. restart services that were running before the update
-11. run the configured health check
-12. activate the versioned release
-13. write state and commit the transaction
-
-Optional stages are shown as `SKIP` with the reason. On failure, the fullscreen TUI shows the named phase, source and version context, concrete error, and history location after recovery. Setup command failures additionally show the failed command and the tail of captured stdout/stderr.
-
-## Health checks
-
-HTTP:
-
-```json
-{
-  "healthcheck": {
-    "type": "http",
-    "url": "http://localhost:8080/health",
-    "timeoutSeconds": 30
-  }
-}
-```
-
-Command:
-
-```json
-{
-  "healthcheck": {
-    "type": "command",
-    "command": "./app doctor",
-    "timeoutSeconds": 30
-  }
-}
-```
-
-A failed health check triggers transaction recovery.
-
-## Locks
-
-The update lock contains PID, host, timestamp, and command metadata. Locks whose owning local PID is no longer alive are recognized as stale and may be removed with:
-
-```bash
-update-cli --unlock
-```
-
-An active or ambiguous lock is not removed.
-
-## Local-only rollback and cleanup
-
-Rollback and cleanup operate on local release/backup inventory only. They do not contact configured URL or repository sources, so recovery remains available during network outages.
-
-## Build and validation
+Recommended local gate:
 
 ```bash
 just check
+```
+
+Build native binary:
+
+```bash
 just build
+```
+
+Build supported release targets:
+
+```bash
 just build-all
 ```
 
-Equivalent commands:
+The project test gate includes:
 
 ```bash
-gofmt -w .
+gofmt
 go vet ./...
 go test ./...
 go test -race ./...
-go build -trimpath -ldflags "-s -w -X main.version=$(cat VERSION)" -o dist/update-cli .
 ```
 
-CI runs format, vet, tests, race tests, native builds on Linux/macOS, and cross-builds for:
+CI also exercises fullscreen PTY flows and builds:
 
 - macOS amd64
 - macOS arm64
 - Linux amd64
+
+## Release packaging
+
+Release ZIP names follow:
+
+```text
+update-cli-v<MAJOR>.<MINOR>.<PATCH>.zip
+```
+
+Example:
+
+```text
+update-cli-v3.3.1.zip
+```

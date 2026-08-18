@@ -124,3 +124,83 @@ func TestGenerateSetupScript(t *testing.T) {
 		t.Fatalf("unexpected script:\n%s", text)
 	}
 }
+
+func TestPreviewGeneratedManifestFromSetupScriptLegacyTemplate(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	script := `#!/usr/bin/env bash
+PROJECT_NAME="Demo CLI"
+PROJECT_DESCRIPTION="Demo bauen"
+DIST_DIR="bin"
+BINARY_NAME="demo"
+GO_PACKAGE="./..."
+GO_BUILD_PACKAGE="./cmd/demo"
+SETUP_STEPS=(
+  "pre-commands"
+  "go-mod-download"
+  "go-vet"
+  "go-test"
+  "go-build"
+  "binary-version-check"
+  "post-commands"
+)
+PRE_COMMANDS=("gofmt -w cmd internal")
+POST_COMMANDS=("./bin/demo doctor")
+`
+	path := filepath.Join(dir, "setup.sh")
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	text, tech, analysis, err := PreviewGeneratedManifestFromSetupScript(dir, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !analysis.Legacy || analysis.Steps != 7 {
+		t.Fatalf("analysis=%#v", analysis)
+	}
+	if !strings.Contains(strings.Join(tech, ","), "go") {
+		t.Fatalf("tech=%v", tech)
+	}
+	if !strings.Contains(text, "schemaVersion: 2") || !strings.Contains(text, "Go-Module laden") || !strings.Contains(text, "./bin/demo doctor") {
+		t.Fatalf("unexpected manifest:\n%s", text)
+	}
+	tmp := filepath.Join(dir, "generated.yaml")
+	if err := os.WriteFile(tmp, []byte(text), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ParseManifest(tmp); err != nil {
+		t.Fatalf("generated manifest invalid: %v\n%s", err, text)
+	}
+}
+
+func TestPreviewGeneratedManifestFromSimpleSetupScript(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/demo\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	script := `#!/usr/bin/env bash
+set -e
+go mod download
+gofmt -w .
+go vet ./...
+go test ./...
+go build -o demo .
+./demo --version
+`
+	path := filepath.Join(dir, "setup.sh")
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	text, _, analysis, err := PreviewGeneratedManifestFromSetupScript(dir, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if analysis.Steps < 5 || analysis.Legacy {
+		t.Fatalf("analysis=%#v", analysis)
+	}
+	if !strings.Contains(text, "Go-Tests ausführen") || !strings.Contains(text, "go build -o demo .") {
+		t.Fatalf("unexpected manifest:\n%s", text)
+	}
+}
