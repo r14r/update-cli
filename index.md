@@ -7,7 +7,7 @@ title: update-cli Documentation
 
 **Transactional project updates from versioned ZIP releases or Git repositories.**
 
-**Current release: 1.2.1**
+**Current release: 1.3.0**
 
 `update-cli` keeps application deployment separate from release acquisition. New source content is validated, stored as a release snapshot, synchronized into a stable `current/` directory, and protected by rollback/recovery state.
 
@@ -42,14 +42,23 @@ health check
 - **[Installation](getting-started/installation)** — install or build the CLI
 - **[Quickstart](usage/quickstart)** — ZIP and GitHub workflows
 - **[GitHub Pull](usage/github)** — detailed Git repository setup and updates
-- **[Command Reference](usage/commands)** — current 1.2.1 CLI commands
-- **[Project Configuration](configuration/configuration)** — `.updater-cli/config.json`
+- **[Command Reference](usage/commands)** — CLI commands
+- **[Project Configuration](configuration/configuration)** — `.updater-cli/config.json`, validation and migration
 - **[`update-cli.yaml`](configuration/update-cli-yaml)** — setup/build/run automation
-- **[Run Application](usage/run)** — `update-cli --run`
+- **[Run Application](usage/run)** — compact `run.command` and structured `run.steps`
 - **[Recovery](advanced/recovery)** — backups, rollback, restore and cleanup
 - **[Security](advanced/security)** — archive and path safety
 
-## Important 1.2.x changes
+## New in 1.3.0
+
+- Structured application launch through **`run.steps`** in `update-cli.yaml`.
+- `run.steps[].command.exec` plus explicit `args`, including Streamlit-style launch definitions.
+- Structured run steps reuse the schemaVersion-2 step engine and support `cwd`, `env`, `timeout`, `retries`, `when`, and `allowFailure`.
+- New read-only **`update-cli config --check`** / `update-cli config check` validation.
+- New safe **`update-cli config --migrate`** / `update-cli config migrate` schema migration with backup.
+- Compact `run.command` remains supported.
+
+## 1.2.x foundation
 
 - Explicit `mode: update` and `mode: pull` acquisition modes.
 - Persistent Git checkout in `.updater-cli/repository/` with `git pull --ff-only`.
