@@ -130,7 +130,7 @@ build-linux-amd64: check
 
 build-all: build-macos-amd64 build-macos-arm64 build-linux-amd64
 
-deploy: build
+install: build
     destination="$(go run ./cmd/buildconfig --field defaultDeploymentPath --expand)"; \
     config_path="$(go run ./cmd/buildconfig --field defaultConfigPath --expand)"; \
     mkdir -p "$destination" "$config_path" "$config_path/prompts"; \
