@@ -23,10 +23,84 @@ update-cli config --set KEY=VALUE
 
 `--set` is repeatable and changes are validated before the file is written atomically.
 
+## Validate configuration
+
+Version 1.3.0 adds a read-only configuration check:
+
+```bash
+update-cli config --check
+```
+
+Equivalent command-token form:
+
+```bash
+update-cli config check
+```
+
+The check:
+
+- parses the JSON strictly;
+- validates the complete configuration;
+- determines the stored schema version;
+- verifies that migration to the current schema is possible;
+- reports whether migration is needed;
+- does **not** modify `config.json`.
+
+For scripting:
+
+```bash
+update-cli config --check --json
+```
+
+Example for an older schema:
+
+```text
+Schema              6
+Aktuelles Schema    7
+Modus               pull
+Quelle              repository
+WARN  Konfiguration ist gültig, aber eine Migration ist verfügbar: update-cli config --migrate
+```
+
+## Migrate configuration
+
+Migrate the project configuration to the current schema with:
+
+```bash
+update-cli config --migrate
+```
+
+or:
+
+```bash
+update-cli config migrate
+```
+
+Migration uses the same safe migration engine as the historical top-level `update-cli upgrade` command. If a change is required, the old configuration is backed up before the new file is written.
+
+Example:
+
+```text
+Schema              6 → 7
+Backup              .updater-cli/config.json.backup-v6-20260819-150333
+OK    Konfiguration wurde migriert
+```
+
+Running `config --migrate` against an already-current schema is safe and results in a no-op report.
+
+Recommended maintenance workflow:
+
+```bash
+update-cli config --check
+update-cli config --migrate
+update-cli config --check
+```
+
 ## Download Folder example
 
 ```json
 {
+  "schemaVersion": 7,
   "mode": "update",
   "source": {
     "type": "download",
@@ -48,6 +122,7 @@ update-cli config \
 
 ```json
 {
+  "schemaVersion": 7,
   "mode": "pull",
   "source": {
     "type": "repository",
@@ -127,5 +202,7 @@ Keep the responsibilities separate:
   source, mode, retention, security, health checks, Docker policy
 
 update-cli.yaml
-  setup/build/deploy tasks and application run command
+  setup/build/deploy tasks and application run definition
 ```
+
+The Git repository URL and branch/ref belong in `.updater-cli/config.json`; application start commands belong in `update-cli.yaml`.
