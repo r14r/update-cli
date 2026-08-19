@@ -1,15 +1,16 @@
 name: Apply source sync
 
 on:
-  issues:
-    types: [opened]
+  push:
+    branches: [main]
+    paths:
+      - '.sync/trigger-note.txt'
 
 permissions:
   contents: write
 
 jobs:
   sync:
-    if: github.event.issue.title == 'Apply source sync 1.3.0'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
