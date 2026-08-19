@@ -5,79 +5,58 @@ title: update-cli Documentation
 
 # update-cli
 
-**Sicherer Release-Updater für lokale ZIPs, direkte URLs und Git-Repositories**
+**Transactional project updates from versioned ZIP releases or Git repositories.**
 
-[![Go](https://img.shields.io/badge/Go-1.22%2B-00ADD8?logo=go&logoColor=white)](https://go.dev/)
-[![Release](https://img.shields.io/badge/release-v2.4.1-2ea44f)](#version)
-[![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-6e7681)](#requirements)
-[![Tests](https://img.shields.io/badge/tests-go%20test%20.%2F...-2ea44f)](#development)
+**Current release: 1.2.1**
 
-`update-cli` bezieht Releases aus einem lokalen Ordner, einer direkten HTTP(S)-URL oder einem Git-Repository, legt sie versioniert ab und synchronisiert den Inhalt kontrolliert nach `current`.
+`update-cli` keeps application deployment separate from release acquisition. New source content is validated, stored as a release snapshot, synchronized into a stable `current/` directory, and protected by rollback/recovery state.
 
-## Quick Navigation
+## Two update sources
 
-- **[Why update-cli?](getting-started/why)** - Problem and solution overview
-- **[Features](getting-started/features)** - Complete feature list
-- **[Installation](getting-started/installation)** - Setup and deployment
-- **[Quickstart](usage/quickstart)** - Get up and running in 5 minutes
-- **[Command Reference](usage/commands)** - Complete CLI documentation
-- **[Workflows](usage/workflows)** - Common use cases and patterns
+| Source | Mode | Best for | Update identity |
+|---|---|---|---|
+| Download Folder / HTTPS ZIP | `update` | packaged versioned releases | semantic `VERSION` |
+| GitHub / Git repository | `pull` | source-controlled deployments | `VERSION` + Git commit |
 
-## What is update-cli?
+Both sources continue through the same transaction pipeline:
 
-`update-cli` handles secure, reproducible updates for projects distributed as versioned ZIP files, direct URLs, or Git repositories. It manages:
+```text
+source
+  ↓
+validate / acquire
+  ↓
+release/<version>/
+  ↓
+backup + transaction snapshot
+  ↓
+current/
+  ↓
+optional update-cli.yaml setup
+  ↓
+health check
+```
 
-✅ Multiple release sources (local folder, HTTP(S) URL, Git repo)
-✅ Secure ZIP validation and extraction
-✅ Atomic version management
-✅ Docker Compose integration
-✅ Automatic backups and rollback
-✅ Template-based setup automation
-✅ Comprehensive JSON output for CI/CD
+## Start here
 
-## Key Features
+- **[Why update-cli?](getting-started/why)** — problem, architecture and safety model
+- **[Installation](getting-started/installation)** — install or build the CLI
+- **[Quickstart](usage/quickstart)** — ZIP and GitHub workflows
+- **[GitHub Pull](usage/github)** — detailed Git repository setup and updates
+- **[Command Reference](usage/commands)** — current 1.2.1 CLI commands
+- **[Project Configuration](configuration/configuration)** — `.updater-cli/config.json`
+- **[`update-cli.yaml`](configuration/update-cli-yaml)** — setup/build/run automation
+- **[Run Application](usage/run)** — `update-cli --run`
+- **[Recovery](advanced/recovery)** — backups, rollback, restore and cleanup
+- **[Security](advanced/security)** — archive and path safety
 
-- **Three Release Sources**: Local ZIP folder, direct HTTP(S) URL, or Git repository
-- **Version Safety**: SemVer validation, downgrade protection, atomic updates
-- **Docker Support**: Automatic `docker compose down` before updates
-- **Backup & Rollback**: Versioned releases with automatic backups
-- **Setup Templates**: Built-in templates for Laravel, Django, FastAPI, Vue, Go
-- **Protected Paths**: Automatic protection of `.git`, `.venv`, `.env`
-- **Dry-Run Support**: Plan updates without filesystem changes
-- **JSON Output**: Machine-readable output for scripting and CI
-- **Status Monitoring**: Health checks, version comparison, inventory listing
+## Important 1.2.x changes
 
-## Documentation Sections
+- Explicit `mode: update` and `mode: pull` acquisition modes.
+- Persistent Git checkout in `.updater-cli/repository/` with `git pull --ff-only`.
+- Git commit tracking via `.release-commit`, including updates where `VERSION` is unchanged.
+- Project automation filename renamed from `setup.yaml` to **`update-cli.yaml`**.
+- Application launch with **`update-cli --run`** / `update-cli run`.
+- Home-directory paths are displayed as `$HOME/...` in human-readable UI output.
+- Development install recipe is **`just install`**.
 
-### Getting Started
-- [Why update-cli?](getting-started/why) - Problem statement and benefits
-- [Features](getting-started/features) - Detailed feature overview
-- [Requirements](getting-started/requirements) - System prerequisites
-- [Installation](getting-started/installation) - Build and deployment
-
-### Configuration
-- [Build Configuration](configuration/build-config) - Distribution-specific settings
-- [Project Configuration](configuration/configuration) - config.json schema
-- [Archive Format](configuration/archive-format) - ZIP naming and structure
-- [Templates](configuration/templates) - Setup templates
-
-### Usage
-- [Quickstart](usage/quickstart) - 5-minute quick start
-- [Command Reference](usage/commands) - Complete CLI reference
-- [Typical Workflows](usage/workflows) - Common scenarios
-- [Setup & Templates](usage/setup) - Project initialization and setup
-
-### Advanced Topics
-- [Backups & Rollback](advanced/backups) - Backup management and recovery
-- [JSON Output](advanced/json-output) - Machine-readable output
-- [Security Model](advanced/security) - Security considerations
-- [Exit Codes](advanced/exit-codes) - Error codes and meanings
-
-### Development
-- [Project Structure](development/structure) - Directory layout
-- [Development & Tests](development/development) - Build and test
-- [Troubleshooting](development/troubleshooting) - Common issues
-
----
-
-**Version**: v2.4.1 | **License**: MIT | **Repository**: [github.com/r14r/update-cli](https://github.com/r14r/update-cli)
+Repository: [github.com/r14r/update-cli](https://github.com/r14r/update-cli)

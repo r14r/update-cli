@@ -5,127 +5,42 @@ title: Why update-cli?
 
 # Why update-cli?
 
-Projects are frequently distributed as versioned ZIP files or directly from Git repositories. Manual updates are error-prone and problematic:
+Application updates are easy to make unsafe: unzip over a live directory, copy files manually, or run `git pull` directly inside the production tree. Those approaches mix source acquisition with deployment state and make rollback, protected files and interrupted updates difficult to reason about.
 
-## The Problem
+`update-cli` introduces a stable deployment model:
 
-- **Wrong Archive Selected** - Easy to pick the wrong version from a folder full of releases
-- **Version Conflicts** - An older version accidentally overwrites a newer installation
-- **Lost Local Files** - Local configuration files (`.env`, `.git`, `.venv`) get deleted
-- **Inconsistent State** - Old files remain in the deployment directory, causing subtle bugs
-- **Forgotten Setup Steps** - Manual setup commands are forgotten or run in wrong order
-- **No Audit Trail** - Impossible to track which version was installed when, making debugging hard
-
-## How update-cli Solves It
-
-`update-cli` handles the entire update workflow reproducibly:
-
-```
-Download-Ordner ─┐
-Direkte ZIP-URL ─┼─► Version ermitteln und Quelle validieren
-Git-Repository ──┘                    │
-                                     ▼
-                     Docker Compose in current erkennen
-                                     │
-                      ┌──────────┴──────────┐
-                      │ Compose vorhanden? │
-                      └──────────┬──────────┘
-                                 ▼
-                     Container sicher herunterfahren
-                                 │
-                                 ▼
-                     optional current sichern
-                                 │
-                                 ▼
-                     release/X.Y.Z versioniert ablegen
-                                 │
-                                 ▼
-                     per rsync nach current synchronisieren
-                                 │
-                                 ▼
-                     optional Projekt-Setup ausführen
+```text
+.updater-cli/       updater metadata, config, history, transactions
+release/            validated immutable release snapshots
+current/            active application tree
+backup/             persistent user backups
 ```
 
-## Key Benefits
+The application always runs from `current/`. New content comes either from a ZIP release (`mode: update`) or a Git repository (`mode: pull`) and is only promoted to `current/` after validation and transaction preparation.
 
-### ✅ Safety First
-- **SemVer Validation** - Enforces strict semantic versioning
-- **Downgrade Protection** - Prevents accidental downgrades (unless explicitly allowed)
-- **Atomic Operations** - Updates are all-or-nothing
-- **Dry-Run Support** - Plan before executing
+## Why not just unzip into the application directory?
 
-### ✅ Multiple Source Support
-- **Local Folders** - Select latest version from download directory
-- **Direct URLs** - Pull specific releases from HTTP(S) endpoints
-- **Git Repositories** - Clone from any Git repository
+A direct overwrite can leave a half-installed state when extraction, setup or health checking fails. `update-cli` stages the release first, preserves configured persistent paths, creates recovery state, and only then synchronizes the new tree.
 
-### ✅ Smart Deployment
-- **Protected Paths** - Never touches `.git`, `.venv`, or `.env`
-- **Docker Integration** - Automatically stops containers before update
-- **Clean Sync** - Uses `rsync --delete --checksum` for consistency
-- **Template-Based Setup** - Automate post-deployment setup
+## Why not run `git pull` directly in production?
 
-### ✅ Recovery & Audit
-- **Automatic Backups** - Snapshots before each update
-- **One-Command Rollback** - Return to previous version instantly
-- **Version History** - JSON Lines audit trail of all operations
-- **Retention Policies** - Automatic cleanup of old releases
+In pull mode, Git lives in an internal cache:
 
-### ✅ Scriptable & Observable
-- **JSON Output** - Machine-readable results for CI/CD
-- **Exit Codes** - Programmatic success/failure detection
-- **Status Monitoring** - Check installed vs. available versions
-- **Health Checks** - Doctor command validates environment
-
-## Real-World Scenario
-
-### Without update-cli 😞
-
-```bash
-# Download new version
-cd ~/Downloads
-ls -la | grep myapp
-# Which one is the latest?
-
-# Extract manually
-unzip myapp-v3.2.0.zip
-
-# Copy to deployment
-cp -r myapp-3.2.0/* /srv/myapp/
-# Oops! Lost the .env file!
-
-# Run setup (which steps again?)
-cd /srv/myapp
-bash setup.sh
-# Forgot to restart Docker!
-
-# Something broke - how do we rollback?
-# ...no version history available
+```text
+.updater-cli/repository/
 ```
 
-### With update-cli ✅
+`current/` is deliberately **not** a Git working tree. The repository cache is updated using fast-forward-only behavior, then a clean snapshot without `.git` is passed through the normal release transaction. This gives Git-based projects the same rollback semantics as ZIP-based projects.
 
-```bash
-# Check available version
-update-cli --check
+## What the tool adds
 
-# Review what will happen
-update-cli --update --plan
-
-# Update with backup and setup
-update-cli --update --backup --setup
-
-# Something went wrong?
-update-cli --rollback
-```
-
-## Use Cases
-
-- **Microservices** - Manage multiple versioned deployments safely
-- **Docker Stacks** - Automate container orchestration around updates
-- **CI/CD Pipelines** - Reliable, scriptable deployment workflow
-- **Backup Compliance** - Automatic snapshots for audit trails
-- **Multi-Environment** - Same tool works across dev, staging, production
-- **Remote Deployments** - Lightweight, pure shell-compatible operations
-
-Next: [Learn the Features →](/getting-started/features)
+- explicit source/update modes;
+- release version validation and downgrade protection;
+- transaction snapshots and persistent backups;
+- rollback and restore;
+- protected paths such as `.env`, data directories and uploads;
+- optional Docker Compose lifecycle handling;
+- post-update `update-cli.yaml` automation and health checks;
+- application launch through `update-cli --run`;
+- JSON output for automation and CI;
+- status, history, doctor, verification and retention commands.
