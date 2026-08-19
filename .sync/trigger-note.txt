@@ -1,0 +1,1 @@
+Source sync is triggered by issue event. This file is removed by the sync workflow.
