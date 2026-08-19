@@ -5,9 +5,28 @@ title: Command Reference
 
 # Command Reference
 
-This page is generated from the **1.2.1** machine-readable CLI contract (`update-cli --help --json`).
+This page reflects the **1.3.1** CLI contract.
 
-Preferred syntax uses command tokens (`update-cli check`). Historical flag forms (`update-cli --check`) remain supported where documented by the CLI.
+The primary commands support both command-token and historical flag forms. For `check`, `update`, and `run` these forms are guaranteed to use the same parser and execution path:
+
+```bash
+update-cli check     # identical to update-cli --check
+update-cli update    # identical to update-cli --update
+update-cli run       # identical to update-cli --run
+```
+
+Options and positional arguments are preserved, for example:
+
+```bash
+update-cli check --json
+update-cli --check --json
+
+update-cli update release.zip --plan
+update-cli --update release.zip --plan
+
+update-cli run --root /srv/demo
+update-cli --run --root /srv/demo
+```
 
 ## Help and discovery
 
@@ -18,153 +37,85 @@ update-cli --howto
 update-cli --version
 ```
 
-## Commands
+## Core commands
 
-### `update-cli check`
+### `update-cli check` / `update-cli --check`
 
-Check for an available project update
+Check for an available project update.
 
-Key options:
+Important options include `--root/-r`, `--json`, `--no-ask`, `--wait`, `--no-wait`, `--no-ui/--noui`, `--no-color`, `--mode update|pull`, `--downloads/-d`, `--from`, `--folder`, `--url`, and `--repository`.
 
-- `--root`, `-r` — Project root directory
-- `--json` — Write structured JSON output
-- `--no-ask` — Do not ask to install an available update
-- `--wait` — Wait before leaving interactive output
-- `--no-wait` — Do not wait before leaving interactive output
-- `--no-ui`, `--noui` — Disable fullscreen TUI and stream output directly
-- `--no-color` — Disable ANSI colors
-- `--mode` — Update mode override Choices: `update`, `pull`.
-- `--downloads`, `-d` — Downloads/source directory override
-- `--from` — Release source type override Choices: `download`, `url`, `repository`.
-- `--folder` — Release source folder override
-- `--url` — Release source URL override
-- `--repository` — Release repository override
+### `update-cli update [archive]` / `update-cli --update [archive]`
 
-### `update-cli update [archive]`
+Apply the configured ZIP update or Git pull transaction.
 
-Install a new project release
+Important options include `--archive/-a`, `--dry-run/-n`, `--plan`, `--allow-downgrade`, `--json`, `--backup`, `--setup`, `--no-setup`, `--force/-f`, source overrides, UI options, and `--root/-r`.
 
-Key options:
+### `update-cli run` / `update-cli --run`
 
-- `--root`, `-r` — Project root directory
-- `--archive`, `-a` — Release ZIP archive
-- `--dry-run`, `-n` — Preview update without applying it
-- `--plan` — Create an update plan without applying changes
-- `--allow-downgrade` — Allow installing an older project version
-- `--json` — Write structured JSON output
-- `--backup` — Create a backup before updating
-- `--setup` — Run project setup after update without asking
-- `--no-setup` — Do not run project setup after update
-- `--force`, `-f` — Force update where supported
-- `--wait` — Wait before leaving interactive output
-- `--no-wait` — Do not wait before leaving interactive output
-- `--no-ui`, `--noui` — Disable fullscreen TUI and stream output directly
-- `--no-color` — Disable ANSI colors
-- `--mode` — Update mode override Choices: `update`, `pull`.
-- `--downloads`, `-d` — Downloads/source directory override
-- `--from` — Release source type override Choices: `download`, `url`, `repository`.
-- `--folder` — Release source folder override
-- `--url` — Release source URL override
-- `--repository` — Release repository override
+Run the application command defined by the active `current/update-cli.yaml`. Both compact `run.command` and structured `run.steps` are supported.
 
-### `update-cli backup`
+### Other project commands
 
-Create a project backup
+```text
+update-cli backup
+update-cli rollback [version]
+update-cli restore <backup>
+update-cli status
+update-cli list
+update-cli verify <archive>
+update-cli doctor
+update-cli clean
+update-cli cleanup
+update-cli history
+update-cli init
+update-cli upgrade
+update-cli unlock
+```
 
-### `update-cli rollback [version]`
+## Setup automation
 
-Restore a previous validated release
+```text
+update-cli setup
+update-cli setup list
+update-cli setup task NAME
+update-cli setup workflow NAME
+update-cli setup manifest FILE
+update-cli convert-yaml
+update-cli create-yaml
+update-cli create-setup-script
+```
 
-### `update-cli restore <backup>`
+The canonical project automation filename is `update-cli.yaml`.
 
-Restore a project backup
+## Configuration
 
-### `update-cli status`
+```bash
+update-cli config
+update-cli config list
+update-cli config edit
+update-cli config --set KEY=VALUE
+update-cli config --check
+update-cli config --migrate
+```
 
-Show project and release status
+Equivalent command-token forms are also available for the new config operations:
 
-### `update-cli list`
+```bash
+update-cli config check
+update-cli config migrate
+```
 
-List releases and backups
+`config --check` validates the configuration without changing it and reports whether migration is needed. `config --migrate` migrates to the current schema and creates a timestamped backup when a schema change is required.
 
-### `update-cli verify <archive>`
+## Templates
 
-Verify a release ZIP archive
-
-### `update-cli doctor`
-
-Run project diagnostics
-
-### `update-cli run`
-
-Run the application command from update-cli.yaml
-
-### `update-cli clean`
-
-Remove obsolete release directory entries only
-
-### `update-cli cleanup`
-
-Apply configured release and backup retention
-
-### `update-cli history`
-
-Show update history
-
-### `update-cli init`
-
-Initialize Update CLI configuration for a project
-
-### `update-cli upgrade`
-
-Upgrade project configuration to the current schema
-
-### `update-cli unlock`
-
-Remove a stale update lock
-
-### `update-cli setup`
-
-Run project setup automation
-
-Subcommands:
-
-- `update-cli setup list` — List available setup workflows and tasks
-- `update-cli setup task` — Run one setup task
-- `update-cli setup workflow` — Run one setup workflow
-- `update-cli setup manifest` — Run setup from an explicit manifest file
-
-### `update-cli convert-yaml`
-
-Upgrade update-cli.yaml to the latest supported schema
-
-### `update-cli create-yaml`
-
-Generate schemaVersion 2 update-cli.yaml
-
-### `update-cli create-setup-script`
-
-Generate a setup.sh bootstrap
-
-### `update-cli config`
-
-Show or change project configuration
-
-Subcommands:
-
-- `update-cli config list` — List project configuration files
-- `update-cli config edit` — Open config.json in the configured editor
-- `update-cli config use-template` — Apply a configuration template
-
-### `update-cli templates`
-
-Manage Update CLI configuration templates
-
-Subcommands:
-
-- `update-cli templates list` — List configuration templates
-- `update-cli templates edit` — Open templates.json in the configured editor
-- `update-cli templates use` — Apply a configuration template
+```text
+update-cli templates
+update-cli templates list
+update-cli templates edit
+update-cli templates use NAME
+```
 
 ## Common workflows
 
@@ -187,22 +138,14 @@ update-cli update
 ### Application runner
 
 ```bash
-update-cli --run
-# or
 update-cli run
+# exactly the same as
+update-cli --run
 ```
 
-### Configuration
+### Machine-readable discovery
 
-```bash
-update-cli config list
-update-cli config edit
-update-cli config --set source.ref=main
-```
-
-### Machine-readable output
-
-Commands that publish `--json` return structured output suitable for scripts and CI. The complete command/option contract is always available through:
+The complete command/option contract is available through:
 
 ```bash
 update-cli --help --json
