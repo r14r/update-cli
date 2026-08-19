@@ -5,24 +5,26 @@ title: Run Application
 
 # Run the active application
 
-Version 1.2 adds an application runner driven by `update-cli.yaml`.
+Version 1.3.0 supports both a compact run command and structured `run.steps` in `update-cli.yaml`.
 
-Use either form:
+Use either CLI form:
 
 ```bash
 update-cli --run
 update-cli run
 ```
 
-For a managed project, the command is read from:
+For a managed project, the run definition is read from:
 
 ```text
 current/update-cli.yaml
 ```
 
-and runs against the active `current/` release.
+and executes against the active `current/` release.
 
-## Configuration
+## Compact form
+
+Use `run.command` for a single shell command:
 
 ```yaml
 schemaVersion: 2
@@ -39,7 +41,57 @@ run:
 
 `command` is executed through a shell, so compound shell syntax is supported. `cwd` is relative to the active project directory and may not escape it. `env` is optional.
 
-Examples:
+## Structured steps
+
+Use `run.steps` when the application needs a structured executable/arguments definition, multiple steps, conditions, retries, timeouts, or per-step environment settings.
+
+The Streamlit form below is valid in 1.3.0:
+
+```yaml
+schemaVersion: 2
+
+run:
+  description: Start Streamlit app
+  steps:
+    - name: Start Streamlit
+      command:
+        exec: .venv/bin/streamlit
+        args:
+          - run
+          - app/app.py
+```
+
+This executes the equivalent of:
+
+```bash
+.venv/bin/streamlit run app/app.py
+```
+
+Structured run steps reuse the schemaVersion-2 setup step engine. They therefore support the same step controls, including `cwd`, `env`, `timeout`, `retries`, `when`, and `allowFailure`.
+
+Example with defaults and a step-specific environment value:
+
+```yaml
+schemaVersion: 2
+
+run:
+  description: Start application
+  cwd: app
+  env:
+    APP_ENV: development
+  steps:
+    - name: Start server
+      timeout: 30m
+      env:
+        PORT: "8501"
+      command:
+        exec: ../.venv/bin/streamlit
+        args: [run, app.py]
+```
+
+`run.command` and `run.steps` are alternatives and must not be configured together.
+
+## More compact examples
 
 ```yaml
 # Docker Compose
@@ -74,4 +126,4 @@ run:
   command: ./example
 ```
 
-The child process receives normal stdin/stdout/stderr, and its exit code is propagated by `update-cli`.
+The child process receives normal stdin/stdout/stderr. Failures from the launched application are returned by `update-cli`; for direct child process failures the application exit code is preserved.
