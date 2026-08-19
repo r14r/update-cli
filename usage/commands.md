@@ -5,9 +5,11 @@ title: Command Reference
 
 # Command Reference
 
-This page reflects the **1.3.1** CLI contract.
+This page reflects the **1.4.0** CLI contract.
 
-The primary commands support both command-token and historical flag forms. For `check`, `update`, and `run` these forms are guaranteed to use the same parser and execution path:
+## Equivalent primary commands
+
+For `check`, `update`, and `run`, command-token and flag forms are guaranteed to use the same parser and execution path:
 
 ```bash
 update-cli check     # identical to update-cli --check
@@ -15,7 +17,7 @@ update-cli update    # identical to update-cli --update
 update-cli run       # identical to update-cli --run
 ```
 
-Options and positional arguments are preserved, for example:
+Options and positional arguments are preserved:
 
 ```bash
 update-cli check --json
@@ -99,7 +101,7 @@ update-cli config --check
 update-cli config --migrate
 ```
 
-Equivalent command-token forms are also available for the new config operations:
+Equivalent command-token forms are also available for config operations:
 
 ```bash
 update-cli config check
