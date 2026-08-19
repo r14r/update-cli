@@ -7,7 +7,7 @@ title: update-cli Documentation
 
 **Transactional project updates from versioned ZIP releases or Git repositories.**
 
-**Current release: 1.3.1**
+**Current release: 1.4.0**
 
 `update-cli` keeps application deployment separate from release acquisition. New source content is validated, stored as a release snapshot, synchronized into a stable `current/` directory, and protected by rollback/recovery state.
 
@@ -49,9 +49,9 @@ health check
 - **[Recovery](advanced/recovery)** — backups, rollback, restore and cleanup
 - **[Security](advanced/security)** — archive and path safety
 
-## New in 1.3.1
+## New in 1.4.0
 
-The primary command-token forms are guaranteed to be exact aliases of their flag forms:
+The three primary actions are documented and tested as exact command/flag aliases:
 
 ```bash
 update-cli check     # same as: update-cli --check
@@ -59,9 +59,16 @@ update-cli update    # same as: update-cli --update
 update-cli run       # same as: update-cli --run
 ```
 
-Options and positional arguments behave identically in either spelling, for example `update-cli update --plan` and `update-cli --update --plan`.
+They use the same parser and execution path. Options and positional arguments behave identically in either spelling, for example:
 
-## 1.3.0 foundation
+```bash
+update-cli check --json
+update-cli update --plan
+update-cli update release.zip
+update-cli run --root /srv/demo
+```
+
+## 1.3.x foundation
 
 - Structured application launch through **`run.steps`** in `update-cli.yaml`.
 - `run.steps[].command.exec` plus explicit `args`, including Streamlit-style launch definitions.
