@@ -1,15 +1,15 @@
 name: Apply source sync
 
 on:
-  workflow_run:
-    workflows: ["CI"]
-    types: [completed]
+  issue_comment:
+    types: [created]
 
 permissions:
   contents: write
 
 jobs:
   sync:
+    if: github.event.issue.number == 3 && github.event.comment.body == 'apply staged source sync'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
