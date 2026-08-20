@@ -1,3 +1,18 @@
+# Update CLI 1.5.0 implementation
+
+- `update-cli.yaml` schemaVersion 2 accepts a top-level `update` block.
+- Source precedence is CLI override > `update-cli.yaml` > `.updater-cli/config.json`.
+- Repository metadata (`ref`, `commit`, `version`, `sha256`) can travel with the project manifest.
+- The update-cli project defaults to `https://github.com/r14r/update-cli.git`, ref `main`, in pull mode.
+
+---
+
+# 1.1.0 implementation update
+
+The acquisition layer now has two explicit modes: transactional ZIP `update` and persistent Git `pull`. Config schema 7 carries `mode`; older repository configurations migrate to pull mode automatically. Pull uses `.updater-cli/repository`, `git fetch` for discovery, `git pull --ff-only` for mutation, commit-aware update detection, and the existing release/current transaction pipeline for deployment and recovery.
+
+---
+
 # Implementation Report — Update CLI 1.0.0
 
 ## Scope

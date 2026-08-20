@@ -43,7 +43,7 @@ func TestSetupBootstrapUsesCompatibleLocalBinaryWithoutTouchingOldGlobalBinary(t
 	if err := os.WriteFile(filepath.Join(root, "setup.sh"), setupData, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "setup.yaml"), []byte("version: 1\nsteps:\n  - name: noop\n    type: command\n    command: true\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "update-cli.yaml"), []byte("version: 1\nsteps:\n  - name: noop\n    type: command\n    command: true\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.MkdirAll(filepath.Join(root, "dist"), 0o755); err != nil {
@@ -150,7 +150,7 @@ printf '%s\n' "$@" > "` + marker + `"
 
 func TestGlobalSetupTemplateUsesCurrentDirectoryManifestAndNativeTUIRunner(t *testing.T) {
 	projectCurrent := t.TempDir()
-	if err := os.WriteFile(filepath.Join(projectCurrent, "setup.yaml"), []byte("schemaVersion: 1\nsteps:\n  - id: noop\n    run: true\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(projectCurrent, "update-cli.yaml"), []byte("schemaVersion: 1\nsteps:\n  - id: noop\n    run: true\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	globalDir := t.TempDir()
@@ -194,7 +194,7 @@ printf '%s\n' "${UPDATE_CLI_TUI:-}" > "` + envFile + `"
 	if err != nil {
 		t.Fatal(err)
 	}
-	manifest := filepath.Join(projectCurrent, "setup.yaml")
+	manifest := filepath.Join(projectCurrent, "update-cli.yaml")
 	if canonical, err := filepath.EvalSymlinks(manifest); err == nil {
 		manifest = canonical
 	}
@@ -212,25 +212,25 @@ printf '%s\n' "${UPDATE_CLI_TUI:-}" > "` + envFile + `"
 	}
 }
 
-func TestDeployInstallsGlobalSetupTemplate(t *testing.T) {
-	setupData, err := os.ReadFile("setup.yaml")
+func TestInstallInstallsGlobalSetupTemplate(t *testing.T) {
+	setupData, err := os.ReadFile("update-cli.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(setupData), `setup-template.sh`) || !strings.Contains(string(setupData), `Globales Setup-TUI-Template installieren`) {
-		t.Fatal("setup.yaml must install the global setup TUI template")
+		t.Fatal("update-cli.yaml must install the global setup TUI template")
 	}
 	justData, err := os.ReadFile("justfile")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(justData), `install -m 0755 setup-template.sh "$config_path/setup-template.sh"`) {
-		t.Fatal("just deploy must install setup-template.sh into the global config directory")
+		t.Fatal("just install must install setup-template.sh into the global config directory")
 	}
 }
 
 func TestXCLISetupMigrationExampleParses(t *testing.T) {
-	manifest, err := projectsetup.ParseManifest(filepath.Join("doc", "examples", "setup-x-cli.yaml"))
+	manifest, err := projectsetup.ParseManifest(filepath.Join("doc", "examples", "update-cli-x-cli.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -258,7 +258,7 @@ func TestSetupTemplateForwardsSchemaV2SelectionFlags(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "setup-template.sh"), template, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "setup.yaml"), []byte("schemaVersion: 2\ntasks:\n  build:\n    steps:\n      - shell: true\nworkflows:\n  setup:\n    tasks: [build]\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "update-cli.yaml"), []byte("schemaVersion: 2\ntasks:\n  build:\n    steps:\n      - shell: true\nworkflows:\n  setup:\n    tasks: [build]\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	bin := t.TempDir()
@@ -305,7 +305,7 @@ tasks:
     steps:
       - shell: true
 `
-	if err := os.WriteFile(filepath.Join(root, "setup.yaml"), []byte(manifest), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "update-cli.yaml"), []byte(manifest), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
@@ -325,7 +325,7 @@ if [[ "${1:-}" == "--help" ]]; then
   exit 0
 fi
 if [[ " $* " == *" --setup-list "* ]]; then
-  echo 'ERROR setup.yaml Zeile 5: unbekanntes project-Feld "slug"' >&2
+  echo 'ERROR update-cli.yaml Zeile 5: unbekanntes project-Feld "slug"' >&2
   exit 1
 fi
 : > "` + incompatibleMarker + `"
@@ -368,23 +368,23 @@ exit 0
 }
 
 func TestProjectSetupManifestUsesSchemaV2(t *testing.T) {
-	manifest, err := projectsetup.ParseManifest("setup.yaml")
+	manifest, err := projectsetup.ParseManifest("update-cli.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if manifest.Version != 2 {
-		t.Fatalf("setup.yaml schema = %d, want 2", manifest.Version)
+		t.Fatalf("update-cli.yaml schema = %d, want 2", manifest.Version)
 	}
 	for _, name := range []string{"prepare", "check", "build", "verify", "deploy", "clean"} {
 		if _, ok := manifest.Tasks[name]; !ok {
-			t.Fatalf("setup.yaml missing task %q", name)
+			t.Fatalf("update-cli.yaml missing task %q", name)
 		}
 	}
 	if _, ok := manifest.Workflows["setup"]; !ok {
-		t.Fatal("setup.yaml missing setup workflow")
+		t.Fatal("update-cli.yaml missing setup workflow")
 	}
 	if _, ok := manifest.Workflows["ci"]; !ok {
-		t.Fatal("setup.yaml missing ci workflow")
+		t.Fatal("update-cli.yaml missing ci workflow")
 	}
 }
 
@@ -397,7 +397,7 @@ func TestGlobalSetupTemplatePrefersSchemaV2CapableLocalPlatformBinary(t *testing
 	if err := os.WriteFile(filepath.Join(root, "setup-template.sh"), template, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "setup.yaml"), []byte("schemaVersion: 2\nworkflows:\n  setup:\n    tasks: [build]\ntasks:\n  build:\n    steps:\n      - shell: true\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "update-cli.yaml"), []byte("schemaVersion: 2\nworkflows:\n  setup:\n    tasks: [build]\ntasks:\n  build:\n    steps:\n      - shell: true\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
@@ -460,7 +460,7 @@ func TestGlobalSetupTemplateBootstrapsSchemaV2FromGoSource(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "setup-template.sh"), template, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "setup.yaml"), []byte("schemaVersion: 2\nworkflows:\n  setup:\n    tasks: [build]\ntasks:\n  build:\n    steps:\n      - shell: true\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "update-cli.yaml"), []byte("schemaVersion: 2\nworkflows:\n  setup:\n    tasks: [build]\ntasks:\n  build:\n    steps:\n      - shell: true\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(root, "VERSION"), []byte("9.8.7\n"), 0o644); err != nil {
@@ -513,20 +513,20 @@ exit 99
 	}
 }
 
-func TestDeployInstallsSetupScriptConversionPrompt(t *testing.T) {
-	setupData, err := os.ReadFile("setup.yaml")
+func TestInstallInstallsSetupScriptConversionPrompt(t *testing.T) {
+	setupData, err := os.ReadFile("update-cli.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(setupData), `prompts/setup-script-to-yaml.txt`) || !strings.Contains(string(setupData), `{{ configDir }}/prompts/setup-script-to-yaml.txt`) {
-		t.Fatal("setup.yaml must install the setup.sh AI conversion prompt")
+		t.Fatal("update-cli.yaml must install the setup.sh AI conversion prompt")
 	}
 	justData, err := os.ReadFile("justfile")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(justData), `install -m 0644 prompts/setup-script-to-yaml.txt "$config_path/prompts/setup-script-to-yaml.txt"`) {
-		t.Fatal("just deploy must install the setup.sh AI conversion prompt")
+		t.Fatal("just install must install the setup.sh AI conversion prompt")
 	}
 	prompt, err := os.ReadFile(filepath.Join("prompts", "setup-script-to-yaml.txt"))
 	if err != nil {
@@ -580,5 +580,18 @@ func TestJustfileRecipeNamesAreUnique(t *testing.T) {
 	}
 	if _, ok := seen["clear-releases"]; !ok {
 		t.Fatal("justfile must provide clear-releases recipe")
+	}
+}
+
+func TestProjectManifestUsesRepositorySource(t *testing.T) {
+	manifest, err := projectsetup.ParseManifest("update-cli.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !manifest.Update.Configured || manifest.Update.Mode != "pull" {
+		t.Fatalf("unexpected update config: %#v", manifest.Update)
+	}
+	if manifest.Update.Source.Type != "repository" || manifest.Update.Source.Repository != "https://github.com/r14r/update-cli.git" || manifest.Update.Source.Ref != "main" {
+		t.Fatalf("unexpected update source: %#v", manifest.Update.Source)
 	}
 }

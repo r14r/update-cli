@@ -45,7 +45,7 @@ func ConvertManifestToLatest(path string, force bool) (ConvertResult, error) {
 		return res, nil
 	}
 	if m.Version != 1 {
-		return res, fmt.Errorf("setup.yaml Schema %d kann nicht automatisch konvertiert werden", m.Version)
+		return res, fmt.Errorf("update-cli.yaml Schema %d kann nicht automatisch konvertiert werden", m.Version)
 	}
 	out := renderConvertedV1(m)
 	// Parse before replacing the original so conversion can never destroy a valid manifest.
@@ -63,7 +63,7 @@ func ConvertManifestToLatest(path string, force bool) (ConvertResult, error) {
 		return res, err
 	}
 	if _, err := ParseManifest(tmpName); err != nil {
-		return res, fmt.Errorf("konvertiertes setup.yaml ist ungültig: %w", err)
+		return res, fmt.Errorf("konvertiertes update-cli.yaml ist ungültig: %w", err)
 	}
 
 	backup := abs + ".schema1-" + time.Now().Format("20060102-150405") + ".bak"
@@ -93,7 +93,7 @@ func GenerateManifest(root, path string, force bool) (GenerateResult, error) {
 		return GenerateResult{}, err
 	}
 	if path == "" {
-		path = filepath.Join(absRoot, "setup.yaml")
+		path = filepath.Join(absRoot, "update-cli.yaml")
 	}
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(absRoot, path)
@@ -105,7 +105,7 @@ func GenerateManifest(root, path string, force bool) (GenerateResult, error) {
 		}
 		existed = true
 		if !force {
-			return GenerateResult{}, fmt.Errorf("setup.yaml existiert bereits: %s; --force verwenden", path)
+			return GenerateResult{}, fmt.Errorf("update-cli.yaml existiert bereits: %s; --force verwenden", path)
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return GenerateResult{}, err
@@ -123,7 +123,7 @@ func GenerateManifest(root, path string, force bool) (GenerateResult, error) {
 		return GenerateResult{}, err
 	}
 	if _, err := ParseManifest(path); err != nil {
-		return GenerateResult{}, fmt.Errorf("erzeugtes setup.yaml ist ungültig: %w", err)
+		return GenerateResult{}, fmt.Errorf("erzeugtes update-cli.yaml ist ungültig: %w", err)
 	}
 	return GenerateResult{Path: path, Technologies: d.Technologies, Overwritten: existed}, nil
 }
@@ -592,7 +592,7 @@ func PreviewConvertManifest(path string) (string, int, error) {
 		return string(data), 2, err
 	}
 	if m.Version != 1 {
-		return "", m.Version, fmt.Errorf("setup.yaml Schema %d kann nicht automatisch konvertiert werden", m.Version)
+		return "", m.Version, fmt.Errorf("update-cli.yaml Schema %d kann nicht automatisch konvertiert werden", m.Version)
 	}
 	return renderConvertedV1(m), m.Version, nil
 }

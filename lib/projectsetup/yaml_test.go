@@ -12,7 +12,7 @@ import (
 )
 
 func TestParseManifest(t *testing.T) {
-	p := filepath.Join(t.TempDir(), "setup.yaml")
+	p := filepath.Join(t.TempDir(), "update-cli.yaml")
 	data := `version: 1
 project:
   name: demo
@@ -37,7 +37,7 @@ steps:
 	}
 }
 func TestParseManifestRejectsUnknownField(t *testing.T) {
-	p := filepath.Join(t.TempDir(), "setup.yaml")
+	p := filepath.Join(t.TempDir(), "update-cli.yaml")
 	_ = os.WriteFile(p, []byte("version: 1\nsteps:\n  - type: go\n    magic: yes\n"), 0o644)
 	if _, err := ParseManifest(p); err == nil {
 		t.Fatal("expected unknown field rejection")
@@ -46,7 +46,7 @@ func TestParseManifestRejectsUnknownField(t *testing.T) {
 
 func TestRunStandaloneCommand(t *testing.T) {
 	root := t.TempDir()
-	p := filepath.Join(root, "setup.yaml")
+	p := filepath.Join(root, "update-cli.yaml")
 	data := "version: 1\nsteps:\n  - name: write\n    type: command\n    command: printf ok > result.txt\n"
 	if err := os.WriteFile(p, []byte(data), 0o644); err != nil {
 		t.Fatal(err)
@@ -65,7 +65,7 @@ func TestRunStandaloneCommand(t *testing.T) {
 
 func TestParseLegacy214Manifest(t *testing.T) {
 	root := t.TempDir()
-	p := filepath.Join(root, "setup.yaml")
+	p := filepath.Join(root, "update-cli.yaml")
 	data := `schemaVersion: 1
 
 project:
@@ -101,7 +101,7 @@ steps:
 
 func TestRunLegacy214ManifestConditionsAndAllowFailure(t *testing.T) {
 	root := t.TempDir()
-	p := filepath.Join(root, "setup.yaml")
+	p := filepath.Join(root, "update-cli.yaml")
 	data := `schemaVersion: 1
 project:
   name: Friendly Display Name
@@ -137,7 +137,7 @@ steps:
 
 func TestParseManifestBlockRun(t *testing.T) {
 	root := t.TempDir()
-	p := filepath.Join(root, "setup.yaml")
+	p := filepath.Join(root, "update-cli.yaml")
 	data := `schemaVersion: 1
 project:
   name: block-test
@@ -173,7 +173,7 @@ steps:
 }
 
 func TestParseManifestBlockRunRequiresIndentation(t *testing.T) {
-	p := filepath.Join(t.TempDir(), "setup.yaml")
+	p := filepath.Join(t.TempDir(), "update-cli.yaml")
 	data := `schemaVersion: 1
 steps:
   - id: bad
@@ -191,7 +191,7 @@ steps:
 
 func TestParseManifestAcceptsProjectSlug(t *testing.T) {
 	root := t.TempDir()
-	path := filepath.Join(root, "setup.yaml")
+	path := filepath.Join(root, "update-cli.yaml")
 	data := `schemaVersion: 1
 project:
   name: Demo
@@ -215,7 +215,7 @@ steps:
 
 func TestParseStructuredSchema1ManifestWithVersionMap(t *testing.T) {
 	root := t.TempDir()
-	path := filepath.Join(root, "setup.yaml")
+	path := filepath.Join(root, "update-cli.yaml")
 	manifest := `schemaVersion: 1
 
 project:
@@ -308,7 +308,7 @@ commands:
 
 func TestRunStructuredSchema1CommandGroups(t *testing.T) {
 	root := t.TempDir()
-	path := filepath.Join(root, "setup.yaml")
+	path := filepath.Join(root, "update-cli.yaml")
 	manifest := `schemaVersion: 1
 project:
   name: demo
@@ -353,5 +353,56 @@ commands:
 		if _, err := os.Stat(filepath.Join(root, name)); err != nil {
 			t.Fatalf("%s not created: %v", name, err)
 		}
+	}
+}
+
+func TestParseManifestV2UpdateRepositorySource(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "update-cli.yaml")
+	manifest := `schemaVersion: 2
+update:
+  mode: pull
+  source:
+    type: repository
+    repository: https://github.com/r14r/update-cli.git
+    ref: main
+    commit: abc123
+    version: 1.5.0
+    sha256: deadbeef
+run:
+  command: echo ok
+`
+	if err := os.WriteFile(path, []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m, err := ParseManifest(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !m.Update.Configured || m.Update.Mode != "pull" || m.Update.Source.Type != "repository" {
+		t.Fatalf("update = %#v", m.Update)
+	}
+	if m.Update.Source.Repository != "https://github.com/r14r/update-cli.git" || m.Update.Source.Ref != "main" {
+		t.Fatalf("source = %#v", m.Update.Source)
+	}
+}
+
+func TestParseManifestV2UpdateSourceValidation(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "update-cli.yaml")
+	manifest := `schemaVersion: 2
+update:
+  mode: update
+  source:
+    type: repository
+    repository: https://example.invalid/demo.git
+run:
+  command: echo ok
+`
+	if err := os.WriteFile(path, []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ParseManifest(path); err == nil {
+		t.Fatal("expected incompatible update mode/source error")
 	}
 }

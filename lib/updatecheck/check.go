@@ -27,8 +27,10 @@ type Result struct {
 	InstalledVersion string              `json:"installed,omitempty"`
 	InstalledFound   bool                `json:"installedFound"`
 	InstalledSource  string              `json:"installedSource,omitempty"`
+	InstalledCommit  string              `json:"installedCommit,omitempty"`
 	Available        versionutil.Version `json:"-"`
 	AvailableVersion string              `json:"available,omitempty"`
+	AvailableCommit  string              `json:"availableCommit,omitempty"`
 	SourceType       string              `json:"sourceType"`
 	SourceReference  string              `json:"sourceReference,omitempty"`
 	Status           Status              `json:"status"`
@@ -40,11 +42,11 @@ func Run(ctx context.Context, c config.Config) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	r := Result{ProjectName: c.ProjectName, Installed: installed, InstalledFound: found, InstalledSource: src}
+	r := Result{ProjectName: c.ProjectName, Installed: installed, InstalledFound: found, InstalledSource: src, InstalledCommit: DetectInstalledCommit(c.CurrentDir)}
 	if found {
 		r.InstalledVersion = installed.String()
 	}
-	m, err := source.Discover(ctx, source.Options{ProjectName: c.ProjectName, Source: c.Source, AllowHTTP: c.Security.AllowHTTP, MaxArchiveBytes: c.Security.MaxArchiveBytes})
+	m, err := source.Discover(ctx, source.Options{ProjectName: c.ProjectName, Mode: c.Mode, Source: c.Source, RepositoryCacheDir: c.RepositoryCacheDir, AllowHTTP: c.Security.AllowHTTP, MaxArchiveBytes: c.Security.MaxArchiveBytes})
 	if err != nil {
 		r.SourceError = err.Error()
 		return r, nil
@@ -53,6 +55,7 @@ func Run(ctx context.Context, c config.Config) (Result, error) {
 	r.AvailableVersion = m.Version.String()
 	r.SourceType = m.Type
 	r.SourceReference = m.Reference
+	r.AvailableCommit = m.Commit
 	if !found {
 		r.Status = StatusNotInstalled
 		return r, nil
@@ -61,12 +64,24 @@ func Run(ctx context.Context, c config.Config) (Result, error) {
 	case -1:
 		r.Status = StatusUpdateAvailable
 	case 0:
-		r.Status = StatusCurrent
+		if c.Mode == config.ModePull && m.Commit != "" && r.InstalledCommit != m.Commit {
+			r.Status = StatusUpdateAvailable
+		} else {
+			r.Status = StatusCurrent
+		}
 	default:
 		r.Status = StatusLocalNewer
 	}
 	return r, nil
 }
+func DetectInstalledCommit(current string) string {
+	b, err := os.ReadFile(filepath.Join(current, ".release-commit"))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(b))
+}
+
 func DetectInstalled(current string) (versionutil.Version, string, bool, error) {
 	for _, p := range []string{filepath.Join(current, ".release-version"), filepath.Join(current, "VERSION")} {
 		b, err := os.ReadFile(p)

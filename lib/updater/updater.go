@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -89,7 +90,7 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 	}
 	console := ui.New(o.noColor || o.jsonOutput)
 	console.SetApplicationVersion(buildVersion)
-	console.SuppressFinalStatus(o.jsonOutput)
+	console.SuppressFinalStatus(o.jsonOutput || o.run)
 	defer console.PrintFinalStatus()
 	console.SetDirect(o.noUI)
 	console.SetDetails(o.details || o.noUI)
@@ -158,14 +159,14 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 				return findErr
 			}
 			if !ok {
-				return fmt.Errorf("kein setup.yaml/setup.yml in %s", targetDir)
+				return fmt.Errorf("kein update-cli.yaml in %s", targetDir)
 			}
 			if o.dryRun {
 				text, previous, previewErr := projectsetup.PreviewConvertManifest(manifest)
 				if previewErr != nil {
 					return previewErr
 				}
-				console.Header("setup.yaml Konvertierung — Dry-Run")
+				console.Header("update-cli.yaml Konvertierung — Dry-Run")
 				console.Row("Datei", manifest)
 				console.Row("Schema", fmt.Sprintf("%d → 2", previous))
 				fmt.Print(text)
@@ -175,16 +176,16 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 			if convertErr != nil {
 				return convertErr
 			}
-			console.Header("setup.yaml konvertiert")
+			console.Header("update-cli.yaml konvertiert")
 			console.Row("Datei", res.Path)
 			console.Row("Schema", fmt.Sprintf("%d → %d", res.PreviousSchema, res.CurrentSchema))
 			if res.BackupPath != "" {
 				console.Row("Backup", res.BackupPath)
 			}
 			if res.Changed {
-				console.Success("setup.yaml wurde auf das aktuelle Schema migriert")
+				console.Success("update-cli.yaml wurde auf das aktuelle Schema migriert")
 			} else {
-				console.Success("setup.yaml verwendet bereits das aktuelle Schema")
+				console.Success("update-cli.yaml verwendet bereits das aktuelle Schema")
 			}
 			return nil
 		case o.createYAML:
@@ -198,7 +199,7 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 					if previewErr != nil {
 						return previewErr
 					}
-					console.Header("setup.yaml Generator — Dry-Run")
+					console.Header("update-cli.yaml Generator — Dry-Run")
 					console.Row("Quelle", "project")
 					console.Row("Projektordner", targetDir)
 					console.Row("Erkannt", strings.Join(tech, ", "))
@@ -209,22 +210,22 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 				if createErr != nil {
 					return createErr
 				}
-				console.Header("setup.yaml erstellt")
+				console.Header("update-cli.yaml erstellt")
 				console.Row("Quelle", "project")
 				console.Row("Datei", res.Path)
 				console.Row("Erkannt", strings.Join(res.Technologies, ", "))
 				if res.Overwritten {
-					console.Warn("Vorhandenes setup.yaml wurde mit --force ersetzt")
+					console.Warn("Vorhandenes update-cli.yaml wurde mit --force ersetzt")
 				}
 				console.Success("SchemaVersion 2 Manifest wurde erzeugt; vor produktivem Einsatz prüfen")
 				return nil
 			}
 
 			scriptPath := filepath.Join(targetDir, "setup.sh")
-			targetManifest := filepath.Join(targetDir, "setup.yaml")
+			targetManifest := filepath.Join(targetDir, "update-cli.yaml")
 			if !o.dryRun && !o.force {
 				if info, statErr := os.Stat(targetManifest); statErr == nil && !info.IsDir() {
-					return fmt.Errorf("setup.yaml existiert bereits: %s; --force verwenden", targetManifest)
+					return fmt.Errorf("update-cli.yaml existiert bereits: %s; --force verwenden", targetManifest)
 				} else if statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
 					return statErr
 				}
@@ -245,7 +246,7 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 				aiResult = ai
 			}
 			if o.dryRun {
-				console.Header("setup.yaml Generator — Dry-Run")
+				console.Header("update-cli.yaml Generator — Dry-Run")
 				console.Row("Quelle", "setup-script")
 				console.Row("Setup-Script", scriptPath)
 				console.Row("Erkannte Schritte", fmt.Sprintf("%d", analysis.Steps))
@@ -260,7 +261,7 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 			if createErr != nil {
 				return createErr
 			}
-			console.Header("setup.yaml erstellt")
+			console.Header("update-cli.yaml erstellt")
 			console.Row("Quelle", "setup-script")
 			console.Row("Setup-Script", analysis.Path)
 			console.Row("Erkannte Schritte", fmt.Sprintf("%d", analysis.Steps))
@@ -273,7 +274,7 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 				}
 			}
 			if res.Overwritten {
-				console.Warn("Vorhandenes setup.yaml wurde mit --force ersetzt")
+				console.Warn("Vorhandenes update-cli.yaml wurde mit --force ersetzt")
 			}
 			console.Success("setup.sh wurde in ein validiertes SchemaVersion-2-Manifest konvertiert")
 			return nil
@@ -315,7 +316,7 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 			}
 			manifest := projectsetup.ManifestPath(cfg)
 			if manifest == "" {
-				return fmt.Errorf("kein setup.yaml/setup.yml in %s", cfg.CurrentDir)
+				return fmt.Errorf("kein update-cli.yaml in %s", cfg.CurrentDir)
 			}
 			if o.setupList {
 				catalog, catalogErr := projectsetup.CatalogForManifest(manifest)
@@ -347,7 +348,7 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 				_, setupErr := projectsetup.Run(ctx, cfg, console)
 				return setupErr
 			}
-			return fmt.Errorf("kein setup.yaml/setup.yml im aktuellen Ordner %s", root)
+			return fmt.Errorf("kein update-cli.yaml im aktuellen Ordner %s", root)
 		}
 		if o.setupList {
 			catalog, catalogErr := projectsetup.CatalogForManifest(manifest)
@@ -399,15 +400,39 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 	if o.templatesMode {
 		return runTemplates(ctx, console, root, o, buildVersion)
 	}
+	if o.run {
+		configFile := filepath.Join(root, config.ConfigDirName, config.ConfigFileName)
+		if _, statErr := os.Stat(configFile); errors.Is(statErr, os.ErrNotExist) {
+			runErr := projectsetup.RunApplicationInDirectory(ctx, root, console)
+			if runErr == nil {
+				return nil
+			}
+			var exitErr *exec.ExitError
+			if errors.As(runErr, &exitErr) {
+				return &ExitError{Code: exitErr.ExitCode(), Err: runErr}
+			}
+			return runErr
+		} else if statErr != nil {
+			return statErr
+		}
+	}
 	cfg, err := config.Load(root, o.downloadDir)
 	if err != nil {
 		return err
 	}
 	console.SetProjectName(cfg.ProjectName)
 	console.SetProjectVersion(installedVersion(cfg.CurrentDir))
-	cfg, err = config.WithSourceOverrides(cfg, o.sourceType, firstNonEmpty(o.sourceFolder, o.downloadDir), o.sourceURL, o.repository)
+	cfg, err = withManifestSourceDefaults(cfg)
 	if err != nil {
 		return err
+	}
+	cfg, err = config.WithSourceOverrides(cfg, o.mode, o.sourceType, firstNonEmpty(o.sourceFolder, o.downloadDir), o.sourceURL, o.repository)
+	if err != nil {
+		return err
+	}
+	if o.update && cfg.Mode == config.ModePull && console.Fullscreen() {
+		console.StartFullscreen(fullscreenBase + " — Pull")
+		console.SetFooter("RUN  Git Pull läuft")
 	}
 	switch {
 	case o.history:
@@ -510,6 +535,16 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 		}
 		setCheckFinalStatus(console, res)
 		return nil
+	case o.run:
+		runErr := projectsetup.RunApplication(ctx, cfg, console)
+		if runErr == nil {
+			return nil
+		}
+		var exitErr *exec.ExitError
+		if errors.As(runErr, &exitErr) {
+			return &ExitError{Code: exitErr.ExitCode(), Err: runErr}
+		}
+		return runErr
 	case o.doctor:
 		res := doctor.Run(ctx, root, cfg)
 		if o.jsonOutput {
@@ -610,6 +645,9 @@ func runBackup(ctx context.Context, console *ui.Console, cfg config.Config, json
 }
 
 func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o options) (retErr error) {
+	if cfg.Mode == config.ModePull && strings.TrimSpace(o.archive) != "" {
+		return errors.New("mode pull verwendet ein Git-Repository und akzeptiert kein ZIP-Archiv; für ZIP-Dateien --mode update verwenden")
+	}
 	lock, err := tools.AcquireLock(filepath.Join(cfg.RootDir, ".release-update.lock"), "update")
 	if err != nil {
 		return err
@@ -630,7 +668,11 @@ func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o op
 	}
 	progress := newUpdateProgress(ctx, console, !o.jsonOutput, totalSteps)
 	phase := "source"
-	if err := progress.run("Release-Quelle auflösen", func() error {
+	sourceLabel := "ZIP-Release auflösen"
+	if cfg.Mode == config.ModePull {
+		sourceLabel = "Git-Repository aktualisieren"
+	}
+	if err := progress.run(sourceLabel, func() error {
 		return resolveArtifact(ctx, s, o.archive)
 	}); err != nil {
 		return failUpdateBeforeTransaction(console, cfg, s, phase, err)
@@ -639,7 +681,7 @@ func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o op
 	phase = "version-policy"
 	var alreadyInstalled *VersionAlreadyInstalledError
 	if err := progress.run("Zielversion und Update-Regeln prüfen", func() error {
-		policyErr := enforceVersionPolicy(cfg, s.version, o.allowDowngrade, o.force, o.plan || o.dryRun)
+		policyErr := enforceVersionPolicy(cfg, s.artifact, o.allowDowngrade, o.force, o.plan || o.dryRun)
 		if errors.As(policyErr, &alreadyInstalled) {
 			// Selecting the currently installed version is a successful no-op, not
 			// a failed update phase. --force still bypasses this branch and performs
@@ -660,7 +702,7 @@ func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o op
 	}
 
 	phase = "validate-artifact"
-	if err := progress.run("Release-Inhalt und Archiv validieren", func() error {
+	if err := progress.run("Release-Inhalt validieren", func() error {
 		return prepareContent(ctx, s)
 	}); err != nil {
 		return failUpdateBeforeTransaction(console, cfg, s, phase, err)
@@ -782,7 +824,7 @@ func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o op
 	} else if o.noSetup {
 		progress.skip("Projekt-Setup ausführen", "mit --no-setup deaktiviert")
 	} else if !setupAvailable {
-		progress.skip("Projekt-Setup ausführen", "kein setup.yaml/setup.sh vorhanden")
+		progress.skip("Projekt-Setup ausführen", "kein update-cli.yaml/setup.sh vorhanden")
 	} else {
 		progress.skip("Projekt-Setup ausführen", "vom Benutzer nicht ausgewählt")
 	}
@@ -946,7 +988,7 @@ func updatePhaseLabel(phase string) string {
 	labels := map[string]string{
 		"source":            "Release-Quelle auflösen",
 		"version-policy":    "Zielversion und Update-Regeln prüfen",
-		"validate-artifact": "Release-Inhalt und Archiv validieren",
+		"validate-artifact": "Release-Inhalt validieren",
 		"prepare-release":   "Versioniertes Release vorbereiten",
 		"plan-current":      "Änderungen an current ermitteln",
 		"transaction-begin": "Transaktion vorbereiten und Snapshot erstellen",
@@ -1089,7 +1131,7 @@ func resolveArtifact(ctx context.Context, s *state, explicit string) error {
 		s.version = v
 		return nil
 	}
-	a, err := source.Fetch(ctx, source.Options{ProjectName: s.cfg.ProjectName, Source: s.cfg.Source, WorkDir: s.workDir, ReleaseRoot: s.cfg.ReleaseRoot, AllowHTTP: s.cfg.Security.AllowHTTP, MaxArchiveBytes: s.cfg.Security.MaxArchiveBytes})
+	a, err := source.Fetch(ctx, source.Options{ProjectName: s.cfg.ProjectName, Mode: s.cfg.Mode, Source: s.cfg.Source, WorkDir: s.workDir, ReleaseRoot: s.cfg.ReleaseRoot, RepositoryCacheDir: s.cfg.RepositoryCacheDir, AllowHTTP: s.cfg.Security.AllowHTTP, MaxArchiveBytes: s.cfg.Security.MaxArchiveBytes})
 	if err != nil {
 		return err
 	}
@@ -1192,6 +1234,15 @@ func verifyCurrent(ctx context.Context, s *state) error {
 	if err := verifyMarker(s.cfg.CurrentDir, s.version.String()); err != nil {
 		return err
 	}
+	if commit := strings.TrimSpace(s.artifact.Commit); commit != "" {
+		b, err := os.ReadFile(filepath.Join(s.cfg.CurrentDir, ".release-commit"))
+		if err != nil {
+			return fmt.Errorf("Release-Commit-Marker fehlt in %s: %w", s.cfg.CurrentDir, err)
+		}
+		if strings.TrimSpace(string(b)) != commit {
+			return fmt.Errorf("Release-Commit-Marker in %s ist inkonsistent", s.cfg.CurrentDir)
+		}
+	}
 	r, err := rsyncutil.Current(ctx, releaseSource, s.cfg.CurrentDir, filepath.Join(s.workDir, "verify-current.log"), true, s.cfg.Preserve)
 	if err != nil {
 		return err
@@ -1202,7 +1253,11 @@ func verifyCurrent(ctx context.Context, s *state) error {
 	return nil
 }
 func writeReleaseMarkers(dir string, s *state) error {
-	for n, v := range map[string]string{".release-project": s.cfg.ProjectName, ".release-version": s.version.String(), ".release-source": sourceRef(s)} {
+	markers := map[string]string{".release-project": s.cfg.ProjectName, ".release-version": s.version.String(), ".release-source": sourceRef(s)}
+	if commit := strings.TrimSpace(s.artifact.Commit); commit != "" {
+		markers[".release-commit"] = commit
+	}
+	for n, v := range markers {
 		if err := tools.WriteMarker(dir, n, v); err != nil {
 			return err
 		}
@@ -1214,10 +1269,12 @@ type rootReleaseState struct {
 	ProjectName string `json:"projectName"`
 	Version     string `json:"version"`
 	Source      string `json:"source"`
+	Mode        string `json:"mode,omitempty"`
+	Commit      string `json:"commit,omitempty"`
 }
 
 func writeRootState(cfg config.Config, version, source string) error {
-	data, err := json.MarshalIndent(rootReleaseState{ProjectName: cfg.ProjectName, Version: version, Source: source}, "", "  ")
+	data, err := json.MarshalIndent(rootReleaseState{ProjectName: cfg.ProjectName, Version: version, Source: source, Mode: cfg.Mode}, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -1235,7 +1292,12 @@ func writeLegacyRootMarkers(cfg config.Config, version, source string) error {
 }
 
 func writeReleaseState(s *state) error {
-	return writeRootState(s.cfg, s.version.String(), sourceRef(s))
+	data, err := json.MarshalIndent(rootReleaseState{ProjectName: s.cfg.ProjectName, Version: s.version.String(), Source: sourceRef(s), Mode: s.cfg.Mode, Commit: strings.TrimSpace(s.artifact.Commit)}, "", "  ")
+	if err != nil {
+		return err
+	}
+	data = append(data, '\n')
+	return tools.WriteFileAtomic(filepath.Join(s.cfg.ReleaseRoot, ".last-state.json"), data, 0o644)
 }
 
 func verifyMarker(dir, expected string) error {
@@ -1248,7 +1310,8 @@ func verifyMarker(dir, expected string) error {
 	}
 	return nil
 }
-func enforceVersionPolicy(c config.Config, target versionutil.Version, allow, force, simulation bool) error {
+func enforceVersionPolicy(c config.Config, artifact source.Artifact, allow, force, simulation bool) error {
+	target := artifact.Version
 	installed, _, found, err := updatecheck.DetectInstalled(c.CurrentDir)
 	if err != nil {
 		return err
@@ -1259,6 +1322,12 @@ func enforceVersionPolicy(c config.Config, target versionutil.Version, allow, fo
 	cmp := versionutil.CompareForProject(c.ProjectName, target, installed)
 	if cmp < 0 && !allow {
 		return fmt.Errorf("Downgrade wird blockiert: installiert %s, ausgewählt %s; --allow-downgrade verwenden", installed.String(), target.String())
+	}
+	if cmp == 0 && c.Mode == config.ModePull && strings.TrimSpace(artifact.Commit) != "" {
+		installedCommit := updatecheck.DetectInstalledCommit(c.CurrentDir)
+		if installedCommit != strings.TrimSpace(artifact.Commit) {
+			return nil
+		}
 	}
 	if cmp == 0 && !force && !simulation {
 		return &VersionAlreadyInstalledError{Version: installed.String()}
@@ -1353,6 +1422,7 @@ func verifyArchive(ctx context.Context, c config.Config, explicit string) (verif
 
 type updatePlanResult struct {
 	ProjectName                      string `json:"projectName"`
+	Mode                             string `json:"mode"`
 	SourceType                       string `json:"sourceType"`
 	Source                           string `json:"source"`
 	FromVersion                      string `json:"fromVersion,omitempty"`
@@ -1364,7 +1434,7 @@ type updatePlanResult struct {
 }
 
 func updatePlanJSON(s *state) updatePlanResult {
-	r := updatePlanResult{ProjectName: s.cfg.ProjectName, SourceType: s.artifact.Type, Source: sourceRef(s), FromVersion: s.fromVersion, ToVersion: s.version.String(), ReleaseDir: s.releaseDir, CurrentDir: s.cfg.CurrentDir, Created: []rsyncutil.Change{}, Updated: []rsyncutil.Change{}, Deleted: []rsyncutil.Change{}, Other: []rsyncutil.Change{}, Protected: append([]string(nil), s.cfg.Preserve...)}
+	r := updatePlanResult{ProjectName: s.cfg.ProjectName, Mode: s.cfg.Mode, SourceType: s.artifact.Type, Source: sourceRef(s), FromVersion: s.fromVersion, ToVersion: s.version.String(), ReleaseDir: s.releaseDir, CurrentDir: s.cfg.CurrentDir, Created: []rsyncutil.Change{}, Updated: []rsyncutil.Change{}, Deleted: []rsyncutil.Change{}, Other: []rsyncutil.Change{}, Protected: append([]string(nil), s.cfg.Preserve...)}
 	for _, x := range s.currentPlan {
 		switch x.Kind {
 		case rsyncutil.ChangeCreated:
@@ -1381,7 +1451,7 @@ func updatePlanJSON(s *state) updatePlanResult {
 }
 
 func initialize(console *ui.Console, root string, o options) error {
-	cfg, err := config.Init(root, config.InitOptions{ProjectName: o.projectName, SourceType: o.sourceType, Folder: firstNonEmpty(o.sourceFolder, o.downloadDir), URL: o.sourceURL, Repository: o.repository, Force: o.force})
+	cfg, err := config.Init(root, config.InitOptions{ProjectName: o.projectName, Mode: o.mode, SourceType: o.sourceType, Folder: firstNonEmpty(o.sourceFolder, o.downloadDir), URL: o.sourceURL, Repository: o.repository, Force: o.force})
 	if err != nil {
 		return err
 	}
@@ -1407,6 +1477,44 @@ func initialize(console *ui.Console, root string, o options) error {
 	return nil
 }
 func runConfig(ctx context.Context, console *ui.Console, root string, o options) error {
+	if o.configCheck {
+		result, err := config.Check(root)
+		if err != nil {
+			return fmt.Errorf("config.json ist ungültig: %w", err)
+		}
+		if o.jsonOutput {
+			return writeJSON(result)
+		}
+		console.Header("Updater-Konfiguration geprüft")
+		console.Row("Datei", result.ConfigFile)
+		console.Row("Projekt", result.ProjectName)
+		console.Row("Schema", fmt.Sprintf("%d", result.SchemaVersion))
+		console.Row("Aktuelles Schema", fmt.Sprintf("%d", result.CurrentSchema))
+		console.Row("Modus", result.Mode)
+		console.Row("Quelle", result.SourceType)
+		if result.MigrationNeeded {
+			console.Warn("Konfiguration ist gültig, aber eine Migration ist verfügbar: update-cli config --migrate")
+		} else {
+			console.Success("config.json ist gültig und aktuell")
+		}
+		return nil
+	}
+	if o.configMigrate {
+		lock, err := tools.AcquireLock(filepath.Join(root, ".release-update.lock"), "config-migrate")
+		if err != nil {
+			return err
+		}
+		defer lock.Release()
+		result, err := config.Upgrade(root)
+		if err != nil {
+			return err
+		}
+		if o.jsonOutput {
+			return writeJSON(result)
+		}
+		printUpgrade(console, result)
+		return nil
+	}
 	if len(o.configSet) > 0 {
 		result, err := config.Set(root, o.configSet)
 		if err != nil {

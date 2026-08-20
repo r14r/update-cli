@@ -41,7 +41,7 @@ func TestLoadMigratesSchema5DefaultsInMemory(t *testing.T) {
 	}
 }
 
-func TestUpgradeWritesSchema6AndBackup(t *testing.T) {
+func TestUpgradeWritesSchema7AndBackup(t *testing.T) {
 	root := t.TempDir()
 	downloads := t.TempDir()
 	dir := filepath.Join(root, ConfigDirName)
@@ -65,7 +65,7 @@ func TestUpgradeWritesSchema6AndBackup(t *testing.T) {
 	if err := json.Unmarshal(b, &got); err != nil {
 		t.Fatal(err)
 	}
-	if int(got["schemaVersion"].(float64)) != 6 {
+	if int(got["schemaVersion"].(float64)) != 7 {
 		t.Fatalf("schema not upgraded: %v", got["schemaVersion"])
 	}
 }
@@ -254,5 +254,92 @@ func TestDockerLifecycleDefaultsAndValidation(t *testing.T) {
 				t.Fatalf("Docker lifecycle = %q, want %q", cfg.Docker.Lifecycle, want)
 			}
 		})
+	}
+}
+
+func TestSchema6RepositoryMigratesToPullMode(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, ConfigDirName)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	data := `{"schemaVersion":6,"projectName":"demo","source":{"type":"repository","repository":"https://example.invalid/demo.git"},"releaseDir":"release","currentDir":"current","no parameter":["check"]}`
+	if err := os.WriteFile(filepath.Join(dir, ConfigFileName), []byte(data), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(root, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Mode != ModePull {
+		t.Fatalf("mode = %q, want %q", cfg.Mode, ModePull)
+	}
+}
+
+func TestModeSourceCompatibilityValidation(t *testing.T) {
+	root := t.TempDir()
+	downloads := t.TempDir()
+	if _, err := Init(root, InitOptions{ProjectName: "demo", Mode: ModePull, SourceType: "download", Folder: downloads}); err == nil || !strings.Contains(err.Error(), "mode pull") {
+		t.Fatalf("expected pull/download validation error, got %v", err)
+	}
+	if _, err := Init(root, InitOptions{ProjectName: "demo", Mode: ModeUpdate, SourceType: "repository", Repository: "https://example.invalid/demo.git"}); err == nil || !strings.Contains(err.Error(), "mode update") {
+		t.Fatalf("expected update/repository validation error, got %v", err)
+	}
+}
+
+func TestInitPullModeWithRepository(t *testing.T) {
+	root := t.TempDir()
+	cfg, err := Init(root, InitOptions{ProjectName: "demo", Mode: ModePull, SourceType: "repository", Repository: "https://example.invalid/demo.git"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Mode != ModePull || cfg.Source.Type != "repository" {
+		t.Fatalf("unexpected config: mode=%q source=%#v", cfg.Mode, cfg.Source)
+	}
+}
+
+func TestCheckCurrentConfig(t *testing.T) {
+	root := t.TempDir()
+	downloads := t.TempDir()
+	if _, err := Init(root, InitOptions{ProjectName: "demo", SourceType: "download", Folder: downloads}); err != nil {
+		t.Fatal(err)
+	}
+	result, err := Check(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Valid || result.MigrationNeeded || result.SchemaVersion != SchemaVersion {
+		t.Fatalf("unexpected check result: %#v", result)
+	}
+}
+
+func TestCheckReportsMigrationWithoutWriting(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, ConfigDirName)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, ConfigFileName)
+	legacy := `{
+  "schemaVersion": 6,
+  "projectName": "demo",
+  "source": {"type": "download", "folder": "/tmp"},
+  "releaseDir": "release",
+  "currentDir": "current"
+}`
+	if err := os.WriteFile(path, []byte(legacy), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := os.ReadFile(path)
+	result, err := Check(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Valid || !result.MigrationNeeded || result.SchemaVersion != 6 || result.CurrentSchema != SchemaVersion {
+		t.Fatalf("unexpected check result: %#v", result)
+	}
+	after, _ := os.ReadFile(path)
+	if string(before) != string(after) {
+		t.Fatal("config --check must not modify config.json")
 	}
 }

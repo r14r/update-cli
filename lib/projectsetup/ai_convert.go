@@ -59,7 +59,7 @@ func RefineSetupYAMLWithAI(ctx context.Context, root, scriptPath, draft string) 
 	}
 	content = normalizeAIYAML(content)
 	if content == "" {
-		return "", AIRefineResult{}, errors.New("AI hat kein setup.yaml zurückgegeben")
+		return "", AIRefineResult{}, errors.New("AI hat kein update-cli.yaml zurückgegeben")
 	}
 	if err := validateManifestText(root, content); err != nil {
 		return "", AIRefineResult{}, fmt.Errorf("AI-Ergebnis wurde verworfen: %w", err)
@@ -196,7 +196,7 @@ func callAI(ctx context.Context, cfg AIConfig, prompt string) (string, error) {
 		"model":       cfg.Model,
 		"temperature": 0.1,
 		"messages": []map[string]string{
-			{"role": "system", "content": "Return only valid Update CLI setup.yaml schemaVersion 2 YAML."},
+			{"role": "system", "content": "Return only valid Update CLI update-cli.yaml schemaVersion 2 YAML."},
 			{"role": "user", "content": prompt},
 		},
 	}

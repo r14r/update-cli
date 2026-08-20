@@ -62,7 +62,7 @@ doctor *args:
 setup:
     ./setup.sh
 
-setup-manifest file="setup.yaml":
+setup-manifest file="update-cli.yaml":
     go run -ldflags "-X main.version={{version}}" . --setup-manifest "{{file}}"
 
 setup-list:

@@ -5,6 +5,13 @@ project:
   type: go
   description: Update CLI prüfen, testen, bauen und deployen
 
+update:
+  mode: pull
+  source:
+    type: repository
+    repository: https://github.com/r14r/update-cli.git
+    ref: main
+
 defaults:
   timeout: 15m
   failFast: true
@@ -20,6 +27,16 @@ requirements:
     - go
   optionalCommands:
     - just
+
+run:
+  description: Start the built Update CLI
+  cwd: .
+  steps:
+    - name: Show Update CLI help
+      command:
+        exec: ./dist/update-cli
+        args:
+          - --help
 
 workflows:
   setup:

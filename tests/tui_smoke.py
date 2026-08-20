@@ -200,10 +200,10 @@ def main() -> int:
             raise SystemExit("--noui still renders Task headings")
 
         # --setup must also work when invoked directly inside a deployed
-        # current/ directory that contains setup.yaml but no project config.
+        # current/ directory that contains update-cli.yaml but no project config.
         standalone_current = tmpdir / "standalone-current"
         standalone_current.mkdir()
-        (standalone_current / "setup.yaml").write_text(
+        (standalone_current / "update-cli.yaml").write_text(
             "schemaVersion: 1\n"
             "project:\n"
             "  name: Current Folder Setup\n"
@@ -222,18 +222,18 @@ def main() -> int:
             {
                 "standalone setup title": header,
                 "standalone setup mode": b"Setup",
-                "standalone manifest": b"setup.yaml",
+                "standalone manifest": b"update-cli.yaml",
                 "standalone step": "Current setup ausführen".encode("utf-8"),
             },
         )
         if (standalone_current / "setup-result.txt").read_text(encoding="utf-8") != "standalone-ok":
-            raise SystemExit("--setup in current/ did not execute the local setup.yaml")
+            raise SystemExit("--setup in current/ did not execute the local update-cli.yaml")
 
         # The globally installed setup-template.sh must provide the same TUI by
         # delegating the current-directory manifest to the native CLI runner.
         template_current = tmpdir / "template-current"
         template_current.mkdir()
-        (template_current / "setup.yaml").write_text(
+        (template_current / "update-cli.yaml").write_text(
             "schemaVersion: 1\n"
             "project:\n"
             "  name: Global Template TUI\n"
@@ -261,7 +261,7 @@ def main() -> int:
             },
         )
         if (template_current / "template-result.txt").read_text(encoding="utf-8") != "template-ok":
-            raise SystemExit("global setup-template.sh did not execute current/setup.yaml")
+            raise SystemExit("global setup-template.sh did not execute current/update-cli.yaml")
 
         # Legacy setup.sh must never own a nested wait/fullscreen session.
         # The parent Update CLI TUI must remain visible and show the legacy
@@ -335,7 +335,7 @@ def main() -> int:
             "1.0.0",
             {
                 "app.txt": "ok\n",
-                "setup.yaml": (
+                "update-cli.yaml": (
                     "schemaVersion: 1\n"
                     "project:\n"
                     "  name: Prompt Demo\n"
@@ -445,7 +445,7 @@ def main() -> int:
             "1.0.0",
             {
                 "app.txt": "ok\n",
-                "setup.yaml": (
+                "update-cli.yaml": (
                     "schemaVersion: 1\n"
                     "project:\n"
                     "  name: Clear Demo\n"
@@ -500,7 +500,7 @@ def main() -> int:
             "1.0.0",
             {
                 "app.txt": "ok\n",
-                "setup.yaml": (
+                "update-cli.yaml": (
                     "schemaVersion: 1\n"
                     "project:\n"
                     "  name: Chained Demo\n"
@@ -565,7 +565,7 @@ def main() -> int:
             "1.1.0",
             {
                 "app.txt": "new\n",
-                "setup.yaml": (
+                "update-cli.yaml": (
                     "schemaVersion: 1\n"
                     "project:\n"
                     "  name: Error Demo\n"

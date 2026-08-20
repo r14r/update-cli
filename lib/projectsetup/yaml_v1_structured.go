@@ -39,7 +39,7 @@ func parseStructuredLegacyV1(path string, data []byte) (Manifest, error) {
 		return Manifest{}, err
 	}
 	if root.kind != yamlMap {
-		return Manifest{}, fmt.Errorf("setup.yaml: Top-Level muss eine Map sein")
+		return Manifest{}, fmt.Errorf("update-cli.yaml: Top-Level muss eine Map sein")
 	}
 
 	allowedTop := map[string]bool{
@@ -122,16 +122,16 @@ func parseStructuredLegacyV1(path string, data []byte) (Manifest, error) {
 	if versionRequired {
 		data, readErr := os.ReadFile(versionPath)
 		if readErr != nil {
-			return m, fmt.Errorf("setup.yaml: erforderliche Versionsdatei fehlt: %s", versionFile)
+			return m, fmt.Errorf("update-cli.yaml: erforderliche Versionsdatei fehlt: %s", versionFile)
 		}
 		m.ProjectVersion = strings.TrimSpace(string(data))
 		if versionPattern != "" {
 			re, compileErr := regexp.Compile(versionPattern)
 			if compileErr != nil {
-				return m, fmt.Errorf("setup.yaml: ungültiges version.pattern: %w", compileErr)
+				return m, fmt.Errorf("update-cli.yaml: ungültiges version.pattern: %w", compileErr)
 			}
 			if !re.MatchString(m.ProjectVersion) {
-				return m, fmt.Errorf("setup.yaml: Version %q aus %s entspricht nicht pattern %q", m.ProjectVersion, versionFile, versionPattern)
+				return m, fmt.Errorf("update-cli.yaml: Version %q aus %s entspricht nicht pattern %q", m.ProjectVersion, versionFile, versionPattern)
 			}
 		}
 	} else if data, readErr := os.ReadFile(versionPath); readErr == nil {
@@ -190,7 +190,7 @@ func parseStructuredLegacyV1(path string, data []byte) (Manifest, error) {
 	}
 	for _, command := range requiredCommands {
 		if _, lookErr := exec.LookPath(command); lookErr != nil {
-			return m, fmt.Errorf("setup.yaml: erforderliches Kommando fehlt: %s", command)
+			return m, fmt.Errorf("update-cli.yaml: erforderliches Kommando fehlt: %s", command)
 		}
 	}
 	_ = optionalCommands // optional tools are informational in the legacy engine.
@@ -240,7 +240,7 @@ func parseStructuredLegacyV1(path string, data []byte) (Manifest, error) {
 		}
 	}
 	if len(setupIDs) == 0 {
-		return m, fmt.Errorf("setup.yaml: setup.steps enthält keine Schritte")
+		return m, fmt.Errorf("update-cli.yaml: setup.steps enthält keine Schritte")
 	}
 
 	preCommands, justCommands, customCommands, postCommands := []string{}, []string{}, []string{}, []string{}
@@ -346,7 +346,7 @@ func parseStructuredLegacyV1(path string, data []byte) (Manifest, error) {
 			step.When = "file:package.json"
 			step.Command = "npm run build"
 		default:
-			return m, fmt.Errorf("setup.yaml: unbekannter Legacy-Setup-Schritt %q", id)
+			return m, fmt.Errorf("update-cli.yaml: unbekannter Legacy-Setup-Schritt %q", id)
 		}
 		if strings.TrimSpace(step.Command) == "" {
 			step.Command = "true"

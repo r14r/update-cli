@@ -68,23 +68,23 @@ func parseManifestV2(path string, data []byte) (Manifest, error) {
 		return Manifest{}, err
 	}
 	if root.kind != yamlMap {
-		return Manifest{}, fmt.Errorf("setup.yaml: Top-Level muss eine Map sein")
+		return Manifest{}, fmt.Errorf("update-cli.yaml: Top-Level muss eine Map sein")
 	}
 	allowedTop := map[string]bool{
 		"schemaVersion": true, "version": true, "project": true, "defaults": true, "variables": true,
-		"requirements": true, "workflows": true, "tasks": true,
+		"requirements": true, "workflows": true, "tasks": true, "run": true, "update": true,
 	}
 	for key, node := range root.m {
 		if !allowedTop[key] {
-			return Manifest{}, fmt.Errorf("setup.yaml Zeile %d: unbekanntes Top-Level-Feld %q", node.line, key)
+			return Manifest{}, fmt.Errorf("update-cli.yaml Zeile %d: unbekanntes Top-Level-Feld %q", node.line, key)
 		}
 	}
 	version, err := nodeInt(root.m["schemaVersion"])
 	if err != nil || version != 2 {
 		if err != nil {
-			return Manifest{}, fmt.Errorf("setup.yaml schemaVersion ungültig: %w", err)
+			return Manifest{}, fmt.Errorf("update-cli.yaml schemaVersion ungültig: %w", err)
 		}
-		return Manifest{}, fmt.Errorf("setup.yaml schemaVersion muss 2 sein; erhalten %d", version)
+		return Manifest{}, fmt.Errorf("update-cli.yaml schemaVersion muss 2 sein; erhalten %d", version)
 	}
 	m := Manifest{
 		Version:      2,
@@ -152,6 +152,150 @@ func parseManifestV2(path string, data []byte) (Manifest, error) {
 			m.Variables[k] = value
 		}
 	}
+	if n := root.m["update"]; n != nil {
+		if n.kind != yamlMap {
+			return m, lineError(n, "update muss eine Map sein")
+		}
+		m.Update.Configured = true
+		for k, v := range n.m {
+			switch k {
+			case "mode":
+				m.Update.Mode, err = nodeString(v)
+				m.Update.Mode = strings.ToLower(strings.TrimSpace(m.Update.Mode))
+			case "source":
+				if v.kind != yamlMap {
+					return m, lineError(v, "update.source muss eine Map sein")
+				}
+				for sk, sv := range v.m {
+					var value string
+					value, err = nodeString(sv)
+					if err != nil {
+						return m, lineError(sv, fmt.Sprintf("update.source.%s muss skalar sein", sk))
+					}
+					value = strings.TrimSpace(value)
+					switch sk {
+					case "type":
+						m.Update.Source.Type = strings.ToLower(value)
+					case "folder":
+						m.Update.Source.Folder = value
+					case "url":
+						m.Update.Source.URL = value
+					case "repository":
+						m.Update.Source.Repository = value
+					case "ref":
+						m.Update.Source.Ref = value
+					case "commit":
+						m.Update.Source.Commit = value
+					case "version":
+						m.Update.Source.Version = value
+					case "sha256":
+						m.Update.Source.SHA256 = value
+					default:
+						return m, lineError(sv, fmt.Sprintf("unbekanntes update.source-Feld %q", sk))
+					}
+				}
+			default:
+				return m, lineError(v, fmt.Sprintf("unbekanntes update-Feld %q", k))
+			}
+			if err != nil {
+				return m, lineError(v, err.Error())
+			}
+		}
+		if m.Update.Source.Type == "" {
+			return m, lineError(n, "update.source.type fehlt")
+		}
+		if m.Update.Mode == "" {
+			if m.Update.Source.Type == "repository" {
+				m.Update.Mode = "pull"
+			} else {
+				m.Update.Mode = "update"
+			}
+		}
+		switch m.Update.Mode {
+		case "update":
+			if m.Update.Source.Type != "download" && m.Update.Source.Type != "url" {
+				return m, lineError(n, "update.mode update benötigt update.source.type download oder url")
+			}
+		case "pull":
+			if m.Update.Source.Type != "repository" {
+				return m, lineError(n, "update.mode pull benötigt update.source.type repository")
+			}
+		default:
+			return m, lineError(n, "update.mode unterstützt nur update oder pull")
+		}
+		switch m.Update.Source.Type {
+		case "download":
+			if m.Update.Source.Folder == "" {
+				return m, lineError(n, "update.source.folder fehlt für download")
+			}
+		case "url":
+			if m.Update.Source.URL == "" {
+				return m, lineError(n, "update.source.url fehlt für url")
+			}
+		case "repository":
+			if m.Update.Source.Repository == "" {
+				return m, lineError(n, "update.source.repository fehlt für repository")
+			}
+		default:
+			return m, lineError(n, "update.source.type unterstützt nur download, url oder repository")
+		}
+	}
+	if n := root.m["run"]; n != nil {
+		m.Run.Environment = map[string]string{}
+		switch n.kind {
+		case yamlScalar:
+			m.Run.Command, err = nodeString(n)
+			if err != nil {
+				return m, lineError(n, "run muss ein Kommando oder eine Map sein")
+			}
+		case yamlMap:
+			for k, v := range n.m {
+				switch k {
+				case "description":
+					m.Run.Description, err = nodeString(v)
+				case "command":
+					m.Run.Command, err = nodeString(v)
+				case "cwd", "workingDirectory":
+					m.Run.WorkingDirectory, err = nodeString(v)
+				case "env":
+					if v.kind != yamlMap {
+						return m, lineError(v, "run.env muss eine Map sein")
+					}
+					for ek, ev := range v.m {
+						value, e := nodeString(ev)
+						if e != nil {
+							return m, lineError(ev, "run.env-Wert muss skalar sein")
+						}
+						m.Run.Environment[ek] = value
+					}
+				case "steps":
+					if v.kind != yamlList {
+						return m, lineError(v, "run.steps muss eine Liste sein")
+					}
+					for i, item := range v.list {
+						step, e := parseV2Step(item)
+						if e != nil {
+							return m, fmt.Errorf("update-cli.yaml run.steps[%d]: %w", i, e)
+						}
+						m.Run.Steps = append(m.Run.Steps, step)
+					}
+				default:
+					return m, lineError(v, fmt.Sprintf("unbekanntes run-Feld %q", k))
+				}
+				if err != nil {
+					return m, lineError(v, err.Error())
+				}
+			}
+		default:
+			return m, lineError(n, "run muss ein Kommando oder eine Map sein")
+		}
+		if strings.TrimSpace(m.Run.Command) != "" && len(m.Run.Steps) > 0 {
+			return m, lineError(n, "run.command und run.steps schließen sich aus")
+		}
+		if strings.TrimSpace(m.Run.Command) == "" && len(m.Run.Steps) == 0 {
+			return m, lineError(n, "run benötigt command oder steps")
+		}
+	}
 	if n := root.m["requirements"]; n != nil {
 		if n.kind != yamlMap {
 			return m, lineError(n, "requirements muss eine Map sein")
@@ -200,33 +344,32 @@ func parseManifestV2(path string, data []byte) (Manifest, error) {
 		}
 	}
 	tasksNode := root.m["tasks"]
-	if tasksNode == nil || tasksNode.kind != yamlMap {
-		if tasksNode == nil {
-			return m, fmt.Errorf("setup.yaml schemaVersion 2 benötigt tasks")
+	if tasksNode != nil {
+		if tasksNode.kind != yamlMap {
+			return m, lineError(tasksNode, "tasks muss eine Map sein")
 		}
-		return m, lineError(tasksNode, "tasks muss eine Map sein")
-	}
-	for name, n := range tasksNode.m {
-		task, e := parseV2Task(name, n)
-		if e != nil {
-			return m, e
+		for name, n := range tasksNode.m {
+			task, e := parseV2Task(name, n)
+			if e != nil {
+				return m, e
+			}
+			m.Tasks[name] = task
 		}
-		m.Tasks[name] = task
 	}
-	if len(m.Tasks) == 0 {
-		return m, fmt.Errorf("setup.yaml enthält keine tasks")
+	if len(m.Tasks) == 0 && strings.TrimSpace(m.Run.Command) == "" && len(m.Run.Steps) == 0 {
+		return m, fmt.Errorf("update-cli.yaml benötigt mindestens tasks oder run")
 	}
 	for name, w := range m.Workflows {
 		for _, task := range w.Tasks {
 			if _, ok := m.Tasks[task]; !ok {
-				return m, fmt.Errorf("setup.yaml workflow %q verweist auf unbekannten task %q", name, task)
+				return m, fmt.Errorf("update-cli.yaml workflow %q verweist auf unbekannten task %q", name, task)
 			}
 		}
 	}
 	for name, task := range m.Tasks {
 		for _, dep := range task.Requires {
 			if _, ok := m.Tasks[dep]; !ok {
-				return m, fmt.Errorf("setup.yaml task %q requires unbekannten task %q", name, dep)
+				return m, fmt.Errorf("update-cli.yaml task %q requires unbekannten task %q", name, dep)
 			}
 		}
 	}
@@ -259,7 +402,7 @@ func parseV2Task(name string, n *simpleYAMLNode) (Task, error) {
 			for i, item := range v.list {
 				step, err := parseV2Step(item)
 				if err != nil {
-					return t, fmt.Errorf("setup.yaml task %q steps[%d]: %w", name, i, err)
+					return t, fmt.Errorf("update-cli.yaml task %q steps[%d]: %w", name, i, err)
 				}
 				t.Steps = append(t.Steps, step)
 			}
@@ -427,12 +570,12 @@ func parseSimpleYAML(data []byte) (*simpleYAMLNode, error) {
 		}
 		indent, err := yamlIndent(raw)
 		if err != nil {
-			return nil, fmt.Errorf("setup.yaml Zeile %d: %w", i+1, err)
+			return nil, fmt.Errorf("update-cli.yaml Zeile %d: %w", i+1, err)
 		}
 		lines = append(lines, yamlLogicalLine{raw: raw, trim: trim, indent: indent, line: i + 1})
 	}
 	if len(lines) == 0 {
-		return nil, fmt.Errorf("setup.yaml ist leer")
+		return nil, fmt.Errorf("update-cli.yaml ist leer")
 	}
 	idx := 0
 	node, err := parseSimpleBlock(lines, &idx, lines[0].indent)
@@ -440,7 +583,7 @@ func parseSimpleYAML(data []byte) (*simpleYAMLNode, error) {
 		return nil, err
 	}
 	if idx != len(lines) {
-		return nil, fmt.Errorf("setup.yaml Zeile %d: Inhalt konnte nicht zugeordnet werden", lines[idx].line)
+		return nil, fmt.Errorf("update-cli.yaml Zeile %d: Inhalt konnte nicht zugeordnet werden", lines[idx].line)
 	}
 	return node, nil
 }
@@ -450,7 +593,7 @@ func parseSimpleBlock(lines []yamlLogicalLine, idx *int, indent int) (*simpleYAM
 		return &simpleYAMLNode{kind: yamlMap, m: map[string]*simpleYAMLNode{}}, nil
 	}
 	if lines[*idx].indent < indent {
-		return nil, fmt.Errorf("setup.yaml Zeile %d: unerwartete Einrückung", lines[*idx].line)
+		return nil, fmt.Errorf("update-cli.yaml Zeile %d: unerwartete Einrückung", lines[*idx].line)
 	}
 	if strings.HasPrefix(lines[*idx].trim, "-") {
 		return parseSimpleList(lines, idx, indent)
@@ -466,17 +609,17 @@ func parseSimpleMap(lines []yamlLogicalLine, idx *int, indent int) (*simpleYAMLN
 			break
 		}
 		if l.indent > indent {
-			return nil, fmt.Errorf("setup.yaml Zeile %d: unerwartete Einrückung", l.line)
+			return nil, fmt.Errorf("update-cli.yaml Zeile %d: unerwartete Einrückung", l.line)
 		}
 		if strings.HasPrefix(l.trim, "-") {
 			break
 		}
 		k, v, ok := splitKV(l.trim)
 		if !ok {
-			return nil, fmt.Errorf("setup.yaml Zeile %d: erwartetes key: value", l.line)
+			return nil, fmt.Errorf("update-cli.yaml Zeile %d: erwartetes key: value", l.line)
 		}
 		if _, exists := out.m[k]; exists {
-			return nil, fmt.Errorf("setup.yaml Zeile %d: doppeltes Feld %q", l.line, k)
+			return nil, fmt.Errorf("update-cli.yaml Zeile %d: doppeltes Feld %q", l.line, k)
 		}
 		(*idx)++
 		if isBlockScalar(v) {
@@ -527,7 +670,7 @@ func parseSimpleList(lines []yamlLogicalLine, idx *int, indent int) (*simpleYAML
 		}
 		if rest == "" {
 			if *idx >= len(lines) || lines[*idx].indent <= indent {
-				return nil, fmt.Errorf("setup.yaml Zeile %d: leerer Listeneintrag", l.line)
+				return nil, fmt.Errorf("update-cli.yaml Zeile %d: leerer Listeneintrag", l.line)
 			}
 			child, err := parseSimpleBlock(lines, idx, lines[*idx].indent)
 			if err != nil {
@@ -563,7 +706,7 @@ func parseSimpleList(lines []yamlLogicalLine, idx *int, indent int) (*simpleYAML
 				}
 				for ek, ev := range extra.m {
 					if _, exists := item.m[ek]; exists {
-						return nil, fmt.Errorf("setup.yaml Zeile %d: doppeltes Feld %q", ev.line, ek)
+						return nil, fmt.Errorf("update-cli.yaml Zeile %d: doppeltes Feld %q", ev.line, ek)
 					}
 					item.m[ek] = ev
 				}
@@ -578,7 +721,7 @@ func parseSimpleList(lines []yamlLogicalLine, idx *int, indent int) (*simpleYAML
 
 func collectLogicalBlockScalar(lines []yamlLogicalLine, idx *int, headerIndent, headerLine int) (string, error) {
 	if *idx >= len(lines) || lines[*idx].indent <= headerIndent {
-		return "", fmt.Errorf("setup.yaml Zeile %d: | benötigt einen stärker eingerückten Befehlsblock", headerLine)
+		return "", fmt.Errorf("update-cli.yaml Zeile %d: | benötigt einen stärker eingerückten Befehlsblock", headerLine)
 	}
 	minIndent := lines[*idx].indent
 	parts := []string{}
@@ -661,9 +804,9 @@ func nodeStringList(n *simpleYAMLNode) ([]string, error) {
 }
 func lineError(n *simpleYAMLNode, message string) error {
 	if n == nil {
-		return fmt.Errorf("setup.yaml: %s", message)
+		return fmt.Errorf("update-cli.yaml: %s", message)
 	}
-	return fmt.Errorf("setup.yaml Zeile %d: %s", n.line, message)
+	return fmt.Errorf("update-cli.yaml Zeile %d: %s", n.line, message)
 }
 
 func yamlNodeToAny(n *simpleYAMLNode) any {

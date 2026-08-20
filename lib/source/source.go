@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/r14r/update-cli/lib/config"
+	rsyncutil "github.com/r14r/update-cli/lib/rsync"
 	"github.com/r14r/update-cli/lib/tools"
 	versionutil "github.com/r14r/update-cli/lib/version"
 )
@@ -29,8 +30,10 @@ const (
 
 type Options struct {
 	ProjectName          string
+	Mode                 string
 	Source               config.SourceConfig
 	WorkDir, ReleaseRoot string
+	RepositoryCacheDir   string
 	Simulation           bool
 	AllowHTTP            bool
 	MaxArchiveBytes      int64
@@ -63,18 +66,44 @@ func NormalizeKind(v string) (string, error) {
 		return "", fmt.Errorf("Quelle muss download, url oder repository sein; erhalten %q", v)
 	}
 }
+func effectiveMode(o Options, kind string) (string, error) {
+	mode := strings.ToLower(strings.TrimSpace(o.Mode))
+	if mode == "" {
+		if kind == Repository {
+			mode = config.ModePull
+		} else {
+			mode = config.ModeUpdate
+		}
+	}
+	if mode != config.ModeUpdate && mode != config.ModePull {
+		return "", fmt.Errorf("unbekannter Update-Modus %q", mode)
+	}
+	if mode == config.ModePull && kind != Repository {
+		return "", errors.New("mode pull benötigt eine Repository-Quelle")
+	}
+	if mode == config.ModeUpdate && kind == Repository {
+		return "", errors.New("mode update erwartet eine ZIP-Quelle; für Git-Repositories mode pull verwenden")
+	}
+	return mode, nil
+}
+
 func Discover(ctx context.Context, o Options) (Metadata, error) {
 	kind, err := NormalizeKind(o.Source.Type)
 	if err != nil {
 		return Metadata{}, err
+	}
+	mode, err := effectiveMode(o, kind)
+	if err != nil {
+		return Metadata{}, err
+	}
+	if mode == config.ModePull {
+		return discoverPullRepository(ctx, o)
 	}
 	switch kind {
 	case Download:
 		return discoverDownload(o)
 	case URL:
 		return discoverURL(ctx, o)
-	case Repository:
-		return discoverRepository(ctx, o)
 	default:
 		return Metadata{}, errors.New("unbekannte Quelle")
 	}
@@ -84,13 +113,18 @@ func Fetch(ctx context.Context, o Options) (Artifact, error) {
 	if err != nil {
 		return Artifact{}, err
 	}
+	mode, err := effectiveMode(o, kind)
+	if err != nil {
+		return Artifact{}, err
+	}
+	if mode == config.ModePull {
+		return fetchPullRepository(ctx, o)
+	}
 	switch kind {
 	case Download:
 		return fetchDownload(o)
 	case URL:
 		return fetchURL(ctx, o)
-	case Repository:
-		return fetchRepository(ctx, o)
 	default:
 		return Artifact{}, errors.New("unbekannte Quelle")
 	}
@@ -257,164 +291,245 @@ func fetchURL(ctx context.Context, o Options) (Artifact, error) {
 	}
 	return Artifact{Metadata: Metadata{Type: URL, Reference: ref, Version: v, VersionText: v.String(), Size: n}, ArchivePath: dest, SHA256: sum}, nil
 }
-func discoverRepository(ctx context.Context, o Options) (Metadata, error) {
-	repo := strings.TrimSpace(o.Source.Repository)
-	if repo == "" {
-		return Metadata{}, errors.New("Repository-Quelle benötigt repository")
-	}
-	if _, err := exec.LookPath("git"); err != nil {
-		return Metadata{}, errors.New("erforderliches Programm fehlt: git")
-	}
-	if strings.TrimSpace(o.Source.Version) != "" {
-		v, err := versionutil.Parse(o.Source.Version)
-		if err != nil {
-			return Metadata{}, err
-		}
-		commit, err := lsRemote(ctx, repo, firstNonEmpty(o.Source.Commit, o.Source.Ref, "HEAD"))
-		if err != nil {
-			return Metadata{}, err
-		}
-		if o.Source.Commit != "" && !strings.HasPrefix(commit, o.Source.Commit) {
-			return Metadata{}, fmt.Errorf("Repository-Commit stimmt nicht: erwartet %s, erhalten %s", o.Source.Commit, commit)
-		}
-		return Metadata{Type: Repository, Reference: repo, Version: v, VersionText: v.String(), Commit: commit}, nil
-	}
-	if v, err := versionutil.Parse(strings.TrimPrefix(o.Source.Ref, "refs/tags/")); err == nil && o.Source.Ref != "" {
-		commit, err := lsRemote(ctx, repo, o.Source.Ref)
-		if err != nil {
-			return Metadata{}, err
-		}
-		return Metadata{Type: Repository, Reference: repo, Version: v, VersionText: v.String(), Commit: commit}, nil
-	}
-	if strings.TrimSpace(o.Source.Ref) == "" && strings.TrimSpace(o.Source.Commit) == "" {
-		if v, commit, ok, err := latestSemverTag(ctx, repo, o.ProjectName); err != nil {
-			return Metadata{}, err
-		} else if ok {
-			return Metadata{Type: Repository, Reference: repo, Version: v, VersionText: v.String(), Commit: commit}, nil
-		}
-	}
-	tmp, err := os.MkdirTemp("", "update-cli-repo-meta-*")
+func discoverPullRepository(ctx context.Context, o Options) (Metadata, error) {
+	cache, err := ensureRepositoryCache(ctx, o)
 	if err != nil {
 		return Metadata{}, err
 	}
-	defer tools.RemoveTree(tmp)
-	a, err := fetchRepository(ctx, Options{ProjectName: o.ProjectName, Source: o.Source, WorkDir: tmp, ReleaseRoot: tmp, Simulation: true, AllowHTTP: o.AllowHTTP, MaxArchiveBytes: o.MaxArchiveBytes})
+	if _, err := gitRun(ctx, cache, "fetch", "--prune", "--tags", "origin"); err != nil {
+		return Metadata{}, err
+	}
+	commit, err := repositoryTargetCommit(ctx, cache, o.Source.Ref)
 	if err != nil {
 		return Metadata{}, err
 	}
-	return a.Metadata, nil
-}
-func fetchRepository(ctx context.Context, o Options) (Artifact, error) {
-	repo := strings.TrimSpace(o.Source.Repository)
-	if repo == "" {
-		return Artifact{}, errors.New("Repository-Quelle benötigt repository")
-	}
-	if _, err := exec.LookPath("git"); err != nil {
-		return Artifact{}, errors.New("erforderliches Programm fehlt: git")
-	}
-	parent := o.WorkDir
-	if !o.Simulation && o.ReleaseRoot != "" {
-		parent = o.ReleaseRoot
-	}
-	if parent == "" {
-		return Artifact{}, errors.New("Repository-Stagingordner fehlt")
-	}
-	if err := os.MkdirAll(parent, 0o755); err != nil {
-		return Artifact{}, err
-	}
-	dest, err := os.MkdirTemp(parent, ".repository-clone-*")
-	if err != nil {
-		return Artifact{}, err
-	}
-	_ = os.Remove(dest)
-	args := []string{"clone", "--depth", "1", "--single-branch"}
-	if strings.TrimSpace(o.Source.Ref) != "" {
-		args = append(args, "--branch", o.Source.Ref)
-	}
-	args = append(args, repo, dest)
-	cmd := exec.CommandContext(ctx, "git", args...)
-	var b strings.Builder
-	cmd.Stdout = &b
-	cmd.Stderr = &b
-	if err := cmd.Run(); err != nil {
-		_ = tools.RemoveTree(dest)
-		return Artifact{}, fmt.Errorf("Repository kann nicht geklont werden: %s", strings.TrimSpace(b.String()))
-	}
-	commitBytes, err := exec.CommandContext(ctx, "git", "-C", dest, "rev-parse", "HEAD").Output()
-	if err != nil {
-		_ = tools.RemoveTree(dest)
-		return Artifact{}, err
-	}
-	commit := strings.TrimSpace(string(commitBytes))
 	if expected := strings.TrimSpace(o.Source.Commit); expected != "" && !strings.HasPrefix(commit, expected) {
-		_ = tools.RemoveTree(dest)
+		return Metadata{}, fmt.Errorf("Repository-Commit stimmt nicht: erwartet %s, erhalten %s", expected, commit)
+	}
+	v, err := repositoryVersionAt(ctx, cache, commit)
+	if err != nil {
+		return Metadata{}, err
+	}
+	if configured := strings.TrimSpace(o.Source.Version); configured != "" {
+		cv, parseErr := versionutil.Parse(configured)
+		if parseErr != nil {
+			return Metadata{}, parseErr
+		}
+		if cv.Compare(v) != 0 {
+			return Metadata{}, fmt.Errorf("source.version %s stimmt nicht mit VERSION %s überein", cv.String(), v.String())
+		}
+	}
+	return Metadata{Type: Repository, Reference: strings.TrimSpace(o.Source.Repository), Version: v, VersionText: v.String(), Commit: commit}, nil
+}
+
+func fetchPullRepository(ctx context.Context, o Options) (Artifact, error) {
+	cache, err := ensureRepositoryCache(ctx, o)
+	if err != nil {
+		return Artifact{}, err
+	}
+	if status, err := gitRun(ctx, cache, "status", "--porcelain", "--untracked-files=all"); err != nil {
+		return Artifact{}, err
+	} else if strings.TrimSpace(status) != "" {
+		return Artifact{}, fmt.Errorf("interner Repository-Checkout enthält lokale Änderungen: %s", strings.TrimSpace(status))
+	}
+	if _, err := gitRun(ctx, cache, "fetch", "--prune", "--tags", "origin"); err != nil {
+		return Artifact{}, err
+	}
+	branch, isBranch, err := prepareRepositoryCheckout(ctx, cache, o.Source.Ref)
+	if err != nil {
+		return Artifact{}, err
+	}
+	if isBranch {
+		if _, err := gitRun(ctx, cache, "pull", "--ff-only", "origin", branch); err != nil {
+			return Artifact{}, fmt.Errorf("Repository kann nicht per Fast-Forward aktualisiert werden: %w", err)
+		}
+	}
+	commit, err := gitRun(ctx, cache, "rev-parse", "HEAD")
+	if err != nil {
+		return Artifact{}, err
+	}
+	commit = strings.TrimSpace(commit)
+	if expected := strings.TrimSpace(o.Source.Commit); expected != "" && !strings.HasPrefix(commit, expected) {
 		return Artifact{}, fmt.Errorf("Repository-Commit stimmt nicht: erwartet %s, erhalten %s", expected, commit)
 	}
-	data, err := os.ReadFile(filepath.Join(dest, "VERSION"))
+	v, err := repositoryVersionAt(ctx, cache, commit)
 	if err != nil {
-		_ = tools.RemoveTree(dest)
-		return Artifact{}, fmt.Errorf("Repository enthält keine lesbare VERSION-Datei: %w", err)
-	}
-	v, err := versionutil.Parse(strings.TrimSpace(string(data)))
-	if err != nil {
-		_ = tools.RemoveTree(dest)
 		return Artifact{}, err
 	}
 	if configured := strings.TrimSpace(o.Source.Version); configured != "" {
-		cv, err := versionutil.Parse(configured)
-		if err != nil {
-			_ = tools.RemoveTree(dest)
-			return Artifact{}, err
+		cv, parseErr := versionutil.Parse(configured)
+		if parseErr != nil {
+			return Artifact{}, parseErr
 		}
 		if cv.Compare(v) != 0 {
-			_ = tools.RemoveTree(dest)
 			return Artifact{}, fmt.Errorf("source.version %s stimmt nicht mit VERSION %s überein", cv.String(), v.String())
 		}
 	}
-	if err := tools.RemoveTree(filepath.Join(dest, ".git")); err != nil {
-		_ = tools.RemoveTree(dest)
+	if strings.TrimSpace(o.WorkDir) == "" {
+		return Artifact{}, errors.New("interner Arbeitsordner für Repository-Snapshot fehlt")
+	}
+	content := filepath.Join(o.WorkDir, "repository-content")
+	if err := tools.RemoveTree(content); err != nil {
 		return Artifact{}, err
 	}
-	return Artifact{Metadata: Metadata{Type: Repository, Reference: repo, Version: v, VersionText: v.String(), Commit: commit}, ContentDir: dest, StagingDir: dest}, nil
-}
-func latestSemverTag(ctx context.Context, repo, project string) (versionutil.Version, string, bool, error) {
-	cmd := exec.CommandContext(ctx, "git", "ls-remote", "--tags", "--refs", repo)
-	out, err := cmd.Output()
-	if err != nil {
-		return versionutil.Version{}, "", false, fmt.Errorf("Repository-Tags können nicht gelesen werden: %w", err)
+	if _, err := rsyncutil.Release(ctx, cache, content, filepath.Join(o.WorkDir, "repository-snapshot.log")); err != nil {
+		return Artifact{}, fmt.Errorf("Repository-Snapshot kann nicht erzeugt werden: %w", err)
 	}
-	var best versionutil.Version
-	bestCommit := ""
-	found := false
-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) < 2 {
-			continue
-		}
-		tag := strings.TrimPrefix(fields[1], "refs/tags/")
-		v, err := versionutil.Parse(tag)
-		if err != nil {
-			continue
-		}
-		if !found || versionutil.CompareForProject(project, v, best) > 0 {
-			best, bestCommit, found = v, fields[0], true
-		}
-	}
-	return best, bestCommit, found, nil
+	return Artifact{Metadata: Metadata{Type: Repository, Reference: strings.TrimSpace(o.Source.Repository), Version: v, VersionText: v.String(), Commit: commit}, ContentDir: content}, nil
 }
 
-func lsRemote(ctx context.Context, repo, ref string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", "ls-remote", repo, ref)
-	b, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("Repository-Metadaten können nicht gelesen werden: %w", err)
+func ensureRepositoryCache(ctx context.Context, o Options) (string, error) {
+	repo := strings.TrimSpace(o.Source.Repository)
+	if repo == "" {
+		return "", errors.New("Repository-Quelle benötigt repository")
 	}
-	line := strings.TrimSpace(string(b))
-	if line == "" {
+	if _, err := exec.LookPath("git"); err != nil {
+		return "", errors.New("erforderliches Programm fehlt: git")
+	}
+	cache := strings.TrimSpace(o.RepositoryCacheDir)
+	if cache == "" {
+		return "", errors.New("Repository-Cacheordner fehlt")
+	}
+	if _, err := os.Stat(filepath.Join(cache, ".git")); errors.Is(err, os.ErrNotExist) {
+		if err := tools.RemoveTree(cache); err != nil {
+			return "", err
+		}
+		if err := os.MkdirAll(filepath.Dir(cache), 0o755); err != nil {
+			return "", err
+		}
+		args := []string{"clone"}
+		if ref := strings.TrimSpace(o.Source.Ref); ref != "" {
+			args = append(args, "--branch", ref)
+		}
+		args = append(args, repo, cache)
+		cmd := exec.CommandContext(ctx, "git", args...)
+		var stdout, stderr strings.Builder
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+		if err := cmd.Run(); err != nil {
+			_ = tools.RemoveTree(cache)
+			msg := strings.TrimSpace(stderr.String())
+			if msg == "" {
+				msg = strings.TrimSpace(stdout.String())
+			}
+			return "", fmt.Errorf("Repository kann nicht geklont werden: %s", msg)
+		}
+	} else if err != nil {
+		return "", err
+	}
+	origin, err := gitRun(ctx, cache, "remote", "get-url", "origin")
+	if err != nil {
+		return "", err
+	}
+	if !sameRepository(strings.TrimSpace(origin), repo) {
+		return "", fmt.Errorf("Repository-Cache verweist auf %s statt auf %s; Cache %s entfernen oder Konfiguration korrigieren", strings.TrimSpace(origin), repo, cache)
+	}
+	return cache, nil
+}
+
+func repositoryTargetCommit(ctx context.Context, cache, ref string) (string, error) {
+	ref = strings.TrimSpace(ref)
+	if ref != "" {
+		candidates := []string{"refs/remotes/origin/" + ref, "refs/tags/" + strings.TrimPrefix(ref, "refs/tags/"), ref}
+		for _, candidate := range candidates {
+			if out, err := gitRun(ctx, cache, "rev-parse", "--verify", candidate+"^{commit}"); err == nil {
+				return strings.TrimSpace(out), nil
+			}
+		}
 		return "", fmt.Errorf("Repository-Ref nicht gefunden: %s", ref)
 	}
-	return strings.Fields(line)[0], nil
+	if out, err := gitRun(ctx, cache, "rev-parse", "--verify", "refs/remotes/origin/HEAD^{commit}"); err == nil {
+		return strings.TrimSpace(out), nil
+	}
+	if _, err := gitRun(ctx, cache, "remote", "set-head", "origin", "-a"); err == nil {
+		if out, err := gitRun(ctx, cache, "rev-parse", "--verify", "refs/remotes/origin/HEAD^{commit}"); err == nil {
+			return strings.TrimSpace(out), nil
+		}
+	}
+	return "", errors.New("Default-Branch des Repository kann nicht bestimmt werden; source.ref konfigurieren")
 }
+
+func prepareRepositoryCheckout(ctx context.Context, cache, ref string) (string, bool, error) {
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		branch, err := gitRun(ctx, cache, "symbolic-ref", "--quiet", "--short", "HEAD")
+		if err == nil && strings.TrimSpace(branch) != "" {
+			return strings.TrimSpace(branch), true, nil
+		}
+		remoteHead, err := gitRun(ctx, cache, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
+		if err != nil {
+			return "", false, errors.New("Default-Branch des Repository kann nicht bestimmt werden; source.ref konfigurieren")
+		}
+		branch = strings.TrimPrefix(strings.TrimSpace(remoteHead), "origin/")
+		if _, err := gitRun(ctx, cache, "checkout", "-B", branch, "origin/"+branch); err != nil {
+			return "", false, err
+		}
+		return branch, true, nil
+	}
+	branchRef := "refs/remotes/origin/" + ref
+	if _, err := gitRun(ctx, cache, "rev-parse", "--verify", branchRef+"^{commit}"); err == nil {
+		current, _ := gitRun(ctx, cache, "symbolic-ref", "--quiet", "--short", "HEAD")
+		if strings.TrimSpace(current) != ref {
+			if _, err := gitRun(ctx, cache, "show-ref", "--verify", "--quiet", "refs/heads/"+ref); err == nil {
+				if _, err := gitRun(ctx, cache, "checkout", ref); err != nil {
+					return "", false, err
+				}
+			} else if _, err := gitRun(ctx, cache, "checkout", "-b", ref, "--track", "origin/"+ref); err != nil {
+				return "", false, err
+			}
+		}
+		return ref, true, nil
+	}
+	tag := strings.TrimPrefix(ref, "refs/tags/")
+	if _, err := gitRun(ctx, cache, "rev-parse", "--verify", "refs/tags/"+tag+"^{commit}"); err == nil {
+		if _, err := gitRun(ctx, cache, "checkout", "--detach", "refs/tags/"+tag); err != nil {
+			return "", false, err
+		}
+		return tag, false, nil
+	}
+	return "", false, fmt.Errorf("Repository-Ref nicht gefunden: %s", ref)
+}
+
+func repositoryVersionAt(ctx context.Context, cache, commit string) (versionutil.Version, error) {
+	data, err := gitRun(ctx, cache, "show", strings.TrimSpace(commit)+":VERSION")
+	if err != nil {
+		return versionutil.Version{}, fmt.Errorf("Repository enthält am Ziel-Commit keine lesbare VERSION-Datei: %w", err)
+	}
+	v, err := versionutil.Parse(strings.TrimSpace(data))
+	if err != nil {
+		return versionutil.Version{}, err
+	}
+	return v, nil
+}
+
+func gitRun(ctx context.Context, dir string, args ...string) (string, error) {
+	cmdArgs := append([]string{"-C", dir}, args...)
+	cmd := exec.CommandContext(ctx, "git", cmdArgs...)
+	var stdout, stderr strings.Builder
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		msg := strings.TrimSpace(stderr.String())
+		if msg == "" {
+			msg = strings.TrimSpace(stdout.String())
+		}
+		if msg == "" {
+			msg = err.Error()
+		}
+		return "", fmt.Errorf("git %s fehlgeschlagen: %s", strings.Join(args, " "), msg)
+	}
+	return strings.TrimSpace(stdout.String()), nil
+}
+
+func sameRepository(a, b string) bool {
+	normalize := func(v string) string {
+		v = strings.TrimSpace(strings.TrimSuffix(v, "/"))
+		v = strings.TrimSuffix(v, ".git")
+		return v
+	}
+	return normalize(a) == normalize(b)
+}
+
 func filenameFromResponse(resp *http.Response, u *url.URL) string {
 	if d := resp.Header.Get("Content-Disposition"); d != "" {
 		if _, p, err := mime.ParseMediaType(d); err == nil {
@@ -459,14 +574,6 @@ func normalizeHash(s string) string {
 	s = strings.ToLower(strings.TrimSpace(s))
 	s = strings.TrimPrefix(s, "sha256:")
 	return s
-}
-func firstNonEmpty(v ...string) string {
-	for _, s := range v {
-		if strings.TrimSpace(s) != "" {
-			return strings.TrimSpace(s)
-		}
-	}
-	return ""
 }
 func max0(v int64) int64 {
 	if v < 0 {

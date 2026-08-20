@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 PROJECT_NAME="Update CLI"
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd -P)"
-MANIFEST="${ROOT_DIR}/setup.yaml"
+MANIFEST="${ROOT_DIR}/update-cli.yaml"
 FORWARD_ARGS=()
 
 usage() {
@@ -109,7 +109,7 @@ success(){ printf '%sOK%s  %s\n' "${GREEN}${BOLD}" "${RESET}" "$*"; }
 warn(){ printf '%sWARN%s %s\n' "${YELLOW}${BOLD}" "${RESET}" "$*" >&2; }
 fail(){ printf '%sERROR%s %s\n' "${RED}${BOLD}" "${RESET}" "$*" >&2; exit 1; }
 
-[[ -f "${MANIFEST}" ]] || fail "setup.yaml fehlt: ${MANIFEST}"
+[[ -f "${MANIFEST}" ]] || fail "update-cli.yaml fehlt: ${MANIFEST}"
 MANIFEST_SCHEMA="$(manifest_schema "${MANIFEST}")"
 [[ "${MANIFEST_SCHEMA}" =~ ^[0-9]+$ ]] || MANIFEST_SCHEMA=1
 
@@ -121,7 +121,7 @@ if [[ "${UPDATE_CLI_TUI:-auto}" == "plain" || ! -t 1 ]]; then
     printf '%-18s %s\n\n' "Manifest" "${MANIFEST}"
 fi
 
-# Return success only when the candidate advertises setup.yaml support.
+# Return success only when the candidate advertises update-cli.yaml support.
 # If a compatible handler starts and the setup itself fails, set -e propagates
 # that failure instead of silently trying another implementation.
 run_manifest_if_supported() {
@@ -139,7 +139,7 @@ run_manifest_if_supported() {
     fi
 
     if [[ "${UPDATE_CLI_TUI:-auto}" == "plain" || ! -t 1 ]]; then
-        info "setup.yaml mit ${label} ausführen"
+        info "update-cli.yaml mit ${label} ausführen"
     fi
     if ! "${candidate}" --setup-manifest "${MANIFEST}" "${FORWARD_ARGS[@]}"; then
         fail "Setup mit ${label} fehlgeschlagen"
@@ -164,7 +164,7 @@ if [[ -n "${installed_cli}" ]]; then
         exit 0
     fi
     if [[ "${UPDATE_CLI_TUI:-auto}" == "plain" || ! -t 1 ]]; then
-        info "Installiertes update-cli unterstützt setup.yaml Schema ${MANIFEST_SCHEMA} nicht; Bootstrap über Go"
+        info "Installiertes update-cli unterstützt update-cli.yaml Schema ${MANIFEST_SCHEMA} nicht; Bootstrap über Go"
     fi
 fi
 

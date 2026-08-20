@@ -78,7 +78,7 @@ tasks:
         assert:
           directoryExists: "{{ outputDir }}"
 `
-	path := filepath.Join(root, "setup.yaml")
+	path := filepath.Join(root, "update-cli.yaml")
 	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -165,7 +165,7 @@ func TestManifestV2Catalog(t *testing.T) {
 
 func TestManifestV2DetectsDependencyCycle(t *testing.T) {
 	root := t.TempDir()
-	path := filepath.Join(root, "setup.yaml")
+	path := filepath.Join(root, "update-cli.yaml")
 	data := `schemaVersion: 2
 workflows:
   setup:
@@ -191,7 +191,7 @@ tasks:
 
 func TestManifestV2StructuredCommandAndEnvironment(t *testing.T) {
 	root := t.TempDir()
-	path := filepath.Join(root, "setup.yaml")
+	path := filepath.Join(root, "update-cli.yaml")
 	data := `schemaVersion: 2
 workflows:
   setup:
@@ -223,7 +223,7 @@ tasks:
 
 func TestManifestV2SchemaVersionWinsOverProjectVersionRegardlessOfOrder(t *testing.T) {
 	root := t.TempDir()
-	path := filepath.Join(root, "setup.yaml")
+	path := filepath.Join(root, "update-cli.yaml")
 	data := `version: 0.1.7
 project:
   name: Demo CLI

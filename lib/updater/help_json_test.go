@@ -79,7 +79,7 @@ tasks:
     steps:
       - shell: "echo ok"
 `
-	if err := os.WriteFile(root+"/setup.yaml", []byte(manifest), 0o644); err != nil {
+	if err := os.WriteFile(root+"/update-cli.yaml", []byte(manifest), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	out, err := captureStdout(func() error {
@@ -126,7 +126,7 @@ tasks:
     steps:
       - shell: "echo ok"
 `
-	if err := os.WriteFile(root+"/current/setup.yaml", []byte(manifest), 0o644); err != nil {
+	if err := os.WriteFile(root+"/current/update-cli.yaml", []byte(manifest), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	out, err := captureStdout(func() error {
@@ -141,5 +141,35 @@ tasks:
 	}
 	if got["project"] != "demo" {
 		t.Fatalf("project=%v", got["project"])
+	}
+}
+
+func TestHelpJSONAdvertisesUpdateAndPullModes(t *testing.T) {
+	cli := discovery.Build("1.1.0")
+	for _, commandName := range []string{"check", "update", "init"} {
+		foundCommand := false
+		foundMode := false
+		for _, command := range cli.Commands {
+			if command.Name != commandName {
+				continue
+			}
+			foundCommand = true
+			for _, option := range command.Options {
+				if option.Name != "mode" {
+					continue
+				}
+				foundMode = true
+				values := map[string]bool{}
+				for _, choice := range option.Choices {
+					values[choice.Value] = true
+				}
+				if !values["update"] || !values["pull"] {
+					t.Fatalf("%s mode choices = %#v", commandName, option.Choices)
+				}
+			}
+		}
+		if !foundCommand || !foundMode {
+			t.Fatalf("mode option missing for %s", commandName)
+		}
 	}
 }

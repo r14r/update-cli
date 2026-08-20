@@ -22,6 +22,33 @@ type Manifest struct {
 	Requirements       SetupRequirements
 	Workflows          map[string]Workflow
 	Tasks              map[string]Task
+	Run                RunConfig
+	Update             UpdateConfig
+}
+
+type UpdateConfig struct {
+	Configured bool
+	Mode       string
+	Source     UpdateSourceConfig
+}
+
+type UpdateSourceConfig struct {
+	Type       string
+	Folder     string
+	URL        string
+	Repository string
+	Ref        string
+	Commit     string
+	Version    string
+	SHA256     string
+}
+
+type RunConfig struct {
+	Description      string
+	Command          string
+	WorkingDirectory string
+	Environment      map[string]string
+	Steps            []StepV2
 }
 
 type SetupDefaults struct {
@@ -116,22 +143,22 @@ func parseManifestV1(path string, data []byte) (Manifest, error) {
 		}
 		indent, indentErr := yamlIndent(raw)
 		if indentErr != nil {
-			return m, fmt.Errorf("setup.yaml Zeile %d: %w", lineNo, indentErr)
+			return m, fmt.Errorf("update-cli.yaml Zeile %d: %w", lineNo, indentErr)
 		}
 		if indent == 0 {
 			current = nil
 			k, v, ok := splitKV(trim)
 			if !ok {
-				return m, fmt.Errorf("setup.yaml Zeile %d: erwartetes key: value", lineNo)
+				return m, fmt.Errorf("update-cli.yaml Zeile %d: erwartetes key: value", lineNo)
 			}
 			switch k {
 			case "version", "schemaVersion":
 				n, e := strconv.Atoi(unquote(v))
 				if e != nil {
-					return m, fmt.Errorf("setup.yaml Zeile %d: ungültige %s", lineNo, k)
+					return m, fmt.Errorf("update-cli.yaml Zeile %d: ungültige %s", lineNo, k)
 				}
 				if m.Version != 0 && m.Version != n {
-					return m, fmt.Errorf("setup.yaml Zeile %d: version und schemaVersion widersprechen sich", lineNo)
+					return m, fmt.Errorf("update-cli.yaml Zeile %d: version und schemaVersion widersprechen sich", lineNo)
 				}
 				m.Version = n
 				if k == "version" {
@@ -143,16 +170,16 @@ func parseManifestV1(path string, data []byte) (Manifest, error) {
 				section = ""
 			case "project":
 				if v != "" {
-					return m, fmt.Errorf("setup.yaml Zeile %d: project erwartet Unterfelder", lineNo)
+					return m, fmt.Errorf("update-cli.yaml Zeile %d: project erwartet Unterfelder", lineNo)
 				}
 				section = "project"
 			case "steps":
 				if v != "" {
-					return m, fmt.Errorf("setup.yaml Zeile %d: steps erwartet Liste", lineNo)
+					return m, fmt.Errorf("update-cli.yaml Zeile %d: steps erwartet Liste", lineNo)
 				}
 				section = "steps"
 			default:
-				return m, fmt.Errorf("setup.yaml Zeile %d: unbekanntes Top-Level-Feld %q", lineNo, k)
+				return m, fmt.Errorf("update-cli.yaml Zeile %d: unbekanntes Top-Level-Feld %q", lineNo, k)
 			}
 			continue
 		}
@@ -160,11 +187,11 @@ func parseManifestV1(path string, data []byte) (Manifest, error) {
 		switch section {
 		case "project":
 			if indent < 2 {
-				return m, fmt.Errorf("setup.yaml Zeile %d: project-Feld falsch eingerückt", lineNo)
+				return m, fmt.Errorf("update-cli.yaml Zeile %d: project-Feld falsch eingerückt", lineNo)
 			}
 			k, v, ok := splitKV(trim)
 			if !ok {
-				return m, fmt.Errorf("setup.yaml Zeile %d: ungültiges project-Feld", lineNo)
+				return m, fmt.Errorf("update-cli.yaml Zeile %d: ungültiges project-Feld", lineNo)
 			}
 			switch k {
 			case "name":
@@ -179,7 +206,7 @@ func parseManifestV1(path string, data []byte) (Manifest, error) {
 				m.ProjectType = strings.TrimSpace(unquote(v))
 				m.LegacySchema = true
 			default:
-				return m, fmt.Errorf("setup.yaml Zeile %d: unbekanntes project-Feld %q", lineNo, k)
+				return m, fmt.Errorf("update-cli.yaml Zeile %d: unbekanntes project-Feld %q", lineNo, k)
 			}
 		case "steps":
 			if strings.HasPrefix(trim, "- ") || trim == "-" {
@@ -191,28 +218,28 @@ func parseManifestV1(path string, data []byte) (Manifest, error) {
 				}
 				k, v, ok := splitKV(rest)
 				if !ok {
-					return m, fmt.Errorf("setup.yaml Zeile %d: ungültiger Schritt", lineNo)
+					return m, fmt.Errorf("update-cli.yaml Zeile %d: ungültiger Schritt", lineNo)
 				}
 				if isBlockScalar(v) {
-					return m, fmt.Errorf("setup.yaml Zeile %d: Block-Inhalt muss als eingerücktes Schrittfeld geschrieben werden", lineNo)
+					return m, fmt.Errorf("update-cli.yaml Zeile %d: Block-Inhalt muss als eingerücktes Schrittfeld geschrieben werden", lineNo)
 				}
 				legacy, assignErr := assignStep(current, k, v)
 				if assignErr != nil {
-					return m, fmt.Errorf("setup.yaml Zeile %d: %w", lineNo, assignErr)
+					return m, fmt.Errorf("update-cli.yaml Zeile %d: %w", lineNo, assignErr)
 				}
 				m.LegacySchema = m.LegacySchema || legacy
 				continue
 			}
 			if current == nil {
-				return m, fmt.Errorf("setup.yaml Zeile %d: Schrittfeld ohne Listeneintrag", lineNo)
+				return m, fmt.Errorf("update-cli.yaml Zeile %d: Schrittfeld ohne Listeneintrag", lineNo)
 			}
 			k, v, ok := splitKV(trim)
 			if !ok {
-				return m, fmt.Errorf("setup.yaml Zeile %d: ungültiges Schrittfeld; bei run: | muss der Befehlsblock eingerückt sein", lineNo)
+				return m, fmt.Errorf("update-cli.yaml Zeile %d: ungültiges Schrittfeld; bei run: | muss der Befehlsblock eingerückt sein", lineNo)
 			}
 			if isBlockScalar(v) {
 				if k != "run" && k != "command" {
-					return m, fmt.Errorf("setup.yaml Zeile %d: Block-Skalar ist für %q nicht unterstützt", lineNo, k)
+					return m, fmt.Errorf("update-cli.yaml Zeile %d: Block-Skalar ist für %q nicht unterstützt", lineNo, k)
 				}
 				block, last, blockErr := readBlockScalar(lines, i, indent, k)
 				if blockErr != nil {
@@ -223,32 +250,32 @@ func parseManifestV1(path string, data []byte) (Manifest, error) {
 			}
 			legacy, assignErr := assignStep(current, k, v)
 			if assignErr != nil {
-				return m, fmt.Errorf("setup.yaml Zeile %d: %w", lineNo, assignErr)
+				return m, fmt.Errorf("update-cli.yaml Zeile %d: %w", lineNo, assignErr)
 			}
 			m.LegacySchema = m.LegacySchema || legacy
 		default:
-			return m, fmt.Errorf("setup.yaml Zeile %d: eingerückter Inhalt ohne Abschnitt", lineNo)
+			return m, fmt.Errorf("update-cli.yaml Zeile %d: eingerückter Inhalt ohne Abschnitt", lineNo)
 		}
 	}
 
 	if !seenVersion && !seenSchemaVersion {
-		return m, fmt.Errorf("setup.yaml version/schemaVersion fehlt")
+		return m, fmt.Errorf("update-cli.yaml version/schemaVersion fehlt")
 	}
 	if m.Version != 1 {
-		return m, fmt.Errorf("setup.yaml version muss 1 sein; erhalten %d", m.Version)
+		return m, fmt.Errorf("update-cli.yaml version muss 1 sein; erhalten %d", m.Version)
 	}
 	if len(m.Steps) == 0 {
-		return m, fmt.Errorf("setup.yaml enthält keine steps")
+		return m, fmt.Errorf("update-cli.yaml enthält keine steps")
 	}
 
 	for i := range m.Steps {
 		s := &m.Steps[i]
 		if s.legacyRun {
 			if strings.TrimSpace(s.Command) == "" {
-				return m, fmt.Errorf("setup.yaml steps[%d].run fehlt", i)
+				return m, fmt.Errorf("update-cli.yaml steps[%d].run fehlt", i)
 			}
 			if s.Type != "" && s.Type != "command" && s.Type != "shell" {
-				return m, fmt.Errorf("setup.yaml steps[%d] mischt legacy run mit type=%q", i, s.Type)
+				return m, fmt.Errorf("update-cli.yaml steps[%d] mischt legacy run mit type=%q", i, s.Type)
 			}
 			s.Type = "command"
 			if s.When == "" {
@@ -263,7 +290,7 @@ func parseManifestV1(path string, data []byte) (Manifest, error) {
 			continue
 		}
 		if strings.TrimSpace(s.Type) == "" {
-			return m, fmt.Errorf("setup.yaml steps[%d].type fehlt", i)
+			return m, fmt.Errorf("update-cli.yaml steps[%d].type fehlt", i)
 		}
 		if s.When == "" {
 			s.When = "always"
@@ -311,7 +338,7 @@ func readBlockScalar(lines []string, headerIndex, headerIndent int, key string) 
 		trim := strings.TrimSpace(raw)
 		indent, err := yamlIndent(raw)
 		if err != nil {
-			return "", last, fmt.Errorf("setup.yaml Zeile %d: %w", i+1, err)
+			return "", last, fmt.Errorf("update-cli.yaml Zeile %d: %w", i+1, err)
 		}
 		if trim != "" && indent <= headerIndent {
 			break
@@ -322,7 +349,7 @@ func readBlockScalar(lines []string, headerIndex, headerIndent int, key string) 
 		}
 	}
 	if last == headerIndex || minIndent <= headerIndent {
-		return "", headerIndex, fmt.Errorf("setup.yaml Zeile %d: %s: | benötigt einen stärker eingerückten Befehlsblock", headerIndex+1, key)
+		return "", headerIndex, fmt.Errorf("update-cli.yaml Zeile %d: %s: | benötigt einen stärker eingerückten Befehlsblock", headerIndex+1, key)
 	}
 
 	block := make([]string, 0, last-start+1)

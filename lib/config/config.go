@@ -21,7 +21,9 @@ const (
 	LegacyConfigDirName = ".update-cli"
 	ConfigFileName      = "config.json"
 	TemplatesFileName   = "templates.json"
-	SchemaVersion       = 6
+	SchemaVersion       = 7
+	ModeUpdate          = "update"
+	ModePull            = "pull"
 )
 
 var projectNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
@@ -87,6 +89,7 @@ func (v NoParameterConfig) MarshalJSON() ([]byte, error) { return json.Marshal([
 type FileConfig struct {
 	SchemaVersion int                `json:"schemaVersion"`
 	ProjectName   string             `json:"projectName"`
+	Mode          string             `json:"mode,omitempty"`
 	DownloadDir   string             `json:"downloadDir,omitempty"`
 	Source        *SourceConfig      `json:"source,omitempty"`
 	ReleaseDir    string             `json:"releaseDir"`
@@ -106,6 +109,7 @@ type Config struct {
 	ConfigDir           string            `json:"configDir"`
 	ConfigFile          string            `json:"configFile"`
 	ProjectName         string            `json:"projectName"`
+	Mode                string            `json:"mode"`
 	Source              SourceConfig      `json:"source"`
 	SourceType          string            `json:"sourceType"`
 	SourceFolder        string            `json:"sourceFolder,omitempty"`
@@ -127,10 +131,11 @@ type Config struct {
 	TemplatesFile       string            `json:"templatesFile"`
 	GlobalConfigDir     string            `json:"globalConfigDir"`
 	GlobalTemplatesFile string            `json:"globalTemplatesFile"`
+	RepositoryCacheDir  string            `json:"repositoryCacheDir"`
 }
 type InitOptions struct {
-	ProjectName, UseTemplate, SourceType, Folder, URL, Repository string
-	Force                                                         bool
+	ProjectName, UseTemplate, Mode, SourceType, Folder, URL, Repository string
+	Force                                                               bool
 }
 type UpgradeResult struct {
 	ConfigFile     string `json:"configFile"`
@@ -139,6 +144,16 @@ type UpgradeResult struct {
 	CurrentSchema  int    `json:"currentSchemaVersion"`
 	Changed        bool   `json:"changed"`
 	ProjectName    string `json:"projectName"`
+}
+type CheckResult struct {
+	ConfigFile      string `json:"configFile"`
+	SchemaVersion   int    `json:"schemaVersion"`
+	CurrentSchema   int    `json:"currentSchemaVersion"`
+	MigrationNeeded bool   `json:"migrationNeeded"`
+	ProjectName     string `json:"projectName"`
+	Mode            string `json:"mode"`
+	SourceType      string `json:"sourceType"`
+	Valid           bool   `json:"valid"`
 }
 
 func defaultPreserve() []string {
@@ -165,7 +180,7 @@ func defaultSecurity() SecurityConfig {
 	return SecurityConfig{MaxArchiveBytes: 2 << 30, MaxUncompressedBytes: 8 << 30, MaxFileBytes: 2 << 30, MaxEntries: 100000, MaxCompressionRatio: 200}
 }
 func defaultFile(project string) FileConfig {
-	return FileConfig{SchemaVersion: SchemaVersion, ProjectName: project, Source: &SourceConfig{Type: "download", Folder: buildconfig.Current().DefaultDownloadFolder}, ReleaseDir: "release", CurrentDir: "current", NoParameter: NoParameterConfig{"check"}, Setup: &SetupConfig{Commands: []string{}}, Backup: &BackupConfig{Directory: "backup", Keep: 3}, Retention: &RetentionConfig{Releases: 5}, Sync: &SyncConfig{Preserve: defaultPreserve()}, Security: ptrSecurity(defaultSecurity()), Docker: &DockerConfig{Lifecycle: "auto"}, Healthcheck: &HealthcheckConfig{}}
+	return FileConfig{SchemaVersion: SchemaVersion, ProjectName: project, Mode: ModeUpdate, Source: &SourceConfig{Type: "download", Folder: buildconfig.Current().DefaultDownloadFolder}, ReleaseDir: "release", CurrentDir: "current", NoParameter: NoParameterConfig{"check"}, Setup: &SetupConfig{Commands: []string{}}, Backup: &BackupConfig{Directory: "backup", Keep: 3}, Retention: &RetentionConfig{Releases: 5}, Sync: &SyncConfig{Preserve: defaultPreserve()}, Security: ptrSecurity(defaultSecurity()), Docker: &DockerConfig{Lifecycle: "auto"}, Healthcheck: &HealthcheckConfig{}}
 }
 func ptrSecurity(s SecurityConfig) *SecurityConfig { return &s }
 
@@ -224,7 +239,7 @@ func Init(root string, o InitOptions) (Config, error) {
 		return Config{}, fmt.Errorf("Konfiguration existiert bereits: %s; zum Überschreiben --force verwenden", file)
 	}
 	fc := defaultFile(name)
-	if err := applySource(&fc, o.SourceType, o.Folder, o.URL, o.Repository); err != nil {
+	if err := applySource(&fc, o.Mode, o.SourceType, o.Folder, o.URL, o.Repository); err != nil {
 		return Config{}, err
 	}
 	if err := writeConfigFile(file, fc); err != nil {
@@ -308,9 +323,10 @@ func Load(root, downloadOverride string) (Config, error) {
 	if fc.Setup != nil {
 		legacy = append(legacy, fc.Setup.Commands...)
 	}
-	return Config{RootDir: root, ConfigDir: filepath.Join(root, ConfigDirName), ConfigFile: file, ProjectName: fc.ProjectName, Source: src, SourceType: src.Type, SourceFolder: src.Folder, SourceURL: src.URL, SourceRepository: src.Repository, DownloadDir: src.Folder, ReleaseRoot: rel, CurrentDir: cur, BackupRoot: back, KeepBackups: keepB, KeepReleases: keepR, NoParameterActions: append([]string(nil), fc.NoParameter...), LegacySetupCommands: legacy, Preserve: pres, Security: sec, Docker: docker, Healthcheck: hc, HistoryFile: filepath.Join(root, ConfigDirName, "history.jsonl"), TemplatesFile: filepath.Join(root, ConfigDirName, TemplatesFileName), GlobalConfigDir: gdir, GlobalTemplatesFile: filepath.Join(gdir, TemplatesFileName)}, nil
+	return Config{RootDir: root, ConfigDir: filepath.Join(root, ConfigDirName), ConfigFile: file, ProjectName: fc.ProjectName, Mode: fc.Mode, Source: src, SourceType: src.Type, SourceFolder: src.Folder, SourceURL: src.URL, SourceRepository: src.Repository, DownloadDir: src.Folder, ReleaseRoot: rel, CurrentDir: cur, BackupRoot: back, KeepBackups: keepB, KeepReleases: keepR, NoParameterActions: append([]string(nil), fc.NoParameter...), LegacySetupCommands: legacy, Preserve: pres, Security: sec, Docker: docker, Healthcheck: hc, HistoryFile: filepath.Join(root, ConfigDirName, "history.jsonl"), TemplatesFile: filepath.Join(root, ConfigDirName, TemplatesFileName), GlobalConfigDir: gdir, GlobalTemplatesFile: filepath.Join(gdir, TemplatesFileName), RepositoryCacheDir: filepath.Join(root, ConfigDirName, "repository")}, nil
 }
-func WithSourceOverrides(c Config, kind, folder, u, repo string) (Config, error) {
+func WithSourceOverrides(c Config, mode, kind, folder, u, repo string) (Config, error) {
+	mode = strings.TrimSpace(strings.ToLower(mode))
 	kind = strings.TrimSpace(strings.ToLower(kind))
 	provided := 0
 	if folder != "" {
@@ -334,8 +350,26 @@ func WithSourceOverrides(c Config, kind, folder, u, repo string) (Config, error)
 	if provided > 1 {
 		return c, errors.New("--folder, --url und --repository schließen sich gegenseitig aus")
 	}
+	if mode == "" {
+		if kind == "repository" || repo != "" {
+			mode = ModePull
+		} else if kind == "download" || kind == "url" || folder != "" || u != "" {
+			mode = ModeUpdate
+		} else {
+			mode = c.Mode
+		}
+	}
+	if mode != ModeUpdate && mode != ModePull {
+		return c, fmt.Errorf("--mode muss update oder pull sein")
+	}
 	if kind == "" {
 		kind = c.Source.Type
+	}
+	if mode == ModePull && kind != "repository" {
+		return c, errors.New("mode pull benötigt --from repository/--repository")
+	}
+	if mode == ModeUpdate && kind == "repository" {
+		return c, errors.New("mode update erwartet eine ZIP-Quelle; für Git-Repositories --mode pull verwenden")
 	}
 	switch kind {
 	case "download":
@@ -366,6 +400,7 @@ func WithSourceOverrides(c Config, kind, folder, u, repo string) (Config, error)
 	default:
 		return c, fmt.Errorf("--from muss download, url oder repository sein")
 	}
+	c.Mode = mode
 	c.Source.Type = kind
 	c.SourceType = kind
 	c.SourceFolder = c.Source.Folder
@@ -374,6 +409,30 @@ func WithSourceOverrides(c Config, kind, folder, u, repo string) (Config, error)
 	c.DownloadDir = c.Source.Folder
 	return c, nil
 }
+func Check(root string) (CheckResult, error) {
+	root, err := absoluteDir(root)
+	if err != nil {
+		return CheckResult{}, err
+	}
+	file := filepath.Join(root, ConfigDirName, ConfigFileName)
+	orig, err := readConfigFile(root, file)
+	if err != nil {
+		return CheckResult{ConfigFile: file, CurrentSchema: SchemaVersion}, err
+	}
+	up, changed, err := migrate(orig)
+	if err != nil {
+		return CheckResult{ConfigFile: file, SchemaVersion: orig.SchemaVersion, CurrentSchema: SchemaVersion}, err
+	}
+	if err := validateFile(up); err != nil {
+		return CheckResult{ConfigFile: file, SchemaVersion: orig.SchemaVersion, CurrentSchema: SchemaVersion, MigrationNeeded: changed, ProjectName: up.ProjectName, Mode: up.Mode, SourceType: up.Source.Type}, err
+	}
+	// Resolve all project paths and runtime-facing values as Load would, but do not write anything.
+	if _, err := Load(root, ""); err != nil {
+		return CheckResult{ConfigFile: file, SchemaVersion: orig.SchemaVersion, CurrentSchema: SchemaVersion, MigrationNeeded: changed, ProjectName: up.ProjectName, Mode: up.Mode, SourceType: up.Source.Type}, err
+	}
+	return CheckResult{ConfigFile: file, SchemaVersion: orig.SchemaVersion, CurrentSchema: SchemaVersion, MigrationNeeded: changed, ProjectName: up.ProjectName, Mode: up.Mode, SourceType: up.Source.Type, Valid: true}, nil
+}
+
 func Upgrade(root string) (UpgradeResult, error) {
 	root, err := absoluteDir(root)
 	if err != nil {
@@ -477,6 +536,14 @@ func migrate(v FileConfig) (FileConfig, bool, error) {
 		v.Source.Type = "download"
 	}
 	v.Source.Type = strings.ToLower(strings.TrimSpace(v.Source.Type))
+	if strings.TrimSpace(v.Mode) == "" {
+		if v.Source.Type == "repository" {
+			v.Mode = ModePull
+		} else {
+			v.Mode = ModeUpdate
+		}
+	}
+	v.Mode = strings.ToLower(strings.TrimSpace(v.Mode))
 	v.DownloadDir = ""
 	if v.ReleaseDir == "" {
 		v.ReleaseDir = "release"
@@ -551,6 +618,17 @@ func validateFile(v FileConfig) error {
 	}
 	if v.Source == nil {
 		return errors.New("source fehlt")
+	}
+	switch v.Mode {
+	case ModeUpdate, ModePull:
+	default:
+		return fmt.Errorf("mode ungültig: %s; erlaubt: update, pull", v.Mode)
+	}
+	if v.Mode == ModePull && v.Source.Type != "repository" {
+		return errors.New("mode pull benötigt source.type repository")
+	}
+	if v.Mode == ModeUpdate && v.Source.Type == "repository" {
+		return errors.New("mode update erwartet eine ZIP-Quelle (download oder url); für Git-Repositories mode pull verwenden")
 	}
 	switch v.Source.Type {
 	case "download":
@@ -668,8 +746,20 @@ func resolveProjectDirectory(root, configured, field string) (string, error) {
 	}
 	return filepath.Join(root, clean), nil
 }
-func applySource(v *FileConfig, kind, folder, u, repo string) error {
+func applySource(v *FileConfig, mode, kind, folder, u, repo string) error {
+	mode = strings.ToLower(strings.TrimSpace(mode))
 	kind = strings.ToLower(strings.TrimSpace(kind))
+	if mode == "" {
+		switch {
+		case kind == "repository" || repo != "":
+			mode = ModePull
+		default:
+			mode = ModeUpdate
+		}
+	}
+	if mode != ModeUpdate && mode != ModePull {
+		return fmt.Errorf("unbekannter mode: %s; erlaubt: update, pull", mode)
+	}
 	if kind == "" {
 		if folder != "" {
 			kind = "download"
@@ -677,9 +767,18 @@ func applySource(v *FileConfig, kind, folder, u, repo string) error {
 			kind = "url"
 		} else if repo != "" {
 			kind = "repository"
+		} else if mode == ModePull {
+			kind = "repository"
 		} else {
+			v.Mode = mode
 			return nil
 		}
+	}
+	if mode == ModePull && kind != "repository" {
+		return errors.New("mode pull benötigt eine Repository-Quelle")
+	}
+	if mode == ModeUpdate && kind == "repository" {
+		return errors.New("mode update erwartet eine ZIP-Quelle; für Git-Repositories mode pull verwenden")
 	}
 	switch kind {
 	case "download":
@@ -699,6 +798,7 @@ func applySource(v *FileConfig, kind, folder, u, repo string) error {
 	default:
 		return fmt.Errorf("unbekannte Quelle: %s", kind)
 	}
+	v.Mode = mode
 	return nil
 }
 func validateProjectName(s string) error {

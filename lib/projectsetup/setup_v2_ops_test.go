@@ -68,7 +68,7 @@ tasks:
             - not:
                 fileExists: missing.txt
 `
-	path := filepath.Join(root, "setup.yaml")
+	path := filepath.Join(root, "update-cli.yaml")
 	if err := os.WriteFile(path, []byte(manifest), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +156,7 @@ tasks:
         assert:
           fileExists: extracted/inside.txt
 `
-	path := filepath.Join(root, "setup.yaml")
+	path := filepath.Join(root, "update-cli.yaml")
 	if err := os.WriteFile(path, []byte(manifest), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -174,7 +174,7 @@ tasks:
 
 func TestManifestV2RemoveRefusesProjectRoot(t *testing.T) {
 	root := t.TempDir()
-	path := filepath.Join(root, "setup.yaml")
+	path := filepath.Join(root, "update-cli.yaml")
 	data := `schemaVersion: 2
 workflows:
   setup:

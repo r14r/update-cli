@@ -24,7 +24,7 @@ type Result struct {
 }
 
 func FindManifest(dir string) (string, bool, error) {
-	for _, name := range []string{"setup.yaml", "setup.yml"} {
+	for _, name := range []string{"update-cli.yaml"} {
 		p := filepath.Join(dir, name)
 		i, err := os.Stat(p)
 		if err == nil {
@@ -105,7 +105,7 @@ func runManifestSelected(ctx context.Context, c config.Config, console *ui.Conso
 		return runManifestV2(ctx, c.CurrentDir, m, console, path, selection)
 	}
 	if selection.Task != "" || selection.Workflow != "" {
-		return Result{}, errors.New("--setup-task/--setup-workflow benötigen setup.yaml schemaVersion 2")
+		return Result{}, errors.New("--setup-task/--setup-workflow benötigen update-cli.yaml schemaVersion 2")
 	}
 	if console.Fullscreen() {
 		if strings.HasSuffix(console.Title(), "— Setup") {
@@ -286,7 +286,7 @@ func runLegacy(ctx context.Context, c config.Config, console *ui.Console) (Resul
 		total++
 	}
 	if total == 0 {
-		console.Warn("Kein setup.yaml/setup.sh vorhanden")
+		console.Warn("Kein update-cli.yaml/setup.sh vorhanden")
 		return r, nil
 	}
 
@@ -310,7 +310,7 @@ func runLegacy(ctx context.Context, c config.Config, console *ui.Console) (Resul
 
 	stepIndex := 0
 	if hasScript {
-		console.Warn("Legacy setup.sh wird verwendet; Migration auf setup.yaml empfohlen")
+		console.Warn("Legacy setup.sh wird verwendet; Migration auf update-cli.yaml empfohlen")
 		err := console.Step(ctx, stepIndex, total, "Legacy setup.sh ausführen", func() error {
 			// A legacy setup.sh often has its own fullscreen/wait implementation.
 			// When launched inside Update CLI that output is captured by the parent
@@ -697,7 +697,7 @@ func displayCommand(exe string, args []string) string {
 
 func Available(c config.Config) (bool, error) { _, ok, err := Detect(c); return ok, err }
 func ManifestPath(c config.Config) string {
-	for _, n := range []string{"setup.yaml", "setup.yml"} {
+	for _, n := range []string{"update-cli.yaml"} {
 		p := filepath.Join(c.CurrentDir, n)
 		if _, err := os.Stat(p); err == nil {
 			return p
@@ -707,5 +707,5 @@ func ManifestPath(c config.Config) string {
 }
 func IsManifest(path string) bool {
 	b := strings.ToLower(filepath.Base(path))
-	return b == "setup.yaml" || b == "setup.yml"
+	return b == "update-cli.yaml"
 }

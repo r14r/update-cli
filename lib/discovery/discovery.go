@@ -63,7 +63,9 @@ func Build(version string) CLI {
 	noWait := opt("no-wait", []string{"--no-wait"}, "Do not wait before leaving interactive output", "boolean")
 	details := opt("details", []string{"--details"}, "Show detailed setup/template output", "boolean")
 
+	modeOpt := enumOpt("mode", []string{"--mode"}, "Update mode override", []Choice{{Value: "update", Label: "ZIP release update"}, {Value: "pull", Label: "Git repository pull"}})
 	sourceOpts := []Parameter{
+		modeOpt,
 		opt("downloads", []string{"--downloads", "-d"}, "Downloads/source directory override", "directory"),
 		enumOpt("from", []string{"--from"}, "Release source type override", []Choice{{Value: "download"}, {Value: "url"}, {Value: "repository"}}),
 		opt("folder", []string{"--folder"}, "Release source folder override", "directory"),
@@ -92,15 +94,16 @@ func Build(version string) CLI {
 		cmd("list", "List", "List releases and backups", nil, join([]Parameter{root, jsonOpt, noColor}, sourceOpts...)),
 		cmd("verify", "Verify", "Verify a release ZIP archive", []Parameter{arg("archive", "Release ZIP archive", "file", true, 1)}, join([]Parameter{root, opt("archive", []string{"--archive", "-a"}, "Release ZIP archive", "file"), jsonOpt, noColor}, sourceOpts...)),
 		cmd("doctor", "Doctor", "Run project diagnostics", nil, []Parameter{root, jsonOpt, noColor}),
+		cmd("run", "Run", "Run the application command from update-cli.yaml", nil, []Parameter{root, noColor}),
 		cmd("clean", "Clean releases", "Remove obsolete release directory entries only", nil, []Parameter{root, intOpt("keep", []string{"--keep"}, "Number of releases to retain", 0), opt("plan", []string{"--plan"}, "Show what would be removed", "boolean"), jsonOpt, noColor}),
 		cmd("cleanup", "Cleanup", "Apply configured release and backup retention", nil, []Parameter{root, intOpt("keep", []string{"--keep"}, "Number of releases/backups to retain", 0), opt("plan", []string{"--plan"}, "Show what would be removed", "boolean"), jsonOpt, noColor}),
 		cmd("history", "History", "Show update history", nil, []Parameter{root, intOpt("limit", []string{"--limit"}, "Maximum history entries", 1), jsonOpt, noColor}),
-		cmd("init", "Initialize", "Initialize Update CLI configuration for a project", []Parameter{arg("projectName", "Project name", "string", true, 1)}, []Parameter{root, enumOpt("from", []string{"--from"}, "Initial source type", []Choice{{Value: "download"}, {Value: "url"}, {Value: "repository"}}), opt("folder", []string{"--folder"}, "Release source folder", "directory"), opt("url", []string{"--url"}, "Release source URL", "url"), opt("repository", []string{"--repository"}, "Release repository", "string"), opt("use-template", []string{"--use-template"}, "Apply an initialization template", "string"), opt("force", []string{"--force", "-f"}, "Overwrite existing initialization where supported", "boolean"), noColor}),
+		cmd("init", "Initialize", "Initialize Update CLI configuration for a project", []Parameter{arg("projectName", "Project name", "string", true, 1)}, []Parameter{root, modeOpt, enumOpt("from", []string{"--from"}, "Initial source type", []Choice{{Value: "download"}, {Value: "url"}, {Value: "repository"}}), opt("folder", []string{"--folder"}, "Release source folder", "directory"), opt("url", []string{"--url"}, "Release source URL", "url"), opt("repository", []string{"--repository"}, "Release repository", "string"), opt("use-template", []string{"--use-template"}, "Apply an initialization template", "string"), opt("force", []string{"--force", "-f"}, "Overwrite existing initialization where supported", "boolean"), noColor}),
 		cmd("upgrade", "Upgrade config", "Upgrade project configuration to the current schema", nil, []Parameter{root, jsonOpt, noColor}),
 		cmd("unlock", "Unlock", "Remove a stale update lock", nil, []Parameter{root}),
 		setupCommand(root, jsonOpt, details, wait, noWait, noUI, noColor, setupTaskArg, setupWorkflowArg),
-		cmd("convert-yaml", "Convert YAML", "Upgrade setup.yaml to the latest supported schema", nil, []Parameter{root, opt("dry-run", []string{"--dry-run", "-n"}, "Preview the converted manifest", "boolean"), opt("force", []string{"--force", "-f"}, "Force replacement where supported", "boolean"), details, noColor}),
-		cmd("create-yaml", "Create YAML", "Generate schemaVersion 2 setup.yaml", nil, []Parameter{root, enumOpt("from", []string{"--from"}, "Generation source", []Choice{{Value: "project"}, {Value: "setup-script"}}), opt("with-ai", []string{"--with-ai"}, "Refine setup.sh conversion with configured AI provider", "boolean"), opt("force", []string{"--force", "-f"}, "Overwrite an existing manifest", "boolean"), opt("dry-run", []string{"--dry-run", "-n"}, "Preview generated YAML", "boolean"), details, noColor}),
+		cmd("convert-yaml", "Convert YAML", "Upgrade update-cli.yaml to the latest supported schema", nil, []Parameter{root, opt("dry-run", []string{"--dry-run", "-n"}, "Preview the converted manifest", "boolean"), opt("force", []string{"--force", "-f"}, "Force replacement where supported", "boolean"), details, noColor}),
+		cmd("create-yaml", "Create YAML", "Generate schemaVersion 2 update-cli.yaml", nil, []Parameter{root, enumOpt("from", []string{"--from"}, "Generation source", []Choice{{Value: "project"}, {Value: "setup-script"}}), opt("with-ai", []string{"--with-ai"}, "Refine setup.sh conversion with configured AI provider", "boolean"), opt("force", []string{"--force", "-f"}, "Overwrite an existing manifest", "boolean"), opt("dry-run", []string{"--dry-run", "-n"}, "Preview generated YAML", "boolean"), details, noColor}),
 		cmd("create-setup-script", "Create setup script", "Generate a setup.sh bootstrap", nil, []Parameter{root, opt("force", []string{"--force", "-f"}, "Overwrite an existing setup.sh", "boolean"), opt("dry-run", []string{"--dry-run", "-n"}, "Preview generated script", "boolean"), details, noColor}),
 		configCommand(root, jsonOpt, noColor),
 		templatesCommand(root, details, noColor),
@@ -115,7 +118,7 @@ func setupCommand(root, jsonOpt, details, wait, noWait, noUI, noColor Parameter,
 		cmd("list", "List setup", "List available setup workflows and tasks", nil, []Parameter{root, jsonOpt, noColor}),
 		cmd("task", "Run task", "Run one setup task", []Parameter{taskArg}, []Parameter{root, details, wait, noWait, noUI, noColor}),
 		cmd("workflow", "Run workflow", "Run one setup workflow", []Parameter{workflowArg}, []Parameter{root, details, wait, noWait, noUI, noColor}),
-		cmd("manifest", "Run manifest", "Run setup from an explicit manifest file", []Parameter{arg("file", "setup.yaml/setup.yml manifest", "file", true, 1)}, []Parameter{details, wait, noWait, noUI, noColor}),
+		cmd("manifest", "Run manifest", "Run setup from an explicit manifest file", []Parameter{arg("file", "update-cli.yaml manifest", "file", true, 1)}, []Parameter{details, wait, noWait, noUI, noColor}),
 	}}
 }
 
@@ -123,7 +126,9 @@ func configCommand(root, jsonOpt, noColor Parameter) Command {
 	set := opt("set", []string{"--set"}, "Set a config value as KEY=VALUE; repeat for multiple changes", "string")
 	set.Repeatable = true
 	set.ValueHint = "KEY=VALUE"
-	return Command{Name: "config", Title: "Config", Description: "Show or change project configuration", Arguments: []Parameter{}, Options: []Parameter{root, set, jsonOpt, noColor}, Commands: []Command{
+	return Command{Name: "config", Title: "Config", Description: "Show, validate, migrate or change project configuration", Arguments: []Parameter{}, Options: []Parameter{root, set, jsonOpt, noColor}, Commands: []Command{
+		cmd("check", "Check config", "Validate config.json without changing it", nil, []Parameter{root, jsonOpt, noColor}),
+		cmd("migrate", "Migrate config", "Migrate config.json to the current schema with backup", nil, []Parameter{root, jsonOpt, noColor}),
 		cmd("list", "List config files", "List project configuration files", nil, []Parameter{root, noColor}),
 		cmd("edit", "Edit config", "Open config.json in the configured editor", nil, []Parameter{root, noColor}),
 		cmd("use-template", "Use config template", "Apply a configuration template", []Parameter{arg("name", "Template name", "string", true, 1)}, []Parameter{root, noColor}),

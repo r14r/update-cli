@@ -14,11 +14,11 @@ func TestParseOptionsRestoresTUICompatibilityFlags(t *testing.T) {
 		t.Fatalf("unexpected options: %#v", o)
 	}
 
-	o, err = parseOptions([]string{"--setup-manifest", "setup.yaml", "--details", "--wait"})
+	o, err = parseOptions([]string{"--setup-manifest", "update-cli.yaml", "--details", "--wait"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if o.setupManifest != "setup.yaml" || !o.details || !o.wait {
+	if o.setupManifest != "update-cli.yaml" || !o.details || !o.wait {
 		t.Fatalf("unexpected setup options: %#v", o)
 	}
 }
@@ -68,8 +68,8 @@ func TestParseOptionsSetupV2Selectors(t *testing.T) {
 	if err != nil || o.setupWorkflow != "ci" {
 		t.Fatalf("unexpected setup-workflow: %#v err=%v", o, err)
 	}
-	o, err = parseOptions([]string{"--setup-manifest", "setup.yaml", "--setup-task", "build"})
-	if err != nil || o.setupManifest != "setup.yaml" || o.setupTask != "build" {
+	o, err = parseOptions([]string{"--setup-manifest", "update-cli.yaml", "--setup-task", "build"})
+	if err != nil || o.setupManifest != "update-cli.yaml" || o.setupTask != "build" {
 		t.Fatalf("unexpected setup-manifest task selection: %#v err=%v", o, err)
 	}
 	if _, err := parseOptions([]string{"--setup-task", "build", "--setup-workflow", "ci"}); err == nil {
@@ -188,6 +188,45 @@ func TestConfigSetRejectsConflictingConfigModes(t *testing.T) {
 	} {
 		if _, err := parseOptions(args); err == nil {
 			t.Fatalf("expected conflict for %v", args)
+		}
+	}
+}
+
+func TestParseOptionsConfigCheckAndMigrate(t *testing.T) {
+	for _, args := range [][]string{
+		{"config", "--check"},
+		{"config", "check"},
+	} {
+		o, err := parseOptions(args)
+		if err != nil {
+			t.Fatalf("%v: %v", args, err)
+		}
+		if !o.config || !o.configCheck || o.check {
+			t.Fatalf("%v parsed as %#v", args, o)
+		}
+	}
+	for _, args := range [][]string{
+		{"config", "--migrate"},
+		{"config", "migrate"},
+	} {
+		o, err := parseOptions(args)
+		if err != nil {
+			t.Fatalf("%v: %v", args, err)
+		}
+		if !o.config || !o.configMigrate || o.upgrade {
+			t.Fatalf("%v parsed as %#v", args, o)
+		}
+	}
+}
+
+func TestParseOptionsConfigActionsAreExclusive(t *testing.T) {
+	for _, args := range [][]string{
+		{"config", "--check", "--edit"},
+		{"config", "--migrate", "--list"},
+		{"config", "--check", "--set", "project-name=demo"},
+	} {
+		if _, err := parseOptions(args); err == nil {
+			t.Fatalf("expected error for %v", args)
 		}
 	}
 }

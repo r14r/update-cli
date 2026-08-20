@@ -88,8 +88,8 @@ func (c *Console) SetApplicationVersion(version string) {
 func (c *Console) SetFinalStatus(project, status string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.finalProject = strings.TrimSpace(project)
-	c.finalStatus = strings.TrimSpace(status)
+	c.finalProject = strings.TrimSpace(DisplayText(project))
+	c.finalStatus = strings.TrimSpace(DisplayText(status))
 }
 
 func (c *Console) SuppressFinalStatus(suppress bool) {
@@ -239,6 +239,7 @@ func projectHeaderSegment(project, version string) string {
 }
 
 func (c *Console) SetFooter(status string) {
+	status = DisplayText(status)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if !c.fullscreen {
@@ -250,6 +251,7 @@ func (c *Console) SetFooter(status string) {
 }
 
 func (c *Console) SetFooterSuccess(status string) {
+	status = DisplayText(status)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if !c.fullscreen {
@@ -264,6 +266,7 @@ func (c *Console) SetFooterSuccess(status string) {
 // fullscreen screen closes. This is used for successful no-op outcomes such as
 // selecting a release version that is already installed.
 func (c *Console) SetFinishFooter(status string) {
+	status = DisplayText(status)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	status = strings.TrimSpace(status)
@@ -354,6 +357,7 @@ func (c *Console) SetInfoTitle(title string) {
 }
 
 func (c *Console) InfoRow(label, value string) {
+	value = DisplayText(value)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if !c.fullscreen {
@@ -370,6 +374,8 @@ func (c *Console) InfoRow(label, value string) {
 // identical to InfoRow; only the requested value fragment receives the blue
 // background used elsewhere for active Update CLI information.
 func (c *Console) InfoHighlightedRow(label, value, highlight string) {
+	value = DisplayText(value)
+	highlight = DisplayText(highlight)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if !c.fullscreen {
@@ -419,6 +425,7 @@ func (c *Console) Banner(t string) {
 }
 
 func (c *Console) Row(l, v string) {
+	v = DisplayText(v)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.fullscreen {
@@ -430,6 +437,7 @@ func (c *Console) Row(l, v string) {
 }
 
 func (c *Console) StatusRow(l, v string) {
+	v = DisplayText(v)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.fullscreen {
@@ -445,6 +453,7 @@ func (c *Console) StatusRow(l, v string) {
 }
 
 func (c *Console) line(f io.Writer, col, level, msg string) {
+	msg = DisplayText(msg)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.direct && c.directStep {
@@ -470,6 +479,7 @@ func (c *Console) line(f io.Writer, col, level, msg string) {
 func (c *Console) Interactive() bool { return c.interactive }
 
 func (c *Console) Confirm(prompt string, defaultYes bool) (bool, error) {
+	prompt = DisplayText(prompt)
 	if !c.interactive {
 		return false, fmt.Errorf("interaktive Bestätigung ist ohne Terminal nicht verfügbar")
 	}
@@ -718,6 +728,7 @@ func (c *Console) Success(s string) { c.line(os.Stdout, green, "OK", s) }
 // green background; direct/plain output keeps the message readable with or
 // without ANSI color support.
 func (c *Console) SuccessBanner(message string) {
+	message = DisplayText(message)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	message = strings.TrimSpace(message)
@@ -737,6 +748,7 @@ func (c *Console) SuccessBanner(message string) {
 }
 
 func (c *Console) Diagnostic(status, label, detail string) {
+	detail = DisplayText(detail)
 	col, mark := green, "OK"
 	if status == "warning" {
 		col, mark = yellow, "WARN"
@@ -755,6 +767,8 @@ func (c *Console) Diagnostic(status, label, detail string) {
 }
 
 func (c *Console) ErrorNotice(title, detail string) {
+	title = DisplayText(title)
+	detail = DisplayText(detail)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.errorShown = true
@@ -782,6 +796,7 @@ func (c *Console) ErrorShown() bool {
 }
 
 func (c *Console) Step(ctx context.Context, done, total int, label string, action func() error) error {
+	label = DisplayText(label)
 	if c.Direct() {
 		counter := stepCounter(done+1, total)
 		fmt.Fprintf(os.Stdout, "\n%s\n", directStepHeading(counter, label))
@@ -886,6 +901,7 @@ func (c *Console) Step(ctx context.Context, done, total int, label string, actio
 // Unlike Step, which is used for setup's compact [NN/NN] rows, this keeps the
 // progress bar, percentage, label and status marker aligned across all phases.
 func (c *Console) ProgressStep(ctx context.Context, done, total int, label string, action func() error) error {
+	label = DisplayText(label)
 	if c.Direct() {
 		counter := stepCounter(done+1, total)
 		fmt.Fprintf(os.Stdout, "%s %s\n", counter, label)
@@ -939,6 +955,8 @@ func (c *Console) renderBarProgressLocked(index, step, total int, label, kind st
 }
 
 func (c *Console) SkipProgressStep(done, total int, label, reason string) {
+	label = DisplayText(label)
+	reason = DisplayText(reason)
 	if c.Direct() {
 		fullLabel := label
 		if strings.TrimSpace(reason) != "" {
@@ -964,6 +982,7 @@ func (c *Console) SkipProgressStep(done, total int, label, reason string) {
 }
 
 func (c *Console) renderProgressLocked(index, done, total int, label string, marker rune) {
+	label = DisplayText(label)
 	step := minInt(done+1, total)
 	if marker == '✓' {
 		step = minInt(done, total)
@@ -990,6 +1009,8 @@ func (c *Console) renderProgressLocked(index, done, total int, label string, mar
 }
 
 func (c *Console) SkipStep(done, total int, label, reason string) {
+	label = DisplayText(label)
+	reason = DisplayText(reason)
 	if c.Direct() {
 		fullLabel := label
 		if strings.TrimSpace(reason) != "" {
@@ -1046,7 +1067,7 @@ func (c *Console) ProcessWriters() (io.Writer, io.Writer) {
 		return &directLineWriter{console: c, out: os.Stdout, prefix: "│  "}, &directLineWriter{console: c, out: os.Stderr, prefix: "│  ! "}
 	}
 	if !c.fullscreen {
-		return os.Stdout, os.Stderr
+		return &directLineWriter{console: c, out: os.Stdout}, &directLineWriter{console: c, out: os.Stderr}
 	}
 	// Child-process output always belongs to the scrollable content area. The
 	// --details flag additionally controls command/header detail, but must not
@@ -1067,7 +1088,8 @@ func (w *directLineWriter) Write(p []byte) (int, error) {
 	w.buffer = parts[len(parts)-1]
 	for _, line := range parts[:len(parts)-1] {
 		w.console.mu.Lock()
-		_, err := fmt.Fprintln(w.out, w.prefix+strings.TrimSuffix(line, "\r"))
+		visible := DisplayText(strings.TrimSuffix(line, "\r"))
+		_, err := fmt.Fprintln(w.out, w.prefix+visible)
 		w.console.mu.Unlock()
 		if err != nil {
 			return len(p), err
@@ -1081,7 +1103,7 @@ func (w *directLineWriter) Flush() {
 		return
 	}
 	w.console.mu.Lock()
-	_, _ = fmt.Fprintln(w.out, w.prefix+strings.TrimSuffix(w.buffer, "\r"))
+	_, _ = fmt.Fprintln(w.out, w.prefix+DisplayText(strings.TrimSuffix(w.buffer, "\r")))
 	w.console.mu.Unlock()
 	w.buffer = ""
 }
@@ -1114,6 +1136,7 @@ func (w *consoleLineWriter) Flush() {
 // horizontal gutter as setup step output. This keeps project/schema metadata
 // aligned with command stdout/stderr beneath numbered setup steps.
 func (c *Console) SetupMeta(total int, text string) {
+	text = DisplayText(text)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if !c.fullscreen {
@@ -1130,6 +1153,7 @@ func setupMetaText(total int, text string) string {
 }
 
 func (c *Console) Append(s string) {
+	s = DisplayText(s)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.fullscreen {
@@ -1154,6 +1178,7 @@ func (c *Console) Append(s string) {
 // setup-step gutter. Leading child padding is normalized so output produced by
 // different scripts starts at the same column.
 func (c *Console) appendProcessLine(line string, stderr bool) {
+	line = DisplayText(line)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.fullscreen {
@@ -1177,6 +1202,7 @@ func (c *Console) appendProcessLine(line string, stderr bool) {
 }
 
 func (c *Console) appendStepOutputLocked(s string, stderr bool) {
+	s = DisplayText(s)
 	indent := c.stepOutputIndent
 	if indent <= 0 {
 		indent = 4
@@ -1198,7 +1224,7 @@ func (c *Console) appendStepOutputLocked(s string, stderr bool) {
 // it adds a compact rule so long command output cannot visually merge one task
 // into the next. Fullscreen rendering retains the existing content behavior.
 func (c *Console) Task(name string) {
-	name = strings.TrimSpace(name)
+	name = strings.TrimSpace(DisplayText(name))
 	if name == "" {
 		return
 	}
@@ -1220,6 +1246,7 @@ func (c *Console) Task(name string) {
 }
 
 func (c *Console) appendLocked(s string) {
+	s = DisplayText(s)
 	for _, line := range strings.Split(strings.ReplaceAll(s, "\r", ""), "\n") {
 		c.content = append(c.content, screenLine{text: line})
 	}

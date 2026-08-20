@@ -66,7 +66,7 @@ func List(ctx context.Context, c config.Config) (Result, error) {
 		}
 		return r, nil
 	}
-	m, err := source.Discover(ctx, source.Options{ProjectName: c.ProjectName, Source: c.Source, AllowHTTP: c.Security.AllowHTTP, MaxArchiveBytes: c.Security.MaxArchiveBytes})
+	m, err := source.Discover(ctx, source.Options{ProjectName: c.ProjectName, Mode: c.Mode, Source: c.Source, RepositoryCacheDir: c.RepositoryCacheDir, AllowHTTP: c.Security.AllowHTTP, MaxArchiveBytes: c.Security.MaxArchiveBytes})
 	if err != nil {
 		r.SourceError = err.Error()
 		return r, nil

@@ -85,7 +85,7 @@ func GenerateManifestFromSetupScript(root, scriptPath, path string, force bool, 
 		return GenerateResult{}, analysis, err
 	}
 	if path == "" {
-		path = filepath.Join(absRoot, "setup.yaml")
+		path = filepath.Join(absRoot, "update-cli.yaml")
 	}
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(absRoot, path)
@@ -97,7 +97,7 @@ func GenerateManifestFromSetupScript(root, scriptPath, path string, force bool, 
 		}
 		existed = true
 		if !force {
-			return GenerateResult{}, analysis, fmt.Errorf("setup.yaml existiert bereits: %s; --force verwenden", path)
+			return GenerateResult{}, analysis, fmt.Errorf("update-cli.yaml existiert bereits: %s; --force verwenden", path)
 		}
 	} else if !errors.Is(statErr, os.ErrNotExist) {
 		return GenerateResult{}, analysis, statErr
@@ -127,10 +127,10 @@ func validateManifestText(dir, text string) error {
 	}
 	m, err := ParseManifest(name)
 	if err != nil {
-		return fmt.Errorf("erzeugtes setup.yaml ist ungültig: %w", err)
+		return fmt.Errorf("erzeugtes update-cli.yaml ist ungültig: %w", err)
 	}
 	if m.Version != 2 {
-		return fmt.Errorf("erzeugtes setup.yaml muss schemaVersion 2 verwenden")
+		return fmt.Errorf("erzeugtes update-cli.yaml muss schemaVersion 2 verwenden")
 	}
 	return nil
 }

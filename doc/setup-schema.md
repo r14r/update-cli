@@ -17,14 +17,14 @@ update-cli --create-setup-script
 
 Default configuration file: `/usr/local/etc/update-cli/ai.json` (see `doc/examples/ai.json`). Environment overrides: `UPDATE_CLI_AI_PROVIDER`, `UPDATE_CLI_AI_BASE_URL`, `UPDATE_CLI_AI_MODEL`, `UPDATE_CLI_AI_API_KEY`, `UPDATE_CLI_AI_API_KEY_ENV`, `UPDATE_CLI_AI_CONFIG`, `UPDATE_CLI_AI_PROMPT`; `OPENAI_API_KEY` is also accepted for OpenAI-compatible endpoints. Providers: `ollama`, `openai-compatible`, `nvidia`.
 
-# setup.yaml schema
+# update-cli.yaml schema
 
-Update CLI 0.8.4 supports two manifest generations (schemaVersion 2 was introduced on the previous 3.1.x development line):
+Update CLI 1.2.0 supports two manifest generations (schemaVersion 2 was introduced on the previous 3.1.x development line):
 
 - **schemaVersion 1**: full backward compatibility with the established Update CLI 2.14 `id/name/when/run/cwd/allowFailure` format and the typed 3.0 handler format.
 - **schemaVersion 2**: declarative workflows, reusable tasks, dependencies, variables, requirements, structured conditions, execution controls, typed operations, and `command`/`shell` escape hatches.
 
-Schema 1 remains supported in the 0.8.x line; existing project archives continue to work unchanged.
+Schema 1 remains supported when stored in the canonical `update-cli.yaml` filename.
 
 In schema 2, `schemaVersion` is always authoritative. An optional top-level `version` scalar may describe the project/application version and can appear before or after `schemaVersion`.
 
@@ -54,6 +54,10 @@ requirements:
     - go
   optionalCommands:
     - just
+
+run:
+  command: ./dist/example
+  cwd: .
 
 workflows:
   setup:
@@ -104,6 +108,35 @@ tasks:
           mode: "0755"
 ```
 
+## Update source
+
+A schemaVersion-2 `update-cli.yaml` may declare the project default acquisition source. This source overrides machine-local source settings from `.updater-cli/config.json`; explicit CLI source options override both.
+
+```yaml
+update:
+  mode: pull
+  source:
+    type: repository
+    repository: https://github.com/acme/app.git
+    ref: main
+```
+
+Supported source fields are `type`, `folder`, `url`, `repository`, `ref`, `commit`, `version`, and `sha256`. Valid mode/source combinations are `update` + `download`, `update` + `url`, and `pull` + `repository`.
+
+## Application run command
+
+`update-cli --run` (or `update-cli run`) executes the top-level `run.command` from the active `update-cli.yaml`.
+
+```yaml
+run:
+  command: just start
+  cwd: .
+  env:
+    APP_ENV: production
+```
+
+`cwd` defaults to the project root and must remain inside it. `env` is optional. A schemaVersion-2 file may contain `run` without defining `tasks` when no setup workflow is required.
+
 ## Workflows and tasks
 
 A workflow is an ordered entry point composed of tasks. Tasks may depend on other tasks using `requires`. Dependencies are executed first, only once, and dependency cycles are rejected.
@@ -131,7 +164,7 @@ update-cli --setup                 # workflow setup
 update-cli --setup-list            # workflows/tasks
 update-cli --setup-task build
 update-cli --setup-workflow ci
-update-cli --setup-manifest ./setup.yaml --setup-task test
+update-cli --setup-manifest ./update-cli.yaml --setup-task test
 ```
 
 The global `setup-template.sh` also supports:

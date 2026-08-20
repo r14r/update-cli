@@ -13,6 +13,7 @@ import (
 
 type Result struct {
 	ProjectName      string `json:"projectName"`
+	Mode             string `json:"mode"`
 	SourceType       string `json:"sourceType"`
 	SourceReference  string `json:"sourceReference,omitempty"`
 	SourceError      string `json:"sourceError,omitempty"`
@@ -33,7 +34,7 @@ type Result struct {
 }
 
 func Run(ctx context.Context, c config.Config) (Result, error) {
-	r := Result{ProjectName: c.ProjectName, SourceType: c.Source.Type, ConfigFile: c.ConfigFile, CurrentDir: c.CurrentDir, ReleaseDir: c.ReleaseRoot, DockerLifecycle: c.Docker.Lifecycle}
+	r := Result{ProjectName: c.ProjectName, Mode: c.Mode, SourceType: c.Source.Type, ConfigFile: c.ConfigFile, CurrentDir: c.CurrentDir, ReleaseDir: c.ReleaseRoot, DockerLifecycle: c.Docker.Lifecycle}
 	if c.Source.Type == "url" {
 		r.SourceReference = c.Source.URL
 	} else if c.Source.Type == "repository" {

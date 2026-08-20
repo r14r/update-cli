@@ -1,5 +1,91 @@
-# Update CLI 1.0.2
+# 1.5.0
 
+- allow schemaVersion-2 `update-cli.yaml` to declare a top-level `update` source block
+- support `update.mode` plus `update.source.type`, `folder`, `url`, `repository`, `ref`, `commit`, `version`, and `sha256`
+- use source precedence `CLI override > update-cli.yaml > .updater-cli/config.json`
+- configure the update-cli project itself to pull from `https://github.com/r14r/update-cli.git` on `main`
+- keep `.updater-cli/config.json` for local updater state and machine-specific policy
+- stop producing ZIP artifacts for normal project changes; GitHub commits are the release source
+
+# 1.4.0
+
+- Formalizes `check`, `update`, and `run` as first-class command aliases for `--check`, `--update`, and `--run`.
+- Adds explicit alias-equivalence test coverage for all three primary commands.
+- Documents that options and positional arguments behave identically in command and flag form.
+
+# 1.3.0
+
+- extend `update-cli --run` / `update-cli run` to accept structured `run.steps` in schemaVersion-2 `update-cli.yaml`
+- support `run.description` and reuse typed setup-step syntax such as `command.exec`, `command.args`, `cwd`, `env`, `timeout`, `retries`, `when` and `allowFailure`
+- keep the compact `run.command` form fully compatible; reject ambiguous manifests that define both `command` and `steps`
+- add `update-cli config --check` / `update-cli config check` for read-only config validation and migration-needed reporting
+- add `update-cli config --migrate` / `update-cli config migrate` as the config-scoped migration command with backup semantics
+- expose the new config commands through `--help --json` and update README documentation
+
+# 1.2.1
+
+- rename the Justfile installation recipe from `just deploy` to `just install`
+- keep the underlying `deploy` operation in `update-cli.yaml` unchanged
+- update README and project-file regression tests for the new command name
+
+# 1.2.0
+
+- add `update-cli --run` and `update-cli run` to launch the active application
+- read the launch command from top-level `run.command` in `update-cli.yaml`
+- support optional `run.cwd` and `run.env`
+- execute run commands from the active `current/` release and preserve interactive stdin/stdout/stderr
+- propagate child-process exit codes through Update CLI
+- rename the canonical project automation file from `setup.yaml` to `update-cli.yaml` across runtime discovery, generators, conversion, templates, examples, tests and documentation
+- allow schemaVersion-2 run-only manifests without setup tasks
+
+# Update CLI 1.1.2
+
+- Added a new README Introduction explaining why Update CLI is used and how the transactional deployment model separates acquisition from deployment.
+- Documented the two primary sources: Download Folder (`mode: update`) and GitHub/Git repository (`mode: pull`).
+- Expanded Quickstart with complete setup and recurring-use workflows for both source modes.
+- Added detailed GitHub pull documentation covering config.json, repository URL, `source.ref`, source switching, `check`, `update --plan`, `git pull --ff-only`, private repository authentication, commit detection, setup integration and troubleshooting.
+- Runtime behavior is unchanged from 1.1.1.
+
+# Update CLI 1.1.1
+
+## 1.1.1 README update
+
+- Update the project `README.md` for the `mode: update` / `mode: pull` feature introduced in 1.1.0.
+- Split Quickstart into complete ZIP and Git workflows.
+- Add an explicit update-mode/source matrix and one-time CLI override examples.
+- Document persistent Git checkout and `.release-commit` behavior in the primary onboarding path.
+- Runtime behavior is unchanged from 1.1.0.
+
+# Update CLI 1.1.0
+
+Minor release adding explicit ZIP update and Git pull acquisition modes.
+
+## 1.1.0 update/pull modes
+
+- Add project configuration `mode` with values `update` and `pull`; config schema is now version 7.
+- `mode=update` uses the established transactional ZIP workflow with `download` or `url` sources.
+- `mode=pull` requires a `repository` source, keeps a persistent checkout in `.updater-cli/repository`, and updates it with `git pull --ff-only`.
+- Git content is snapshotted without `.git`, validated, versioned under `release/`, and synchronized to `current/` through the existing transaction/recovery pipeline.
+- Persist the deployed commit as `.release-commit` and expose installed/available commit changes during `check`.
+- Treat a changed repository commit as an available pull update even when `VERSION` is unchanged.
+- Add `--mode update|pull` to initialization and source overrides; positional ZIP archives are rejected in pull mode.
+- Migrate schemaVersion-6 repository sources to `mode=pull`; download/URL sources migrate to `mode=update`.
+- Add pull-mode configuration, version-policy, persistent-checkout and real Git pull regression tests.
+
+# Update CLI 1.0.3
+
+Patch release that normalizes user-home paths in terminal presentation.
+
+## 1.0.3 UI path presentation
+
+- Replace the absolute current-user home prefix with `$HOME` in fullscreen TUI, plain/no-UI console rows, diagnostics, errors, confirmation prompts, setup/process output, history, inventory, cleanup, and update-plan path presentation.
+- Example: `/Users/Ralph.Goestenmeier/Downloads/DigitalProductsPlatform-v4.5.0.zip` is rendered as `$HOME/Downloads/DigitalProductsPlatform-v4.5.0.zip`.
+- Keep filesystem operations and machine-readable JSON output on canonical absolute paths; the change is presentation-only.
+- Avoid replacing lexical lookalikes such as `/Users/Ralph.Goestenmeier-old/...` or embedded non-home path fragments.
+- Add UI regression coverage for exact home paths, descendants, multiple paths, unrelated paths, and plain console rendering.
+- Add stable-line version-policy coverage for `1.0.2 -> 1.0.3`.
+
+## 1.0.2
 Documentation-focused patch release for the stable 1.x CLI contract. Runtime behavior and schemas are unchanged.
 
 ## 1.0.2 README and command documentation
@@ -182,7 +268,7 @@ See `CODE_REVIEW.md` and `IMPLEMENTATION_REPORT.md` for details and validation r
 - Add the project name to the right edge of the fullscreen TUI header.
 - Render the project badge with a white background and blue bold text while preserving the existing blue/white header title.
 - Keep the project badge visible when the TUI changes from version check to update or setup.
-- Populate the header project name from configured projects and standalone `setup.yaml` manifests.
+- Populate the header project name from configured projects and standalone `update-cli.yaml` manifests.
 - Add unit and PTY regression coverage for the project badge.
 
 ## 0.8.7
@@ -218,7 +304,7 @@ See `CODE_REVIEW.md` and `IMPLEMENTATION_REPORT.md` for details and validation r
 
 ## 0.8.2
 
-- Hardens setup bootstrap selection by validating the actual `setup.yaml` with each candidate binary before using it.
+- Hardens setup bootstrap selection by validating the actual `update-cli.yaml` with each candidate binary before using it.
 - Prevents older schemaVersion-2 binaries that reject newer metadata such as `project.slug` from being selected just because they expose workflow/task flags.
 - Adds a regression test for fallback from a slug-incompatible candidate to a compatible local binary.
 
@@ -313,7 +399,7 @@ See `CODE_REVIEW.md` and `IMPLEMENTATION_REPORT.md` for details and validation r
 
 ## 3.1.0
 
-- introduced `setup.yaml` schemaVersion 2 as a declarative project automation model
+- introduced `update-cli.yaml` schemaVersion 2 as a declarative project automation model
 - added named workflows and reusable tasks with dependency resolution, de-duplication, and cycle detection
 - added `--setup-list`, `--setup-task NAME`, and `--setup-workflow NAME`
 - explicit manifests can combine `--setup-manifest` with task/workflow selection
@@ -323,7 +409,7 @@ See `CODE_REVIEW.md` and `IMPLEMENTATION_REPORT.md` for details and validation r
 - added per-step `cwd`, environment, timeout, retries, and allow-failure controls
 - added typed operations for commands, shell, filesystem preparation, assertions, Python environments/packages, Go, Node package managers, Composer/Artisan, Docker Compose, HTTP checks, downloads, ZIP extraction, and explicit deployment
 - retained `command` and `shell` as generic escape hatches so arbitrary project setup operations remain possible
-- converted Update CLI's own `setup.yaml` to schemaVersion 2 with `prepare`, `check`, `build`, `verify`, `deploy`, and `clean` tasks and `setup`/`ci` workflows
+- converted Update CLI's own `update-cli.yaml` to schemaVersion 2 with `prepare`, `check`, `build`, `verify`, `deploy`, and `clean` tasks and `setup`/`ci` workflows
 - `setup.sh` and the global setup template now support `--list`, `--task NAME`, and `--workflow NAME`
 - schemaVersion 1 remains fully supported
 
@@ -361,7 +447,7 @@ See `CODE_REVIEW.md` and `IMPLEMENTATION_REPORT.md` for details and validation r
 
 ## 3.0.11
 
-- migrated the supplied x-cli legacy setup flow to a declarative `setup.yaml` example
+- migrated the supplied x-cli legacy setup flow to a declarative `update-cli.yaml` example
 - legacy child `setup.sh` executions are forced to plain/no-wait mode so a hidden nested Enter prompt cannot freeze the parent TUI
 - legacy setup execution is represented as a visible parent-owned setup step
 - setup step rows use one persistent completion row instead of separate start/completion lines
@@ -390,7 +476,7 @@ Fullscreen TUI layout and compact step-status release.
 
 Standalone setup and global setup-template release.
 
-- `update-cli --setup` can execute `setup.yaml`/`setup.yml` directly when invoked inside a deployed `current/` directory without a project config
+- `update-cli --setup` can execute `update-cli.yaml` directly when invoked inside a deployed `current/` directory without a project config
 - `/usr/local/etc/update-cli/setup-template.sh` delegates to the native `--setup-manifest` fullscreen runner
 - the global template supports `--details`, wait/fullscreen controls, and alternate manifest paths
 - project setup and `just deploy` install the global setup TUI template
@@ -520,7 +606,7 @@ Major safety and setup-architecture release.
 
 ### Setup redesign
 
-- introduced strict `setup.yaml` schema
+- introduced strict `update-cli.yaml` schema
 - reusable `setup.sh` bootstrap template
 - typed setup handlers for Go, Python, Node, Laravel, Docker Compose, copy, deploy, and shell commands
 - direct `--setup-manifest` execution mode

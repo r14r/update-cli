@@ -1,4 +1,4 @@
-You are converting a project setup shell script into Update CLI setup.yaml schemaVersion 2.
+You are converting a project setup shell script into Update CLI update-cli.yaml schemaVersion 2.
 
 Goal:
 Produce a valid, maintainable schemaVersion 2 manifest that preserves the setup behavior of the shell script while preferring typed Update CLI operations over shell where this is safe.
@@ -34,4 +34,4 @@ DETERMINISTIC schemaVersion 2 DRAFT:
 {{DRAFT_YAML}}
 --- END DRAFT YAML ---
 
-Return only the final setup.yaml content.
+Return only the final update-cli.yaml content.

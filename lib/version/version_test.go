@@ -58,6 +58,14 @@ func TestCompareForProjectUpdateCLIStablePatchOrdering(t *testing.T) {
 	}
 }
 
+func TestCompareForProjectUpdateCLIStable103IsNewerThan102(t *testing.T) {
+	newer, _ := Parse("1.0.3")
+	older, _ := Parse("1.0.2")
+	if got := CompareForProject("update-cli", newer, older); got <= 0 {
+		t.Fatalf("expected 1.0.3 > 1.0.2, got %d", got)
+	}
+}
+
 func TestCompareForProjectUpdateCLIStable100IsNewerThanLegacy334(t *testing.T) {
 	stable, _ := Parse("1.0.0")
 	legacy, _ := Parse("3.3.4")
@@ -103,5 +111,13 @@ func TestUpdateCLIArchiveSelectionPrefersStable100(t *testing.T) {
 	}
 	if got, want := v.String(), "1.0.0"; got != want {
 		t.Fatalf("newest version = %s, want %s", got, want)
+	}
+}
+
+func TestCompareForProjectUpdateCLI130IsNewerThan121(t *testing.T) {
+	newer, _ := Parse("1.3.0")
+	older, _ := Parse("1.2.1")
+	if got := CompareForProject("update-cli", newer, older); got <= 0 {
+		t.Fatalf("expected 1.3.0 > 1.2.1, got %d", got)
 	}
 }

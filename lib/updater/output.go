@@ -31,21 +31,22 @@ Usage:
   update-cli --list [--json]
   update-cli --verify ARCHIVE.zip
   update-cli --doctor
+  update-cli --run
   update-cli --setup [--details] [--wait|--no-wait] [--no-ui]
   update-cli --setup-list
   update-cli --setup-task NAME [--details] [--no-ui]
   update-cli --setup-workflow NAME [--details] [--no-ui]
-  update-cli --setup-manifest ./setup.yaml [--setup-list|--setup-task NAME|--setup-workflow NAME] [--details] [--wait|--no-wait] [--no-ui]
+  update-cli --setup-manifest ./update-cli.yaml [--setup-list|--setup-task NAME|--setup-workflow NAME] [--details] [--wait|--no-wait] [--no-ui]
   update-cli --convert-yaml [--dry-run]
   update-cli --create-yaml [--from project|setup-script] [--with-ai] [--force] [--dry-run]
   update-cli --create-setup-script [--force] [--dry-run]
   update-cli --clean [--keep N] [--plan]
   update-cli --cleanup [--keep N] [--plan]
   update-cli --history [--limit N]
-  update-cli config [--set KEY=VALUE ...] [--list|--edit|--use-template NAME]
+  update-cli config [--set KEY=VALUE ...] [--check|--migrate|--list|--edit|--use-template NAME]
   update-cli --config [--set KEY=VALUE ...] [--list|--edit|--use-template NAME]
   update-cli --templates --list [--details]
-  update-cli --init PROJECTNAME
+  update-cli --init PROJECTNAME [--mode update|pull]
   update-cli --upgrade
   update-cli --unlock
   update-cli --howto
@@ -60,18 +61,22 @@ Safety model:
   * If activation, setup, service restart, or healthcheck fails, current is restored.
   * A Docker Compose stack is restarted only when it was running before the operation.
   * sync.preserve protects persistent paths from overwrite and deletion.
+  * mode=update installs versioned ZIP releases from download folders or HTTPS URLs.
+  * mode=pull updates a persistent internal Git checkout with git pull --ff-only and deploys it transactionally.
   * ZIP and URL limits protect against oversized downloads and ZIP bombs.
   * HTTPS is required unless security.allowHttp=true.
-  * setup.yaml schemaVersion 1 remains supported for legacy id/when/run and typed v3 steps.
-  * setup.yaml schemaVersion 2 adds workflows, reusable tasks, dependencies, variables, requirements, structured conditions and typed project operations.
+  * update-cli.yaml schemaVersion 1 remains supported for legacy id/when/run and typed v3 steps.
+  * update-cli.yaml schemaVersion 2 adds workflows, reusable tasks, dependencies, variables, requirements, structured conditions and typed project operations.
+  * --run executes run.command or structured run.steps from update-cli.yaml in the active current/ release.
   * --setup runs workflow 'setup'; --setup-list shows available workflows/tasks; --setup-task and --setup-workflow run a selected entry.
-  * --convert-yaml upgrades setup.yaml to the newest supported schema and keeps a backup of schemaVersion 1.
+  * --convert-yaml upgrades update-cli.yaml to the newest supported schema and keeps a backup of schemaVersion 1.
   * --create-yaml --from project detects Go, Python, Node, Laravel and Docker files and generates a schemaVersion 2 sample manifest.
   * --create-yaml --from setup-script analyzes setup.sh and converts the detected ordered operations into schemaVersion 2.
   * --with-ai optionally refines the deterministic setup.sh conversion using a configured Ollama or OpenAI-compatible model; the AI result must validate as schemaVersion 2.
   * --create-setup-script generates a generic setup.sh bootstrap that delegates execution to Update CLI.
   * --clean removes obsolete release-directory entries only; installed and rollback-safe previous releases are preserved and backups are untouched.
   * --cleanup applies the broader configured retention policy to releases and backups.
+  * config --check validates config.json without changing it; config --migrate upgrades it to the current schema with backup.
   * config --set KEY=VALUE changes config.json values by dotted JSON path; multiple --set options are validated and written atomically.
   * Legacy setup.sh/config.setup.commands remain as fallback.
   * Interactive check/update/setup use the fullscreen TUI by default; --no-ui or UPDATE_CLI_TUI=plain disables it.
@@ -83,7 +88,7 @@ Release archive:
 
 Configuration:
   .updater-cli/config.json
-  setup.yaml
+  update-cli.yaml
 `)
 }
 func printUpgrade(c *ui.Console, r config.UpgradeResult) {
@@ -106,7 +111,7 @@ func printHistory(c *ui.Console, e []history.Entry) {
 		if detail == "" {
 			detail = x.Source
 		}
-		fmt.Fprintf(os.Stdout, "  %-16s %-9s %-16s %-8s %s → %s  %s\n", x.Timestamp.Local().Format("2006-01-02 15:04"), x.Action, x.Phase, x.Status, empty(x.FromVersion), empty(x.ToVersion), detail)
+		fmt.Fprintf(os.Stdout, "  %-16s %-9s %-16s %-8s %s → %s  %s\n", x.Timestamp.Local().Format("2006-01-02 15:04"), x.Action, x.Phase, x.Status, empty(x.FromVersion), empty(x.ToVersion), ui.DisplayText(detail))
 	}
 }
 func printCleanup(c *ui.Console, r cleanup.Result) {
@@ -127,10 +132,10 @@ func printCleanup(c *ui.Console, r cleanup.Result) {
 		c.Row("Backups entfernen", fmt.Sprint(len(r.RemovedBackup)))
 	}
 	for _, p := range r.RemovedRelease {
-		fmt.Fprintln(os.Stdout, "  -", p)
+		fmt.Fprintln(os.Stdout, "  -", ui.DisplayText(p))
 	}
 	for _, p := range r.RemovedBackup {
-		fmt.Fprintln(os.Stdout, "  -", p)
+		fmt.Fprintln(os.Stdout, "  -", ui.DisplayText(p))
 	}
 }
 func printBackup(c *ui.Console, r backup.Result) {
@@ -159,6 +164,7 @@ func printRestore(c *ui.Console, item backup.Item, from, to string, r rsyncutil.
 func printStatus(c *ui.Console, r projectstatus.Result) {
 	c.Header("Updater-Status")
 	c.Row("Projekt", r.ProjectName)
+	c.Row("Modus", r.Mode)
 	c.Row("Quelle", r.SourceType+" — "+r.SourceReference)
 	c.Row("Installiert", empty(r.InstalledVersion))
 	c.Row("Verfügbar", empty(r.AvailableVersion))
@@ -179,7 +185,7 @@ func printInventory(c *ui.Console, r inventory.Result) {
 		if x.Active {
 			mark = " active"
 		}
-		fmt.Fprintf(os.Stdout, "  %-10s validated=%-5t%s  %s\n", x.Version, x.Validated, mark, x.Path)
+		fmt.Fprintf(os.Stdout, "  %-10s validated=%-5t%s  %s\n", x.Version, x.Validated, mark, ui.DisplayText(x.Path))
 	}
 	c.Row("Backups", fmt.Sprint(len(r.Backups)))
 	if r.Remote != nil {
@@ -195,6 +201,9 @@ func printCheck(c *ui.Console, r updatecheck.Result) {
 		c.InfoRow("Projekt", r.ProjectName)
 		c.InfoRow("Installiert", empty(r.InstalledVersion))
 		c.InfoRow("Verfügbar", empty(r.AvailableVersion))
+		if r.AvailableCommit != "" {
+			c.InfoRow("Commit", shortCommit(r.InstalledCommit)+" → "+shortCommit(r.AvailableCommit))
+		}
 		if r.SourceError != "" {
 			c.InfoRow("Status", "Quellenfehler: "+r.SourceError)
 			return
@@ -206,6 +215,9 @@ func printCheck(c *ui.Console, r updatecheck.Result) {
 	c.Row("Projekt", r.ProjectName)
 	c.Row("Installiert", empty(r.InstalledVersion))
 	c.Row("Verfügbar", empty(r.AvailableVersion))
+	if r.AvailableCommit != "" {
+		c.Row("Commit", shortCommit(r.InstalledCommit)+" → "+shortCommit(r.AvailableCommit))
+	}
 	if r.SourceError != "" {
 		c.StatusRow("Status", "Quellenfehler: "+r.SourceError)
 		return
@@ -236,6 +248,7 @@ func printUpdatePlan(c *ui.Console, s *state, o options) {
 		c.SetInfoTitle("")
 		c.InfoHighlightedRow("Release Update", updateValue, toVersion)
 		c.InfoRow("Projekt", s.cfg.ProjectName)
+		c.InfoRow("Update-Modus", s.cfg.Mode)
 		c.InfoRow("Quelle", sourceRef(s))
 		c.InfoRow("Release", s.releaseDir)
 		c.InfoRow("Current", s.cfg.CurrentDir)
@@ -250,6 +263,7 @@ func printUpdatePlan(c *ui.Console, s *state, o options) {
 	c.Banner("Update-Plan")
 	c.InfoHighlightedRow("Release Update", updateValue, toVersion)
 	c.Row("Projekt", s.cfg.ProjectName)
+	c.Row("Update-Modus", s.cfg.Mode)
 	c.Row("Quelle", sourceRef(s))
 	c.Row("Release", s.releaseDir)
 	c.Row("Current", s.cfg.CurrentDir)
@@ -267,7 +281,7 @@ func printDetailedPlan(c *ui.Console, s *state) {
 	c.Row("Aktualisieren", fmt.Sprint(len(r.Updated)))
 	c.Row("Löschen", fmt.Sprint(len(r.Deleted)))
 	for _, x := range r.Deleted {
-		fmt.Fprintln(os.Stdout, "  DELETE", x.Path)
+		fmt.Fprintln(os.Stdout, "  DELETE", ui.DisplayText(x.Path))
 	}
 	c.Success("Plan abgeschlossen; keine Änderungen ausgeführt")
 }
@@ -285,6 +299,7 @@ func printUpdateResult(c *ui.Console, s *state, setup bool) {
 	}
 	c.Header("Update abgeschlossen")
 	c.Row("Projekt", s.cfg.ProjectName)
+	c.Row("Modus", s.cfg.Mode)
 	c.Row("Version", empty(s.fromVersion)+" → "+s.version.String())
 	c.Row("Quelle", sourceRef(s))
 	c.Row("Release", s.releaseDir)
@@ -300,6 +315,17 @@ func setCheckFinalStatus(c *ui.Console, r updatecheck.Result) {
 	}
 	c.SetFinalStatus(r.ProjectName, "Keine Version installiert")
 }
+func shortCommit(v string) string {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return "none"
+	}
+	if len(v) > 12 {
+		return v[:12]
+	}
+	return v
+}
+
 func empty(s string) string {
 	if strings.TrimSpace(s) == "" {
 		return "none"

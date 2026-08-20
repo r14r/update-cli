@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 7,
+  "projectName": "demo",
+  "mode": "pull",
+  "source": {
+    "type": "repository",
+    "repository": "https://github.com/example/project.git",
+    "ref": "main"
+  },
+  "releaseDir": "release",
+  "currentDir": "current",
+  "no parameter": ["check"],
+  "backup": {"directory": "backup", "keep": 3},
+  "retention": {"releases": 5},
+  "sync": {
+    "preserve": [".git/", ".gitignore", ".venv/", ".env", ".env.*", "data/", "storage/", "uploads/", "media/", "logs/", "var/"]
+  },
+  "docker": {"lifecycle": "auto"},
+  "healthcheck": {}
+}

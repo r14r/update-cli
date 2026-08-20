@@ -9,7 +9,7 @@ import (
 
 func TestConvertManifestToLatest(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "setup.yaml")
+	path := filepath.Join(dir, "update-cli.yaml")
 	legacy := `schemaVersion: 1
 project:
   name: Demo
@@ -96,7 +96,7 @@ func TestGenerateManifestDetectsProjectKinds(t *testing.T) {
 
 func TestGenerateManifestRefusesOverwriteWithoutForce(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "setup.yaml")
+	path := filepath.Join(dir, "update-cli.yaml")
 	if err := os.WriteFile(path, []byte("existing\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}

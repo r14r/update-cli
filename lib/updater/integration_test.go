@@ -66,7 +66,7 @@ func TestFailedSetupRestoresPreviousCurrentAndPersistentData(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(cfg.CurrentDir, ".env"), []byte("secret"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	v2 := releaseZip(t, downloads, "demo", "2.0.0", map[string]string{"app.txt": "new", "data/db.txt": "release-data", "setup.yaml": "version: 1\nsteps:\n  - name: fail\n    type: command\n    command: exit 17\n"})
+	v2 := releaseZip(t, downloads, "demo", "2.0.0", map[string]string{"app.txt": "new", "data/db.txt": "release-data", "update-cli.yaml": "version: 1\nsteps:\n  - name: fail\n    type: command\n    command: exit 17\n"})
 	err = Run(context.Background(), "3.0.0", []string{"--update", v2, "--root", root, "--setup"})
 	if err == nil {
 		t.Fatal("expected setup failure")
@@ -217,7 +217,7 @@ steps:
     when: file:app.txt
     run: printf legacy-ok > setup-result.txt
 `
-	v2 := releaseZip(t, downloads, "demo", "1.1.0", map[string]string{"app.txt": "new", "setup.yaml": legacy})
+	v2 := releaseZip(t, downloads, "demo", "1.1.0", map[string]string{"app.txt": "new", "update-cli.yaml": legacy})
 	if err := Run(context.Background(), "3.0.4", []string{"--update", v2, "--root", root, "--setup"}); err != nil {
 		t.Fatal(err)
 	}
@@ -241,7 +241,7 @@ steps:
     name: Write setup marker
     run: printf current-setup-ok > setup-result.txt
 `
-	if err := os.WriteFile(filepath.Join(current, "setup.yaml"), []byte(manifest), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(current, "update-cli.yaml"), []byte(manifest), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	old, err := os.Getwd()
@@ -290,7 +290,7 @@ tasks:
           path: all.txt
           content: all
 `
-	if err := os.WriteFile(filepath.Join(current, "setup.yaml"), []byte(manifest), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(current, "update-cli.yaml"), []byte(manifest), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	old, err := os.Getwd()
@@ -331,7 +331,7 @@ func TestCreateYAMLTargetsConfiguredCurrentDirectory(t *testing.T) {
 	if err := Run(context.Background(), "3.2.0", []string{"--create-yaml", "--root", root}); err != nil {
 		t.Fatal(err)
 	}
-	manifest := filepath.Join(cfg.CurrentDir, "setup.yaml")
+	manifest := filepath.Join(cfg.CurrentDir, "update-cli.yaml")
 	if _, err := os.Stat(manifest); err != nil {
 		t.Fatal(err)
 	}
@@ -352,7 +352,7 @@ func TestConvertYAMLTargetsConfiguredCurrentDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 	legacy := "schemaVersion: 1\nsteps:\n  - id: test\n    name: Test\n    run: echo ok\n"
-	manifest := filepath.Join(cfg.CurrentDir, "setup.yaml")
+	manifest := filepath.Join(cfg.CurrentDir, "update-cli.yaml")
 	if err := os.WriteFile(manifest, []byte(legacy), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -407,7 +407,7 @@ func TestCreateYAMLFromSetupScriptTargetsConfiguredCurrentDirectory(t *testing.T
 	if err := Run(context.Background(), "3.3.0", []string{"--create-yaml", "--from", "setup-script", "--root", root}); err != nil {
 		t.Fatal(err)
 	}
-	data, err := os.ReadFile(filepath.Join(cfg.CurrentDir, "setup.yaml"))
+	data, err := os.ReadFile(filepath.Join(cfg.CurrentDir, "update-cli.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -454,7 +454,7 @@ tasks:
 	if err := Run(context.Background(), "3.3.0", []string{"--create-yaml", "--from", "setup-script", "--with-ai", "--root", dir}); err != nil {
 		t.Fatal(err)
 	}
-	data, err := os.ReadFile(filepath.Join(dir, "setup.yaml"))
+	data, err := os.ReadFile(filepath.Join(dir, "update-cli.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}

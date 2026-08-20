@@ -9,11 +9,11 @@ import (
 )
 
 type options struct {
-	archive, downloadDir, sourceType, sourceFolder, sourceURL, repository, rootDir, projectName, setupManifest, setupTask, setupWorkflow                                                                                                                                                                                                                                                 string
-	dryRun, plan, allowDowngrade, jsonOutput, update, backup, rollback, history, cleanup, clean, init, upgrade, check, doctor, status, list, verify, setup, noSetup, config, configList, templatesMode, templatesList, setupList, convertYAML, createYAML, createSetupScript, withAI, details, edit, force, noColor, noUI, noAsk, wait, noWait, showHelp, showHowTo, showVersion, unlock bool
-	rollbackVersion, restore, useTemplate, templateUse, templateName                                                                                                                                                                                                                                                                                                                     string
-	keep, limit                                                                                                                                                                                                                                                                                                                                                                          int
-	configSet                                                                                                                                                                                                                                                                                                                                                                            []string
+	archive, downloadDir, mode, sourceType, sourceFolder, sourceURL, repository, rootDir, projectName, setupManifest, setupTask, setupWorkflow                                                                                                                                                                                                                                                                            string
+	dryRun, plan, allowDowngrade, jsonOutput, update, backup, rollback, history, cleanup, clean, init, upgrade, check, doctor, status, list, verify, setup, noSetup, config, configList, configCheck, configMigrate, templatesMode, templatesList, setupList, convertYAML, createYAML, createSetupScript, withAI, details, edit, force, noColor, noUI, noAsk, wait, noWait, showHelp, showHowTo, showVersion, unlock, run bool
+	rollbackVersion, restore, useTemplate, templateUse, templateName                                                                                                                                                                                                                                                                                                                                                      string
+	keep, limit                                                                                                                                                                                                                                                                                                                                                                                                           int
+	configSet                                                                                                                                                                                                                                                                                                                                                                                                             []string
 }
 
 func parseOptions(args []string) (options, error) {
@@ -24,6 +24,7 @@ func parseOptions(args []string) (options, error) {
 	fs.StringVar(&o.archive, "a", "", "")
 	fs.StringVar(&o.downloadDir, "downloads", "", "")
 	fs.StringVar(&o.downloadDir, "d", "", "")
+	fs.StringVar(&o.mode, "mode", "", "")
 	fs.StringVar(&o.sourceType, "from", "", "")
 	fs.StringVar(&o.sourceFolder, "folder", "", "")
 	fs.StringVar(&o.sourceURL, "url", "", "")
@@ -62,6 +63,8 @@ func parseOptions(args []string) (options, error) {
 	fs.BoolVar(&o.withAI, "with-ai", false, "")
 	fs.BoolVar(&o.noSetup, "no-setup", false, "")
 	fs.BoolVar(&o.config, "config", false, "")
+	fs.BoolVar(&o.configCheck, "config-check", false, "")
+	fs.BoolVar(&o.configMigrate, "config-migrate", false, "")
 	fs.Var((*stringListFlag)(&o.configSet), "set", "")
 	fs.BoolVar(&o.templatesMode, "templates", false, "")
 	fs.BoolVar(&o.details, "details", false, "")
@@ -82,6 +85,7 @@ func parseOptions(args []string) (options, error) {
 	fs.BoolVar(&o.showVersion, "version", false, "")
 	fs.BoolVar(&o.showVersion, "V", false, "")
 	fs.BoolVar(&o.unlock, "unlock", false, "")
+	fs.BoolVar(&o.run, "run", false, "")
 	normalizedArgs := normalizeFlagArguments(normalizeCommandArguments(append([]string(nil), args...)))
 	if err := validateKnownFlags(fs, normalizedArgs); err != nil {
 		return o, err
@@ -89,9 +93,16 @@ func parseOptions(args []string) (options, error) {
 	if err := fs.Parse(normalizedArgs); err != nil {
 		return o, err
 	}
+	o.mode = strings.ToLower(strings.TrimSpace(o.mode))
+	if o.mode != "" && o.mode != "update" && o.mode != "pull" {
+		return o, errors.New("--mode unterstützt nur update oder pull")
+	}
 	if o.config && o.list {
 		o.configList = true
 		o.list = false
+	}
+	if (o.configCheck || o.configMigrate) && !o.config {
+		return o, errors.New("config --check/--migrate sind nur mit config zulässig")
 	}
 	if o.templatesMode && o.list {
 		o.templatesList = true
@@ -119,7 +130,7 @@ func parseOptions(args []string) (options, error) {
 	setupSelectorMode := (o.setupList || o.setupTask != "" || o.setupWorkflow != "") && o.setupManifest == ""
 	setupManageMode := o.convertYAML || o.createYAML || o.createSetupScript
 	primary := 0
-	for _, b := range []bool{o.update, standaloneBackup, o.rollback, o.restore != "", o.history, o.cleanup, o.clean, o.init, o.upgrade, o.check, o.doctor, o.status, o.list, o.verify, o.config, o.templatesMode, o.showHelp, o.showHowTo, o.showVersion, o.unlock, o.setupManifest != "", setupSelectorMode, setupManageMode} {
+	for _, b := range []bool{o.update, standaloneBackup, o.rollback, o.restore != "", o.history, o.cleanup, o.clean, o.init, o.upgrade, o.check, o.doctor, o.status, o.list, o.verify, o.config, o.templatesMode, o.showHelp, o.showHowTo, o.showVersion, o.unlock, o.run, o.setupManifest != "", setupSelectorMode, setupManageMode} {
 		if b {
 			primary++
 		}
@@ -210,8 +221,12 @@ func parseOptions(args []string) (options, error) {
 	if len(o.configSet) > 0 && !o.config {
 		return o, errors.New("--set ist nur mit config/--config zulässig")
 	}
-	if len(o.configSet) > 0 && (o.configList || o.edit || o.useTemplate != "") {
-		return o, errors.New("config --set kann nicht mit --list, --edit oder --use-template kombiniert werden")
+	configActions := boolInt(o.configList) + boolInt(o.configCheck) + boolInt(o.configMigrate) + boolInt(o.edit) + boolInt(o.useTemplate != "")
+	if len(o.configSet) > 0 && configActions > 0 {
+		return o, errors.New("config --set kann nicht mit --list, --check, --migrate, --edit oder --use-template kombiniert werden")
+	}
+	if configActions > 1 {
+		return o, errors.New("config --list, --check, --migrate, --edit und --use-template schließen sich gegenseitig aus")
 	}
 	if o.edit && !(o.config || o.templatesMode) {
 		return o, errors.New("--edit ist nur mit --config oder --templates zulässig")
@@ -298,6 +313,8 @@ func normalizeCommandArguments(args []string) []string {
 		return prepend("--verify")
 	case "unlock":
 		return prepend("--unlock")
+	case "run":
+		return prepend("--run")
 	case "convert-yaml":
 		return prepend("--convert-yaml")
 	case "create-yaml":
@@ -323,6 +340,15 @@ func normalizeCommandArguments(args []string) []string {
 			return append([]string{"--setup", sub}, rest...)
 		}
 	case "config":
+		if len(rest) > 0 {
+			sub := strings.ToLower(strings.TrimSpace(rest[0]))
+			switch sub {
+			case "check", "--check":
+				return append([]string{"--config", "--config-check"}, rest[1:]...)
+			case "migrate", "--migrate":
+				return append([]string{"--config", "--config-migrate"}, rest[1:]...)
+			}
+		}
 		if len(rest) > 0 && !strings.HasPrefix(rest[0], "-") {
 			sub := strings.ToLower(strings.TrimSpace(rest[0]))
 			rest = rest[1:]
@@ -376,7 +402,7 @@ func normalizeFlagArguments(args []string) []string {
 			args[i] = "--create-setup-script"
 		}
 	}
-	value := map[string]bool{"--archive": true, "-a": true, "--downloads": true, "-d": true, "--from": true, "--folder": true, "--url": true, "--repository": true, "--root": true, "-r": true, "--restore": true, "--keep": true, "--limit": true, "--use-template": true, "--use": true, "--setup-manifest": true, "--setup-task": true, "--setup-workflow": true, "--set": true}
+	value := map[string]bool{"--archive": true, "-a": true, "--downloads": true, "-d": true, "--mode": true, "--from": true, "--folder": true, "--url": true, "--repository": true, "--root": true, "-r": true, "--restore": true, "--keep": true, "--limit": true, "--use-template": true, "--use": true, "--setup-manifest": true, "--setup-task": true, "--setup-workflow": true, "--set": true}
 	flags := []string{}
 	pos := []string{}
 	for i := 0; i < len(args); i++ {

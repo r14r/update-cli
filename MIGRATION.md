@@ -1,3 +1,51 @@
+# Update CLI 1.5.0 migration
+
+No `.updater-cli/config.json` schema migration is required. Projects may optionally move reusable acquisition defaults into `update-cli.yaml`. Machine-local policy remains in config.json.
+
+```yaml
+update:
+  mode: pull
+  source:
+    type: repository
+    repository: https://github.com/r14r/update-cli.git
+    ref: main
+```
+
+---
+
+# Update CLI 1.1.0 migration
+
+Project configuration schema increases from **6 to 7** to add an explicit acquisition `mode`. Running `update-cli upgrade` writes the migrated configuration and keeps a timestamped backup. Loading an older schema remains supported in memory.
+
+Migration is deterministic:
+
+- `source.type=download` or `source.type=url` → `mode=update`
+- `source.type=repository` → `mode=pull`
+
+Examples:
+
+```json
+{
+  "schemaVersion": 7,
+  "projectName": "demo",
+  "mode": "update",
+  "source": {"type": "download", "folder": "$HOME/Downloads"}
+}
+```
+
+```json
+{
+  "schemaVersion": 7,
+  "projectName": "demo",
+  "mode": "pull",
+  "source": {"type": "repository", "repository": "https://github.com/acme/demo.git", "ref": "main"}
+}
+```
+
+`pull` mode creates/uses `.updater-cli/repository` as an internal checkout. `check` fetches remote refs; a real update uses `git pull --ff-only`. The deployed `current/` tree remains free of `.git` and receives `.release-commit` metadata.
+
+---
+
 # Update CLI 1.0.0 migration
 
 No project configuration migration is required when moving from 0.8.x to 1.0.0. Existing schemaVersion-6 `config.json` and setup manifests remain supported.
@@ -36,7 +84,7 @@ Default preserved paths include `.git/`, `.gitignore`, `.venv/`, `.env`, `.env.*
 
 ## Setup compatibility
 
-Update CLI 3.0.7 restores and extends compatibility with the established 2.14 `setup.yaml` contract. Existing manifests that start with `schemaVersion: 1` and use `project.name`, `project.description`, optional `project.type`, and step fields `id`, `when`, `run`, `cwd`, and `allowFailure` can remain unchanged. `project.type` is descriptive metadata and does not select a setup handler.
+Update CLI 3.0.7 restores and extends compatibility with the established 2.14 `update-cli.yaml` contract. Existing manifests that start with `schemaVersion: 1` and use `project.name`, `project.description`, optional `project.type`, and step fields `id`, `when`, `run`, `cwd`, and `allowFailure` can remain unchanged. `project.type` is descriptive metadata and does not select a setup handler.
 
 The typed `version: 1` handler syntax introduced in 3.x remains available as an extension. Both formats are documented in `doc/setup-schema.md`. Legacy `setup.sh` and `config.setup.commands` are still supported as fallbacks.
 
@@ -113,7 +161,7 @@ If `update-cli --version` still reports 3.0.x after the newer release has been c
 
 The template detects `schemaVersion: 2` and will not pass it to an incompatible global binary. It prefers the matching packaged `dist/update-cli-<os>-<arch>` binary and can bootstrap from the Go source tree as a final fallback.
 
-## setup.yaml automatisch auf schemaVersion 2 migrieren
+## update-cli.yaml automatisch auf schemaVersion 2 migrieren
 
 Ab 3.2.0 kann ein vorhandenes schemaVersion-1-Manifest automatisch migriert werden:
 
@@ -121,7 +169,7 @@ Ab 3.2.0 kann ein vorhandenes schemaVersion-1-Manifest automatisch migriert werd
 update-cli --convert-yaml
 ```
 
-Vor dem Ersetzen wird ein timestamped `setup.yaml.schema1-YYYYMMDD-HHMMSS.bak` angelegt. Mit `--dry-run` kann das Ergebnis vorher geprüft werden. Für Projekte ohne Manifest kann `update-cli --create-yaml` ein schemaVersion-2-Beispiel aus den vorhandenen Projektdateien erzeugen.
+Vor dem Ersetzen wird ein timestamped `update-cli.yaml.schema1-YYYYMMDD-HHMMSS.bak` angelegt. Mit `--dry-run` kann das Ergebnis vorher geprüft werden. Für Projekte ohne Manifest kann `update-cli --create-yaml` ein schemaVersion-2-Beispiel aus den vorhandenen Projektdateien erzeugen.
 
 
 ## Structured schemaVersion 1 manifests

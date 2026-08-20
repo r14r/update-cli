@@ -207,7 +207,7 @@ func resolveTaskPlan(m Manifest, selection Selection) ([]string, error) {
 				if _, taskOK := m.Tasks["setup"]; taskOK {
 					roots = []string{"setup"}
 				} else {
-					return nil, errors.New("setup.yaml schemaVersion 2 benötigt workflow 'setup' oder task 'setup'")
+					return nil, errors.New("update-cli.yaml schemaVersion 2 benötigt workflow 'setup' oder task 'setup'")
 				}
 			} else {
 				return nil, fmt.Errorf("unbekannter setup workflow %q", name)

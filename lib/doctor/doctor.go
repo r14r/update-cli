@@ -126,7 +126,7 @@ func Run(ctx context.Context, root string, cfg config.Config) Report {
 		}
 		r.Add("Lokales Inventar", LevelOK, fmt.Sprintf("%d Releases, %d Backups, %d ungültige Releases", len(local.Releases), len(local.Backups), invalid))
 	}
-	m, e := source.Discover(ctx, source.Options{ProjectName: cfg.ProjectName, Source: cfg.Source, AllowHTTP: cfg.Security.AllowHTTP, MaxArchiveBytes: cfg.Security.MaxArchiveBytes})
+	m, e := source.Discover(ctx, source.Options{ProjectName: cfg.ProjectName, Mode: cfg.Mode, Source: cfg.Source, RepositoryCacheDir: cfg.RepositoryCacheDir, AllowHTTP: cfg.Security.AllowHTTP, MaxArchiveBytes: cfg.Security.MaxArchiveBytes})
 	if e != nil {
 		r.Add("Release-Quelle", LevelWarning, e.Error())
 	} else {

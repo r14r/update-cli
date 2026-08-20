@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/r14r/update-cli/lib/buildconfig"
+	"github.com/r14r/update-cli/lib/ui"
 	"github.com/r14r/update-cli/lib/updater"
 	"os"
 	"os/signal"
@@ -23,11 +24,11 @@ var version = "dev"
 func main() {
 	c, err := buildconfig.Parse(embeddedBuildConfig)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "ERROR", err)
+		fmt.Fprintln(os.Stderr, "ERROR", ui.DisplayText(err.Error()))
 		os.Exit(1)
 	}
 	if err := buildconfig.Set(c); err != nil {
-		fmt.Fprintln(os.Stderr, "ERROR", err)
+		fmt.Fprintln(os.Stderr, "ERROR", ui.DisplayText(err.Error()))
 		os.Exit(1)
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -36,11 +37,11 @@ func main() {
 		var e *updater.ExitError
 		if errors.As(err, &e) {
 			if e.Err != nil {
-				fmt.Fprintf(os.Stderr, "\nERROR  %v\n", e.Err)
+				fmt.Fprintf(os.Stderr, "\nERROR  %s\n", ui.DisplayText(e.Err.Error()))
 			}
 			os.Exit(e.Code)
 		}
-		fmt.Fprintf(os.Stderr, "\nERROR  %v\n", err)
+		fmt.Fprintf(os.Stderr, "\nERROR  %s\n", ui.DisplayText(err.Error()))
 		os.Exit(1)
 	}
 }

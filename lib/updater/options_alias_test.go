@@ -13,6 +13,7 @@ func TestCommandAliasesMatchLegacyFlags(t *testing.T) {
 	}{
 		{"check", []string{"check"}, []string{"--check"}},
 		{"update", []string{"update", "release.zip", "--setup"}, []string{"--update", "release.zip", "--setup"}},
+		{"run", []string{"run"}, []string{"--run"}},
 		{"backup", []string{"backup"}, []string{"--backup"}},
 		{"rollback", []string{"rollback", "1.2.3", "--setup"}, []string{"--rollback", "1.2.3", "--setup"}},
 		{"restore", []string{"restore", "latest"}, []string{"--restore", "latest"}},
@@ -29,7 +30,7 @@ func TestCommandAliasesMatchLegacyFlags(t *testing.T) {
 		{"setup list", []string{"setup", "list", "--json"}, []string{"--setup-list", "--json"}},
 		{"setup task", []string{"setup", "task", "build", "--details"}, []string{"--setup-task", "build", "--details"}},
 		{"setup workflow", []string{"setup", "workflow", "ci"}, []string{"--setup-workflow", "ci"}},
-		{"setup manifest", []string{"setup", "manifest", "setup.yaml"}, []string{"--setup-manifest", "setup.yaml"}},
+		{"setup manifest", []string{"setup", "manifest", "update-cli.yaml"}, []string{"--setup-manifest", "update-cli.yaml"}},
 		{"convert yaml", []string{"convert-yaml", "--dry-run"}, []string{"--convert-yaml", "--dry-run"}},
 		{"create yaml", []string{"create-yaml", "--from", "project", "--dry-run"}, []string{"--create-yaml", "--from", "project", "--dry-run"}},
 		{"create setup script", []string{"create-setup-script", "--dry-run"}, []string{"--create-setup-script", "--dry-run"}},
@@ -68,5 +69,18 @@ func TestHelpCommandAliasMatchesFlag(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("options differ: %#v != %#v", got, want)
+	}
+}
+
+func TestModeOptionParsing(t *testing.T) {
+	o, err := parseOptions([]string{"update", "--mode", "pull", "--repository", "https://example.invalid/demo.git"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if o.mode != "pull" || o.repository == "" {
+		t.Fatalf("unexpected options: %#v", o)
+	}
+	if _, err := parseOptions([]string{"update", "--mode", "clone"}); err == nil {
+		t.Fatal("invalid mode unexpectedly accepted")
 	}
 }
