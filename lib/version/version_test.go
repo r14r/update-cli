@@ -121,3 +121,41 @@ func TestCompareForProjectUpdateCLI130IsNewerThan121(t *testing.T) {
 		t.Fatalf("expected 1.3.0 > 1.2.1, got %d", got)
 	}
 }
+
+func TestParseArchiveNameAcceptsOptionalVPrefix(t *testing.T) {
+	for _, name := range []string{"demo-v1.2.3.zip", "demo-1.2.3.zip"} {
+		v, err := ParseArchiveName("demo", name)
+		if err != nil {
+			t.Fatalf("ParseArchiveName(%q): %v", name, err)
+		}
+		if got, want := v.String(), "1.2.3"; got != want {
+			t.Fatalf("ParseArchiveName(%q) = %s, want %s", name, got, want)
+		}
+	}
+}
+
+func TestListArchivesAcceptsBothFilenameFormsAndSelectsNewest(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{
+		"demo-v1.2.3.zip",
+		"demo-1.2.4.zip",
+		"demo-v1.1.9.zip",
+		"demo-v1.2.zip",
+		"other-9.9.9.zip",
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	archives, err := ListArchives(dir, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := len(archives), 3; got != want {
+		t.Fatalf("archive count = %d, want %d", got, want)
+	}
+	if got, want := archives[0].Name, "demo-1.2.4.zip"; got != want {
+		t.Fatalf("newest archive = %q, want %q", got, want)
+	}
+}
