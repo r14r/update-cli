@@ -94,10 +94,10 @@ type ArchiveInfo struct {
 }
 
 func ParseArchiveName(project, filename string) (Version, error) {
-	re := regexp.MustCompile(`^` + regexp.QuoteMeta(project) + `-v(\d+\.\d+\.\d+)\.zip$`)
+	re := regexp.MustCompile(`^` + regexp.QuoteMeta(project) + `-v?(\d+\.\d+\.\d+)\.zip$`)
 	m := re.FindStringSubmatch(filepath.Base(filename))
 	if m == nil {
-		return Version{}, fmt.Errorf("ungültiger Archivname %q; erwartet wird %s-v1.2.3.zip", filepath.Base(filename), project)
+		return Version{}, fmt.Errorf("ungültiger Archivname %q; erwartet wird %s-v1.2.3.zip oder %s-1.2.3.zip", filepath.Base(filename), project, project)
 	}
 	return Parse(m[1])
 }
@@ -137,7 +137,7 @@ func SelectNewest(dir, project string) (string, Version, error) {
 		return "", Version{}, err
 	}
 	if len(a) == 0 {
-		return "", Version{}, fmt.Errorf("keine passende ZIP-Datei in %s gefunden; erwartet wird %s-v<MAJOR>.<MINOR>.<PATCH>.zip", dir, project)
+		return "", Version{}, fmt.Errorf("keine passende ZIP-Datei in %s gefunden; erwartet wird %s-v<MAJOR>.<MINOR>.<PATCH>.zip oder %s-<MAJOR>.<MINOR>.<PATCH>.zip", dir, project, project)
 	}
 	return a[0].Path, a[0].Version, nil
 }
