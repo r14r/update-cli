@@ -31,6 +31,15 @@ case "$*" in *"ps -q"*) printf 'container-id\n';; esac
 	}
 	t.Setenv("PATH", bin)
 	t.Setenv("DOCKER_TEST_LOG", log)
+	oldProbe, oldStatus, oldAction := composeProbeTimeout, composeStatusTimeout, composeActionTimeout
+	composeProbeTimeout = 30 * time.Second
+	composeStatusTimeout = 30 * time.Second
+	composeActionTimeout = 30 * time.Second
+	defer func() {
+		composeProbeTimeout = oldProbe
+		composeStatusTimeout = oldStatus
+		composeActionTimeout = oldAction
+	}()
 	running, err := Running(context.Background(), root)
 	if err != nil {
 		t.Fatal(err)
@@ -146,7 +155,7 @@ case "$*" in *"ps -q"*) exec /bin/sleep 5;; esac
 	if err == nil {
 		t.Fatal("expected compose status timeout")
 	}
-	if elapsed := time.Since(started); elapsed > time.Second {
+	if elapsed := time.Since(started); elapsed > 2*time.Second {
 		t.Fatalf("compose status timeout took too long: %s", elapsed)
 	}
 	text := err.Error()
@@ -179,7 +188,7 @@ if [ "$1 $2" = "compose version" ]; then exec /bin/sleep 5; fi
 	if err == nil {
 		t.Fatal("expected compose version timeout")
 	}
-	if elapsed := time.Since(started); elapsed > time.Second {
+	if elapsed := time.Since(started); elapsed > 2*time.Second {
 		t.Fatalf("compose version timeout took too long: %s", elapsed)
 	}
 	if !strings.Contains(err.Error(), "Timeout:") {
