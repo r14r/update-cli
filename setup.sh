@@ -142,7 +142,7 @@ run_manifest_if_supported() {
     if [[ "${UPDATE_CLI_TUI:-auto}" == "plain" || ! -t 1 ]]; then
         info "Setup-Manifest mit ${label} ausführen"
     fi
-    if ! "${candidate}" setup --manifest "${MANIFEST}" "${FORWARD_ARGS[@]}"; then
+    if ! "${candidate}" setup --manifest "${MANIFEST}" ${FORWARD_ARGS[@]+"${FORWARD_ARGS[@]}"}; then
         fail "Setup mit ${label} fehlgeschlagen"
     fi
     if [[ "${UPDATE_CLI_TUI:-auto}" == "plain" || ! -t 1 ]]; then
@@ -174,7 +174,7 @@ cd -- "${ROOT_DIR}"
 if [[ "${UPDATE_CLI_TUI:-auto}" == "plain" || ! -t 1 ]]; then
     info "Update CLI aus dem Quellcode für den Setup-Handler starten"
 fi
-go run . setup --manifest "${MANIFEST}" "${FORWARD_ARGS[@]}"
+go run . setup --manifest "${MANIFEST}" ${FORWARD_ARGS[@]+"${FORWARD_ARGS[@]}"}
 if [[ "${UPDATE_CLI_TUI:-auto}" == "plain" || ! -t 1 ]]; then
     success "Setup abgeschlossen"
 fi
