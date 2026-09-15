@@ -1,3 +1,16 @@
+# 2.16.4
+
+## Fixed
+
+- Set a bounded `os/exec.Cmd.WaitDelay` on Docker Compose probe, status, start, and stop commands so a timed-out command cannot keep update-cli blocked on inherited stdout/stderr pipes.
+- Fix macOS timeout behavior where a child process could keep `Cmd.Run()` blocked until its natural exit even after the command context expired.
+- Make Docker Compose timeout regression tests resilient to scheduler pressure during parallel `go test ./...` runs while still proving that five-second hangs are terminated early.
+
+## Tests
+
+- `lib/projectdocker` timeout tests now complete in a fraction of a second instead of waiting for the simulated five-second child process.
+- Full Go test suite passes with the timeout hardening applied.
+
 # 2.16.3
 
 ## Fixed

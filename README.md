@@ -2,7 +2,7 @@
 
 **Transactional project updates from ZIP releases or Git repositories.**
 
-Current release: **2.16.3**
+Current release: **2.16.4**
 
 Update CLI separates installation defaults, local runtime state, and versioned project configuration/automation:
 
@@ -46,6 +46,14 @@ update-cli releases --list --json
 ```
 
 
+
+## What changed in 2.16.4
+
+### Docker Compose timeout reliability on macOS
+
+Docker Compose subprocesses now set a bounded `os/exec.Cmd.WaitDelay`. After a context timeout or cancellation, update-cli no longer waits for stdout/stderr pipes that may still be held open by a child process such as the Docker Compose CLI plugin.
+
+The timeout regression tests also allow scheduler headroom while still proving that a simulated five-second hang is terminated well before the child process would finish normally.
 
 ## What changed in 2.16.3
 
