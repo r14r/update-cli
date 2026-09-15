@@ -160,3 +160,28 @@ func TestSetDockerLifecycle(t *testing.T) {
 		t.Fatalf("Docker lifecycle = %q", cfg.Docker.Lifecycle)
 	}
 }
+
+func TestSetKeepRsyncOnSetupError(t *testing.T) {
+	root := t.TempDir()
+	cfg, err := Init(root, InitOptions{ProjectName: "demo", SourceType: "download", Folder: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := Set(root, []string{"setup.keepRsyncOnError=true"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Changes) != 1 || res.Changes[0].Key != "setup.keepRsyncOnError" || res.Changes[0].Value != true {
+		t.Fatalf("unexpected set result: %#v", res)
+	}
+	loaded, err := Load(root, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !loaded.KeepRsyncOnSetupError {
+		t.Fatal("setup.keepRsyncOnError was not applied")
+	}
+	if cfg.ConfigFile != loaded.ConfigFile {
+		t.Fatalf("config path changed: %q != %q", cfg.ConfigFile, loaded.ConfigFile)
+	}
+}

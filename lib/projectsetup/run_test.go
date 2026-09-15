@@ -4,8 +4,10 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
+	"github.com/r14r/update-cli/lib/config"
 	"github.com/r14r/update-cli/lib/ui"
 )
 
@@ -61,21 +63,39 @@ tasks:
 	}
 }
 
-func TestFindManifestUsesUpdateCLIFilename(t *testing.T) {
+func TestFindManifestPrefersUpdateCLIAndFallsBackToSetupYAML(t *testing.T) {
 	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "setup.yaml"), []byte("schemaVersion: 2\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if _, ok, err := FindManifest(root); err != nil || ok {
-		t.Fatalf("legacy setup.yaml must not be discovered: ok=%v err=%v", ok, err)
-	}
-	path := filepath.Join(root, "update-cli.yaml")
-	if err := os.WriteFile(path, []byte("schemaVersion: 2\n"), 0o644); err != nil {
+	legacy := filepath.Join(root, "setup.yaml")
+	if err := os.WriteFile(legacy, []byte("schemaVersion: 2\nrun: echo legacy\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	got, ok, err := FindManifest(root)
-	if err != nil || !ok || got != path {
-		t.Fatalf("got path=%q ok=%v err=%v", got, ok, err)
+	if err != nil || !ok || got != legacy {
+		t.Fatalf("legacy fallback path=%q ok=%v err=%v", got, ok, err)
+	}
+	current := filepath.Join(root, "update-cli.yaml")
+	if err := os.WriteFile(current, []byte("schemaVersion: 2\nrun: echo current\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, ok, err = FindManifest(root)
+	if err != nil || !ok || got != current {
+		t.Fatalf("current path=%q ok=%v err=%v", got, ok, err)
+	}
+}
+
+func TestLegacySetupYAMLWithoutSchemaInfersV2(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "setup.yaml")
+	data := "project:\n  name: Demo\nrun:\n  command: echo hello\n"
+	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m, err := ParseManifest(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Version != 2 || m.Run.Command != "echo hello" {
+		t.Fatalf("unexpected manifest: %#v", m)
 	}
 }
 
@@ -174,5 +194,68 @@ run:
 	}
 	if _, err := ParseManifest(path); err == nil {
 		t.Fatal("expected command/steps conflict")
+	}
+}
+
+func TestDetectUsesJustfileAsSetupFallback(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "justfile"), []byte("build:\n    true\n\ninstall:\n    true\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Config{CurrentDir: root}
+	path, ok, err := Detect(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok || filepath.Base(path) != "justfile" {
+		t.Fatalf("path=%q ok=%v", path, ok)
+	}
+}
+
+func TestSetupFallsBackToJustBuildAndInstall(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "justfile"), []byte("build:\n    true\n\ninstall:\n    true\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	bin := t.TempDir()
+	logFile := filepath.Join(root, "just.log")
+	justPath := filepath.Join(bin, "just")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$1\" >> " + strconv.Quote(logFile) + "\n"
+	if err := os.WriteFile(justPath, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	console := ui.New(true)
+	console.SuppressFinalStatus(true)
+	cfg := config.Config{ProjectName: "demo", CurrentDir: root}
+	result, err := RunSelected(context.Background(), cfg, console, Selection{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.LegacyCommandsExecuted != 2 {
+		t.Fatalf("fallback commands = %d", result.LegacyCommandsExecuted)
+	}
+	b, err := os.ReadFile(logFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != "build\ninstall\n" {
+		t.Fatalf("just calls = %q", b)
+	}
+}
+
+func TestLegacySetupYAMLWithoutSchemaInfersV1(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "setup.yaml")
+	data := "project:\n  name: Demo\nsteps:\n  - name: Build\n    run: echo build\n"
+	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m, err := ParseManifest(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Version != 1 || len(m.Steps) != 1 || m.Steps[0].Command != "echo build" {
+		t.Fatalf("unexpected legacy manifest: %#v", m)
 	}
 }

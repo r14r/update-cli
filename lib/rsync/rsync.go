@@ -4,7 +4,9 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -38,33 +40,192 @@ func Require() error {
 	return nil
 }
 func Release(ctx context.Context, source, dest, log string) (Result, error) {
-	return run(ctx, source, dest, log, false, false, []string{"--exclude=/.git/", "--exclude=/.venv/", "--exclude=/.env", "--exclude=/.env.*", "--exclude=/__MACOSX/", "--exclude=/.DS_Store"})
+	reservedChanges, err := removeNestedRuntimeState(dest, false)
+	if err != nil {
+		return Result{}, err
+	}
+	r, err := run(ctx, source, dest, log, false, false, []string{"--exclude=/.git/", "--exclude=/.update-cli/", "--exclude=/.venv/", "--exclude=/__MACOSX/", "--exclude=/.DS_Store"})
+	if err != nil {
+		return Result{}, err
+	}
+	return prependChanges(r, reservedChanges), nil
 }
 func Current(ctx context.Context, source, dest, log string, dry bool, preserve []string) (Result, error) {
-	extra := []string{}
-	for _, p := range mandatoryPreserve(preserve) {
-		pat := normalizePattern(p)
-		extra = append(extra, "--filter=protect /"+pat, "--exclude=/"+pat)
+	reservedChanges, err := removeNestedRuntimeState(dest, dry)
+	if err != nil {
+		return Result{}, err
 	}
-	return run(ctx, source, dest, log, dry, true, extra)
+	protected := mandatoryPreserve(preserve)
+	seeded, err := seedMissingPreserved(ctx, source, dest, protected, dry)
+	if err != nil {
+		return Result{}, err
+	}
+	extra := append([]string{"--exclude=/.update-cli/"}, preserveFilters(protected)...)
+	r, err := run(ctx, source, dest, log, dry, true, extra)
+	if err != nil {
+		return Result{}, err
+	}
+	return prependChanges(r, reservedChanges, seeded), nil
 }
 func Snapshot(ctx context.Context, source, dest, log string, dry bool) (Result, error) {
-	return run(ctx, source, dest, log, dry, false, []string{"--exclude=/.git/", "--exclude=/.venv/", "--exclude=/.env", "--exclude=/.env.*", "--exclude=/node_modules/", "--exclude=/vendor/", "--exclude=/dist/", "--exclude=/build/", "--exclude=/__pycache__/"})
+	return run(ctx, source, dest, log, dry, false, []string{"--exclude=/.git/", "--exclude=/.update-cli/", "--exclude=/.venv/", "--exclude=/.env", "--exclude=/.env.*", "--exclude=/node_modules/", "--exclude=/vendor/", "--exclude=/dist/", "--exclude=/build/", "--exclude=/__pycache__/"})
 }
 func TransactionSnapshot(ctx context.Context, source, dest, log string) (Result, error) {
-	return run(ctx, source, dest, log, false, false, nil)
+	return run(ctx, source, dest, log, false, false, []string{"--exclude=/.update-cli/"})
 }
 func Restore(ctx context.Context, source, dest, log string, dry bool, preserve []string) (Result, error) {
-	extra := []string{"--exclude=/.backup.json"}
-	for _, p := range mandatoryPreserve(preserve) {
-		pat := normalizePattern(p)
-		extra = append(extra, "--filter=protect /"+pat, "--exclude=/"+pat)
+	reservedChanges, err := removeNestedRuntimeState(dest, dry)
+	if err != nil {
+		return Result{}, err
 	}
-	return run(ctx, source, dest, log, dry, true, extra)
+	protected := mandatoryPreserve(preserve)
+	seeded, err := seedMissingPreserved(ctx, source, dest, protected, dry)
+	if err != nil {
+		return Result{}, err
+	}
+	extra := append([]string{"--exclude=/.backup.json", "--exclude=/.update-cli/"}, preserveFilters(protected)...)
+	r, err := run(ctx, source, dest, log, dry, true, extra)
+	if err != nil {
+		return Result{}, err
+	}
+	return prependChanges(r, reservedChanges, seeded), nil
 }
 func RestoreExact(ctx context.Context, source, dest, log string) (Result, error) {
-	return run(ctx, source, dest, log, false, true, nil)
+	reservedChanges, err := removeNestedRuntimeState(dest, false)
+	if err != nil {
+		return Result{}, err
+	}
+	r, err := run(ctx, source, dest, log, false, true, []string{"--exclude=/.update-cli/"})
+	if err != nil {
+		return Result{}, err
+	}
+	return prependChanges(r, reservedChanges), nil
 }
+
+func prependChanges(r Result, groups ...[]Change) Result {
+	total := len(r.Items)
+	for _, group := range groups {
+		total += len(group)
+	}
+	if total == len(r.Items) {
+		return r
+	}
+	items := make([]Change, 0, total)
+	for _, group := range groups {
+		items = append(items, group...)
+	}
+	items = append(items, r.Items...)
+	r.Items = items
+	r.Changes = len(items)
+	return r
+}
+
+func removeNestedRuntimeState(dest string, dry bool) ([]Change, error) {
+	changes := []Change{}
+	for _, name := range []string{".update-cli"} {
+		path := filepath.Join(dest, name)
+		info, err := os.Lstat(path)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("verschachtelter Runtime-State kann nicht geprüft werden: %s: %w", path, err)
+		}
+		_ = info
+		changes = append(changes, Change{Kind: ChangeDeleted, Path: name + "/", Raw: "reserved-runtime-state|" + name})
+		if dry {
+			continue
+		}
+		if err := os.RemoveAll(path); err != nil {
+			return nil, fmt.Errorf("verschachtelter Runtime-State kann nicht entfernt werden: %s: %w", path, err)
+		}
+	}
+	return changes, nil
+}
+
+func preserveFilters(protected []string) []string {
+	extra := make([]string, 0, len(protected)*2)
+	for _, p := range protected {
+		pat := normalizePattern(p)
+		if pat == "" {
+			continue
+		}
+		extra = append(extra, "--filter=protect /"+pat, "--exclude=/"+pat)
+	}
+	return extra
+}
+
+// seedMissingPreserved gives preserve rules the intended "keep local if present"
+// semantics without making them "never install" rules. If a protected path does
+// not exist in the destination yet, it is copied from the release once. Future
+// updates then leave the local copy untouched because the normal rsync pass
+// excludes protected paths.
+func seedMissingPreserved(ctx context.Context, source, dest string, protected []string, dry bool) ([]Change, error) {
+	changes := []Change{}
+	seen := map[string]bool{}
+	for _, raw := range protected {
+		pat := normalizePattern(raw)
+		if pat == "" {
+			continue
+		}
+		matchPattern := strings.TrimSuffix(pat, "/")
+		relMatches, err := fs.Glob(os.DirFS(source), matchPattern)
+		if err != nil {
+			return nil, fmt.Errorf("ungültiges preserve-Muster %q: %w", raw, err)
+		}
+		if len(relMatches) == 0 && !strings.ContainsAny(pat, "*?[") {
+			relMatches = []string{matchPattern}
+		}
+		for _, relMatch := range relMatches {
+			src := filepath.Join(source, filepath.FromSlash(relMatch))
+			info, err := os.Lstat(src)
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			if err != nil {
+				return nil, fmt.Errorf("preserve-Quelle kann nicht geprüft werden: %s: %w", src, err)
+			}
+			rel, err := filepath.Rel(source, src)
+			if err != nil || rel == "." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) || rel == ".." {
+				continue
+			}
+			relSlash := filepath.ToSlash(rel)
+			if seen[relSlash] {
+				continue
+			}
+			seen[relSlash] = true
+			dst := filepath.Join(dest, rel)
+			if _, err := os.Lstat(dst); err == nil {
+				continue
+			} else if !errors.Is(err, os.ErrNotExist) {
+				return nil, fmt.Errorf("preserve-Ziel kann nicht geprüft werden: %s: %w", dst, err)
+			}
+			changes = append(changes, Change{Kind: ChangeCreated, Path: relSlash, Raw: "seed-preserved|" + relSlash})
+			if dry {
+				continue
+			}
+			if info.IsDir() {
+				if err := os.MkdirAll(dst, info.Mode().Perm()); err != nil {
+					return nil, fmt.Errorf("preserve-Verzeichnis kann nicht angelegt werden: %s: %w", dst, err)
+				}
+				cmd := exec.CommandContext(ctx, "rsync", "-a", trailing(src), trailing(dst))
+				if out, err := cmd.CombinedOutput(); err != nil {
+					return nil, fmt.Errorf("preserve-Verzeichnis kann nicht übernommen werden: %s: %s", relSlash, strings.TrimSpace(string(out)))
+				}
+				continue
+			}
+			if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+				return nil, fmt.Errorf("preserve-Zielordner kann nicht angelegt werden: %s: %w", filepath.Dir(dst), err)
+			}
+			cmd := exec.CommandContext(ctx, "rsync", "-a", src, dst)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return nil, fmt.Errorf("preserve-Datei kann nicht übernommen werden: %s: %s", relSlash, strings.TrimSpace(string(out)))
+			}
+		}
+	}
+	return changes, nil
+}
+
 func mandatoryPreserve(preserve []string) []string {
 	out := make([]string, 0, len(preserve)+1)
 	seen := map[string]bool{}

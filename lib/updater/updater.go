@@ -17,6 +17,7 @@ import (
 	"github.com/r14r/update-cli/lib/discovery"
 	"github.com/r14r/update-cli/lib/doctor"
 	"github.com/r14r/update-cli/lib/editor"
+	"github.com/r14r/update-cli/lib/effectiveconfig"
 	"github.com/r14r/update-cli/lib/history"
 	"github.com/r14r/update-cli/lib/inventory"
 	"github.com/r14r/update-cli/lib/projectsetup"
@@ -62,7 +63,7 @@ type state struct {
 
 func Run(ctx context.Context, buildVersion string, args []string) (retErr error) {
 	if len(args) == 0 {
-		return runNoParameter(ctx, buildVersion)
+		return runNoParameter(ctx, buildVersion, false)
 	}
 	o, err := parseOptions(args)
 	if err != nil {
@@ -77,7 +78,7 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 			_, marshalErr = os.Stdout.Write(append(b, '\n'))
 			return marshalErr
 		}
-		printHelp(buildVersion)
+		printCommandHelp(buildVersion, o.helpTopic, o.details)
 		return nil
 	}
 	if o.showHowTo {
@@ -88,12 +89,38 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 		fmt.Printf("Update CLI %s\n", buildVersion)
 		return nil
 	}
+	if o.noParameterInvocation {
+		return runNoParameter(ctx, buildVersion, o.debug)
+	}
+	if o.schema {
+		if o.schemaVersion {
+			fmt.Printf("%d\n", projectsetup.SchemaVersion)
+			return nil
+		}
+		if o.schemaView {
+			data, schemaErr := projectsetup.SchemaJSON()
+			if schemaErr != nil {
+				return schemaErr
+			}
+			_, schemaErr = os.Stdout.Write(data)
+			return schemaErr
+		}
+		path, schemaErr := projectsetup.SaveSchema(o.schemaSave)
+		if schemaErr != nil {
+			return schemaErr
+		}
+		fmt.Printf("Schema gespeichert: %s\n", path)
+		return nil
+	}
 	console := ui.New(o.noColor || o.jsonOutput)
 	console.SetApplicationVersion(buildVersion)
 	console.SuppressFinalStatus(o.jsonOutput || o.run)
 	defer console.PrintFinalStatus()
-	console.SetDirect(o.noUI)
-	console.SetDetails(o.details || o.noUI)
+	console.SetDirect(o.noUI || o.debug)
+	console.SetDetails(o.details || o.noUI || o.debug)
+	if o.debug {
+		console.Info("Debug-Modus aktiv: direkte Ausgabe mit Details")
+	}
 	fullscreenTitle := ""
 	fullscreenBase := fmt.Sprintf("Update CLI Version %s", buildVersion)
 	switch {
@@ -127,6 +154,8 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 		}()
 	}
 	if o.setupManifest != "" {
+		inspection := projectsetup.InspectManifest(o.setupManifest)
+		console.SetMigrationRequired(inspection.Repairable || (inspection.SchemaVersion > 0 && inspection.SchemaVersion != inspection.CurrentSchema))
 		catalog, err := projectsetup.CatalogForManifest(o.setupManifest)
 		if err != nil {
 			return err
@@ -140,12 +169,27 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 			printSetupCatalog(console, catalog)
 			return nil
 		}
-		_, err = projectsetup.RunStandaloneSelected(ctx, o.setupManifest, console, projectsetup.Selection{Workflow: o.setupWorkflow, Task: o.setupTask})
+		_, err = projectsetup.RunStandaloneSelected(ctx, o.setupManifest, console, projectsetup.Selection{Workflow: o.setupWorkflow, Task: o.setupTask, Step: o.setupStep})
 		return err
 	}
-	root, err := config.ResolveRoot(o.rootDir)
+	var root string
+	if o.init {
+		root, err = resolveInitRoot(o.rootDir, o.projectName)
+	} else if (o.doctor || o.fix) && strings.TrimSpace(o.rootDir) == "" {
+		root, err = os.Getwd()
+		if err == nil {
+			root, err = filepath.Abs(root)
+		}
+	} else {
+		root, err = config.ResolveRoot(o.rootDir)
+	}
 	if err != nil {
 		return err
+	}
+	console.SetMigrationRequired(projectMigrationRequired(root))
+	if o.debug {
+		console.Header("Debug")
+		console.Row("Projektwurzel", root)
 	}
 	if o.convertYAML || o.createYAML || o.createSetupScript {
 		targetDir, targetErr := setupManagementDirectory(root)
@@ -159,7 +203,7 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 				return findErr
 			}
 			if !ok {
-				return fmt.Errorf("kein update-cli.yaml in %s", targetDir)
+				return fmt.Errorf("kein update-cli.yaml/setup.yaml in %s", targetDir)
 			}
 			if o.dryRun {
 				text, previous, previewErr := projectsetup.PreviewConvertManifest(manifest)
@@ -298,25 +342,68 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 			return nil
 		}
 	}
-	standaloneSetupCommand := (o.setup && !o.update && !o.rollback) || o.setupList || o.setupTask != "" || o.setupWorkflow != ""
+	standaloneSetupCommand := (o.setup && !o.update && !o.rollback) || o.setupList || o.setupTask != "" || o.setupWorkflow != "" || o.setupStep != ""
 	if standaloneSetupCommand {
-		selection := projectsetup.Selection{Workflow: o.setupWorkflow, Task: o.setupTask}
-		configFile := filepath.Join(root, config.ConfigDirName, config.ConfigFileName)
-		_, statErr := os.Stat(configFile)
-		if statErr == nil {
-			cfg, loadErr := config.Load(root, o.downloadDir)
+		selection := projectsetup.Selection{Workflow: o.setupWorkflow, Task: o.setupTask, Step: o.setupStep}
+		hasState := false
+		var statErr error
+		stateDir := filepath.Join(root, config.ConfigDirName)
+		if _, err := os.Stat(stateDir); err == nil {
+			hasState = true
+		} else if !errors.Is(err, os.ErrNotExist) {
+			statErr = err
+		}
+		if hasState {
+			cfg, _, loadErr := effectiveconfig.Load(root)
 			if loadErr != nil {
 				return loadErr
 			}
 			console.SetProjectName(cfg.ProjectName)
 			console.SetProjectVersion(installedVersion(cfg.CurrentDir))
-			if o.setup && !o.setupList && o.setupTask == "" && o.setupWorkflow == "" {
+
+			currentAvailable, availableErr := projectsetup.Available(cfg)
+			if availableErr != nil {
+				return availableErr
+			}
+			rootManifest, rootManifestOK, rootManifestErr := projectsetup.FindManifest(root)
+			if rootManifestErr != nil {
+				return rootManifestErr
+			}
+			if !currentAvailable && rootManifestOK {
+				console.SetProjectVersion(installedVersion(root))
+				if o.setupList {
+					catalog, catalogErr := projectsetup.CatalogForManifest(rootManifest)
+					if catalogErr != nil {
+						return catalogErr
+					}
+					console.SetProjectName(catalog.Project)
+					if o.jsonOutput {
+						return writeJSON(catalog)
+					}
+					printSetupCatalog(console, catalog)
+					return nil
+				}
+				_, setupErr := projectsetup.RunStandaloneSelected(ctx, rootManifest, console, selection)
+				if setupErr != nil {
+					return setupErr
+				}
+				return syncProjectVersionFromCurrent(cfg)
+			}
+
+			if o.setup && !o.setupList && o.setupTask == "" && o.setupWorkflow == "" && o.setupStep == "" {
 				_, setupErr := projectsetup.Run(ctx, cfg, console)
-				return setupErr
+				if setupErr != nil {
+					return setupErr
+				}
+				return syncProjectVersionFromCurrent(cfg)
 			}
 			manifest := projectsetup.ManifestPath(cfg)
 			if manifest == "" {
-				return fmt.Errorf("kein update-cli.yaml in %s", cfg.CurrentDir)
+				if rootManifestOK {
+					manifest = rootManifest
+				} else {
+					return fmt.Errorf("kein update-cli.yaml/setup.yaml in %s", cfg.CurrentDir)
+				}
 			}
 			if o.setupList {
 				catalog, catalogErr := projectsetup.CatalogForManifest(manifest)
@@ -331,9 +418,12 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 				return nil
 			}
 			_, setupErr := projectsetup.RunSelected(ctx, cfg, console, selection)
-			return setupErr
+			if setupErr != nil {
+				return setupErr
+			}
+			return syncProjectVersionFromCurrent(cfg)
 		}
-		if statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
+		if statErr != nil {
 			return statErr
 		}
 		manifest, ok, findErr := projectsetup.FindManifest(root)
@@ -341,14 +431,14 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 			return findErr
 		}
 		if !ok {
-			if o.setup && !o.setupList && o.setupTask == "" && o.setupWorkflow == "" {
+			if o.setup && !o.setupList && o.setupTask == "" && o.setupWorkflow == "" && o.setupStep == "" {
 				cfg := config.Config{ProjectName: filepath.Base(root), CurrentDir: root}
 				console.SetProjectName(cfg.ProjectName)
 				console.SetProjectVersion(installedVersion(cfg.CurrentDir))
 				_, setupErr := projectsetup.Run(ctx, cfg, console)
 				return setupErr
 			}
-			return fmt.Errorf("kein update-cli.yaml im aktuellen Ordner %s", root)
+			return fmt.Errorf("kein update-cli.yaml/setup.yaml im aktuellen Ordner %s", root)
 		}
 		if o.setupList {
 			catalog, catalogErr := projectsetup.CatalogForManifest(manifest)
@@ -372,11 +462,91 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 		_, setupErr := projectsetup.RunStandaloneSelected(ctx, manifest, console, selection)
 		return setupErr
 	}
+	if o.fix {
+		lock, lockErr := tools.AcquireLock(filepath.Join(root, ".release-update.lock"), "fix")
+		if lockErr != nil {
+			return lockErr
+		}
+		defer lock.Release()
+		configResult, fixErr := config.RepairProjectConfig(root)
+		if fixErr != nil {
+			return fixErr
+		}
+		baseConfig, loadErr := config.Load(root, "")
+		if loadErr != nil {
+			return fmt.Errorf("reparierte config.json kann nicht geladen werden: %w", loadErr)
+		}
+		manifestResults, fixErr := repairProjectManifests(root, baseConfig.CurrentDir)
+		if fixErr != nil {
+			return fixErr
+		}
+		result := fixResult{Root: root, Config: configResult, Manifests: manifestResults}
+		if len(manifestResults) > 0 {
+			result.Manifest = manifestResults[0]
+		}
+		if o.jsonOutput {
+			return writeJSON(result)
+		}
+		printFix(console, result)
+		return nil
+	}
+	if o.doctor {
+		if o.doctorFix {
+			res := doctor.RunProject(root, false)
+			printDoctor(console, res)
+			plan, planErr := buildDoctorFixPlan(root, res)
+			if planErr != nil {
+				return planErr
+			}
+			printDoctorFixPlan(console, plan)
+			if len(plan.PlannedChanges) == 0 {
+				if res.ErrorCount() > 0 {
+					return &ExitError{Code: 1}
+				}
+				return nil
+			}
+			ok, confirmErr := confirmDoctorFix(console)
+			if confirmErr != nil {
+				return confirmErr
+			}
+			if !ok {
+				console.Info("Doctor-Fix abgebrochen; es wurden keine Dateien geändert")
+				return nil
+			}
+			lock, lockErr := tools.AcquireLock(filepath.Join(root, ".release-update.lock"), "doctor-fix")
+			if lockErr != nil {
+				return lockErr
+			}
+			defer lock.Release()
+			if fixErr := applyDoctorFix(root, plan); fixErr != nil {
+				return fixErr
+			}
+			console.Success("Doctor-Fix wurde durchgeführt")
+			after := doctor.RunProject(root, false)
+			printDoctor(console, after)
+			if after.ErrorCount() > 0 {
+				return &ExitError{Code: 1}
+			}
+			return nil
+		}
+		res := doctor.RunProject(root, o.doctorMigrate)
+		if o.jsonOutput {
+			if err := writeJSON(res); err != nil {
+				return err
+			}
+		} else {
+			printDoctor(console, res)
+		}
+		if res.ErrorCount() > 0 {
+			return &ExitError{Code: 1}
+		}
+		return nil
+	}
 	if o.unlock {
 		return tools.UnlockStale(filepath.Join(root, ".release-update.lock"))
 	}
 	if o.init {
-		return initialize(console, root, o)
+		return initialize(ctx, console, root, o)
 	}
 	if o.upgrade {
 		lock, err := tools.AcquireLock(filepath.Join(root, ".release-update.lock"), "upgrade")
@@ -400,9 +570,20 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 	if o.templatesMode {
 		return runTemplates(ctx, console, root, o, buildVersion)
 	}
+	if o.install {
+		installErr := projectsetup.RunJustInstall(ctx, root, console)
+		if installErr == nil {
+			return nil
+		}
+		var exitErr *exec.ExitError
+		if errors.As(installErr, &exitErr) {
+			return &ExitError{Code: exitErr.ExitCode(), Err: installErr}
+		}
+		return installErr
+	}
 	if o.run {
-		configFile := filepath.Join(root, config.ConfigDirName, config.ConfigFileName)
-		if _, statErr := os.Stat(configFile); errors.Is(statErr, os.ErrNotExist) {
+		stateDir := filepath.Join(root, config.ConfigDirName)
+		if _, statErr := os.Stat(stateDir); errors.Is(statErr, os.ErrNotExist) {
 			runErr := projectsetup.RunApplicationInDirectory(ctx, root, console)
 			if runErr == nil {
 				return nil
@@ -416,19 +597,18 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 			return statErr
 		}
 	}
-	cfg, err := config.Load(root, o.downloadDir)
+	cfg, _, err := effectiveconfig.Load(root)
 	if err != nil {
 		return err
 	}
 	console.SetProjectName(cfg.ProjectName)
 	console.SetProjectVersion(installedVersion(cfg.CurrentDir))
-	cfg, err = withManifestSourceDefaults(cfg)
-	if err != nil {
-		return err
-	}
 	cfg, err = config.WithSourceOverrides(cfg, o.mode, o.sourceType, firstNonEmpty(o.sourceFolder, o.downloadDir), o.sourceURL, o.repository)
 	if err != nil {
 		return err
+	}
+	if o.debug {
+		debugEffectiveConfig(console, cfg)
 	}
 	if o.update && cfg.Mode == config.ModePull && console.Fullscreen() {
 		console.StartFullscreen(fullscreenBase + " — Pull")
@@ -545,19 +725,6 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 			return &ExitError{Code: exitErr.ExitCode(), Err: runErr}
 		}
 		return runErr
-	case o.doctor:
-		res := doctor.Run(ctx, root, cfg)
-		if o.jsonOutput {
-			if err := writeJSON(res); err != nil {
-				return err
-			}
-		} else {
-			printDoctor(console, res)
-		}
-		if res.ErrorCount() > 0 {
-			return &ExitError{Code: 1}
-		}
-		return nil
 	case o.verify:
 		res, err := verifyArchive(ctx, cfg, o.archive)
 		if err != nil {
@@ -575,27 +742,40 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 		}
 		defer lock.Release()
 		_, err = projectsetup.Run(ctx, cfg, console)
-		return err
+		if err != nil {
+			return err
+		}
+		return syncProjectVersionFromCurrent(cfg)
 	case o.update:
 		return runUpdate(ctx, console, cfg, o)
 	}
 	return errors.New("unbekannte Betriebsart")
 }
 
-func runNoParameter(ctx context.Context, buildVersion string) error {
+func projectMigrationRequired(root string) bool {
+	return doctor.InspectMigrationRequirement(root).Required
+}
+
+func runNoParameter(ctx context.Context, buildVersion string, debug bool) error {
 	root, err := config.ResolveRoot("")
 	if err != nil {
 		printHelp(buildVersion)
 		return nil
 	}
-	cfg, err := config.Load(root, "")
+	cfg, repair, err := config.LoadResilient(root, "")
 	if err != nil {
-		configFile := filepath.Join(root, config.ConfigDirName, config.ConfigFileName)
-		if _, statErr := os.Stat(configFile); errors.Is(statErr, os.ErrNotExist) {
+		stateDir := filepath.Join(root, config.ConfigDirName)
+		projectFile := filepath.Join(root, config.ProjectFileName)
+		_, stateErr := os.Stat(stateDir)
+		_, projectErr := os.Stat(projectFile)
+		if errors.Is(stateErr, os.ErrNotExist) && errors.Is(projectErr, os.ErrNotExist) {
 			printHelp(buildVersion)
 			return nil
 		}
 		return err
+	}
+	if repair != nil && (repair.Local.Changed || (repair.Global != nil && repair.Global.Changed)) {
+		fmt.Fprintln(os.Stderr, "WARN  config.json wurde automatisch auf den aktuellen Standard migriert; Backup wurde erstellt")
 	}
 	if len(cfg.NoParameterActions) == 0 || (len(cfg.NoParameterActions) == 1 && cfg.NoParameterActions[0] == "help") {
 		printHelp(buildVersion)
@@ -614,7 +794,9 @@ func runNoParameter(ctx context.Context, buildVersion string) error {
 		args = append(args, "--check")
 	case actions["update"]:
 		args = append(args, "--update")
-		if actions["setup"] {
+		if actions["no-setup"] {
+			args = append(args, "--no-setup")
+		} else if actions["setup"] {
 			args = append(args, "--setup")
 		}
 	case actions["setup"]:
@@ -624,8 +806,47 @@ func runNoParameter(ctx context.Context, buildVersion string) error {
 		return nil
 	}
 	args = append(args, "--root", root)
+	if debug {
+		args = append(args, "--debug")
+	}
 	return Run(ctx, buildVersion, args)
 }
+func repairProjectManifests(root, currentDir string) ([]projectsetup.ProjectRepairResult, error) {
+	dirs := []string{root}
+	if currentDir != "" {
+		if absCurrent, err := filepath.Abs(currentDir); err == nil && filepath.Clean(absCurrent) != filepath.Clean(root) {
+			dirs = append(dirs, absCurrent)
+		}
+	}
+	seen := map[string]bool{}
+	results := []projectsetup.ProjectRepairResult{}
+	for _, dir := range dirs {
+		dir = filepath.Clean(dir)
+		if seen[dir] {
+			continue
+		}
+		seen[dir] = true
+		hasManifest := false
+		for _, name := range []string{config.ProjectFileName, "setup.yaml"} {
+			if info, err := os.Stat(filepath.Join(dir, name)); err == nil && !info.IsDir() {
+				hasManifest = true
+				break
+			} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+				return nil, err
+			}
+		}
+		if !hasManifest {
+			continue
+		}
+		result, err := projectsetup.RepairProjectManifest(dir)
+		if err != nil {
+			return nil, fmt.Errorf("Manifest %s kann nicht repariert werden: %w", filepath.Join(dir, config.ProjectFileName), err)
+		}
+		results = append(results, result)
+	}
+	return results, nil
+}
+
 func runBackup(ctx context.Context, console *ui.Console, cfg config.Config, jsonOut bool) error {
 	lock, err := tools.AcquireLock(filepath.Join(cfg.RootDir, ".release-update.lock"), "backup")
 	if err != nil {
@@ -740,7 +961,7 @@ func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o op
 
 	phase = "transaction-begin"
 	var tx *transaction
-	if err := progress.run("Transaktions-Snapshot von current erstellen", func() error {
+	if err := progress.run("Transaktions-Rollback vorbereiten", func() error {
 		var beginErr error
 		tx, beginErr = beginTransaction(ctx, cfg, console)
 		return beginErr
@@ -797,6 +1018,7 @@ func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o op
 		setupAvailable = available
 	}
 	setupConfirmedInteractively := false
+	setupDeclinedInteractively := false
 	if !o.noSetup && !o.setup && setupAvailable && console.Interactive() {
 		yes, confirmErr := console.Confirm("Projekt-Setup ist verfügbar. Jetzt ausführen?", true)
 		if confirmErr != nil {
@@ -804,6 +1026,7 @@ func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o op
 		}
 		runSetup = yes
 		setupConfirmedInteractively = yes
+		setupDeclinedInteractively = !yes
 	}
 
 	if setupConfirmedInteractively && console.Fullscreen() {
@@ -819,6 +1042,9 @@ func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o op
 			_, setupErr := projectsetup.Run(ctx, cfg, console)
 			return setupErr
 		}); err != nil {
+			if cfg.KeepRsyncOnSetupError {
+				return failSetupKeepingSynced(console, cfg, s, tx, phase, err)
+			}
 			return recoverOnError(err)
 		}
 	} else if o.noSetup {
@@ -830,29 +1056,8 @@ func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o op
 	}
 
 	phase = "services-start"
-	if tx.servicesWereRunning {
-		if err := progress.run("Vorher laufende Docker-Dienste starten", func() error {
-			return tx.startPreviousServiceState(ctx)
-		}); err != nil {
-			return recoverOnError(err)
-		}
-	} else {
-		reason := tx.dockerSkipReason
-		if reason == "" {
-			reason = "vor dem Update war kein Compose-Stack aktiv"
-		}
-		progress.skip("Vorher laufende Docker-Dienste starten", reason)
-	}
-
-	phase = "healthcheck"
-	if cfg.Healthcheck.Type != "" && cfg.Healthcheck.Type != "none" {
-		if err := progress.run("Healthcheck der neuen Installation ausführen", func() error {
-			return runHealthcheck(ctx, cfg)
-		}); err != nil {
-			return recoverOnError(err)
-		}
-	} else {
-		progress.skip("Healthcheck der neuen Installation ausführen", "kein Healthcheck konfiguriert")
+	if err := runPostSetupActivation(ctx, cfg, tx, progress, setupDeclinedInteractively, recoverOnError); err != nil {
+		return err
 	}
 
 	phase = "activate-release"
@@ -876,7 +1081,7 @@ func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o op
 			return err
 		}
 		if err := tx.commit(); err != nil {
-			console.Warn("Transaktions-Snapshot konnte nach erfolgreichem Commit nicht entfernt werden: " + err.Error())
+			console.Warn("Temporäre Transaktionsdaten konnten nach erfolgreichem Commit nicht entfernt werden: " + err.Error())
 		}
 		if releaseSwap != nil {
 			if err := releaseSwap.Commit(); err != nil {
@@ -899,10 +1104,46 @@ func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o op
 	return nil
 }
 
+func runPostSetupActivation(ctx context.Context, cfg config.Config, tx *transaction, progress *updateProgress, setupDeclinedInteractively bool, recoverOnError func(error) error) error {
+	if setupDeclinedInteractively {
+		progress.skip("Vorher laufende Docker-Dienste starten", "Setup vom Benutzer nicht ausgewählt; Dienste bleiben für die manuelle Einrichtung gestoppt")
+		progress.skip("Healthcheck der neuen Installation ausführen", "Setup vom Benutzer nicht ausgewählt; Aktivierung wird manuell abgeschlossen")
+		return nil
+	}
+
+	if tx.servicesWereRunning {
+		if err := progress.run("Vorher laufende Docker-Dienste starten", func() error {
+			return tx.startPreviousServiceState(ctx)
+		}); err != nil {
+			return recoverOnError(err)
+		}
+	} else {
+		reason := tx.dockerSkipReason
+		if reason == "" {
+			reason = "vor dem Update war kein Compose-Stack aktiv"
+		}
+		progress.skip("Vorher laufende Docker-Dienste starten", reason)
+	}
+
+	if cfg.Healthcheck.Type != "" && cfg.Healthcheck.Type != "none" {
+		if err := progress.run("Healthcheck der neuen Installation ausführen", func() error {
+			return runHealthcheck(ctx, cfg)
+		}); err != nil {
+			return recoverOnError(err)
+		}
+	} else {
+		progress.skip("Healthcheck der neuen Installation ausführen", "kein Healthcheck konfiguriert")
+	}
+	return nil
+}
+
 func finishAlreadyInstalledUpdate(console *ui.Console, cfg config.Config, s *state, same *VersionAlreadyInstalledError) error {
 	version := strings.TrimSpace(same.Version)
 	if version == "" {
 		version = s.version.String()
+	}
+	if err := writeProjectVersion(cfg, version); err != nil {
+		return fmt.Errorf("Projekt-VERSION konnte nicht mit current synchronisiert werden: %w", err)
 	}
 	console.SuccessBanner(fmt.Sprintf("Version %s ist bereits installiert", version))
 	console.SetFinishFooter("Update beenden")
@@ -958,6 +1199,41 @@ func failUpdateWithRecovery(console *ui.Console, cfg config.Config, s *state, tx
 	return recovered
 }
 
+// failSetupKeepingSynced records a setup failure while intentionally keeping
+// the already verified rsync result in current/. The staged release is
+// activated as the matching versioned release so release/ and current/ stay
+// consistent. The command still returns an error and the history entry remains
+// failed; only file-state rollback is suppressed for the setup phase.
+func failSetupKeepingSynced(console *ui.Console, cfg config.Config, s *state, tx *transaction, phase string, cause error) error {
+	var releaseSwap *tools.DirectorySwap
+	if s.releaseStage != "" {
+		var err error
+		releaseSwap, err = tools.SwapDirectory(s.releaseStage, s.releaseDir)
+		if err != nil {
+			return failUpdateWithRecovery(console, cfg, s, tx, phase, fmt.Errorf("%w; synchronisierter Stand konnte nicht als Release aktiviert werden: %v", cause, err), releaseSwap)
+		}
+		s.releaseStage = ""
+	}
+	if err := writeReleaseState(s); err != nil {
+		return failUpdateWithRecovery(console, cfg, s, tx, phase, fmt.Errorf("%w; Release-Status konnte für den beibehaltenen Stand nicht geschrieben werden: %v", cause, err), releaseSwap)
+	}
+	if err := tx.commit(); err != nil {
+		console.Warn("Temporäre Transaktionsdaten konnten nach beibehaltenem Setup-Fehler nicht vollständig entfernt werden: " + err.Error())
+	}
+	if releaseSwap != nil {
+		if err := releaseSwap.Commit(); err != nil {
+			console.Warn("Vorheriges Release-Staging konnte nicht vollständig entfernt werden: " + err.Error())
+		}
+	}
+	if err := writeLegacyRootMarkers(cfg, s.version.String(), sourceRef(s)); err != nil {
+		console.Warn("Legacy-Release-Marker konnten für den beibehaltenen Stand nicht vollständig geschrieben werden: " + err.Error())
+	}
+	recorded := recordFailure(cfg, "update", phase, s.fromVersion, updateTargetVersion(s), sourceRef(s), cause)
+	console.Warn("Projekt-Setup fehlgeschlagen; rsync-Stand bleibt wegen setup.keepRsyncOnError=true in current/ erhalten")
+	showUpdateFailure(console, cfg, s, phase, recorded)
+	return recorded
+}
+
 func showUpdateFailure(console *ui.Console, cfg config.Config, s *state, phase string, cause error) {
 	lines := []string{
 		"Phase: " + updatePhaseLabel(phase) + " (" + phase + ")",
@@ -991,7 +1267,7 @@ func updatePhaseLabel(phase string) string {
 		"validate-artifact": "Release-Inhalt validieren",
 		"prepare-release":   "Versioniertes Release vorbereiten",
 		"plan-current":      "Änderungen an current ermitteln",
-		"transaction-begin": "Transaktion vorbereiten und Snapshot erstellen",
+		"transaction-begin": "Transaktions-Rollback vorbereiten",
 		"backup":            "Persistentes Pre-Update-Backup erstellen",
 		"sync-current":      "Release nach current synchronisieren",
 		"verify-current":    "Installierten current-Zustand verifizieren",
@@ -1047,7 +1323,7 @@ func runRollback(ctx context.Context, console *ui.Console, cfg config.Config, o 
 		return tx.recover(recordFailure(cfg, "rollback", phase, from, rel.Version, "rollback:"+rel.Version, err))
 	}
 	if err := tx.commit(); err != nil {
-		console.Warn("Transaktions-Snapshot konnte nach Commit nicht entfernt werden: " + err.Error())
+		console.Warn("Temporäre Transaktionsdaten konnten nach Commit nicht entfernt werden: " + err.Error())
 	}
 	if err := writeLegacyRootMarkers(cfg, rel.Version, "rollback:"+rel.Version); err != nil {
 		console.Warn("Legacy-Release-Marker konnten nicht vollständig geschrieben werden: " + err.Error())
@@ -1089,7 +1365,7 @@ func runRestore(ctx context.Context, console *ui.Console, cfg config.Config, o o
 		return tx.recover(recordFailure(cfg, "restore", "metadata", from, to, item.Path, err))
 	}
 	if err := tx.commit(); err != nil {
-		console.Warn("Transaktions-Snapshot konnte nach Commit nicht entfernt werden: " + err.Error())
+		console.Warn("Temporäre Transaktionsdaten konnten nach Commit nicht entfernt werden: " + err.Error())
 	}
 	if err := writeLegacyRootMarkers(cfg, to, "backup:"+item.Name); err != nil {
 		console.Warn("Legacy-Release-Marker konnten nicht vollständig geschrieben werden: " + err.Error())
@@ -1253,7 +1529,12 @@ func verifyCurrent(ctx context.Context, s *state) error {
 	return nil
 }
 func writeReleaseMarkers(dir string, s *state) error {
-	markers := map[string]string{".release-project": s.cfg.ProjectName, ".release-version": s.version.String(), ".release-source": sourceRef(s)}
+	// VERSION is the only version source. Remove the historical parallel marker
+	// when staging a release so it cannot become authoritative again.
+	if err := os.Remove(filepath.Join(dir, ".release-version")); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("legacy .release-version kann nicht entfernt werden: %w", err)
+	}
+	markers := map[string]string{".release-project": s.cfg.ProjectName, ".release-source": sourceRef(s)}
 	if commit := strings.TrimSpace(s.artifact.Commit); commit != "" {
 		markers[".release-commit"] = commit
 	}
@@ -1282,7 +1563,45 @@ func writeRootState(cfg config.Config, version, source string) error {
 	return tools.WriteFileAtomic(filepath.Join(cfg.ReleaseRoot, ".last-state.json"), data, 0o644)
 }
 
+func writeProjectVersion(cfg config.Config, version string) error {
+	version = strings.TrimSpace(version)
+	if version == "" {
+		return errors.New("Projektversion darf nicht leer sein")
+	}
+	if _, err := versionutil.Parse(version); err != nil {
+		return fmt.Errorf("Projektversion %q ist ungültig: %w", version, err)
+	}
+	return tools.WriteFileAtomic(filepath.Join(cfg.RootDir, "VERSION"), []byte(version+"\n"), 0o644)
+}
+
+func syncProjectVersionFromCurrent(cfg config.Config) error {
+	v, sourcePath, found, err := updatecheck.DetectInstalled(cfg.CurrentDir)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return nil
+	}
+	version := v.String()
+	// VERSION is the canonical installed project version. A legacy
+	// .release-version file is read only as a compatibility fallback when
+	// VERSION is missing; in that case migrate the value into VERSION.
+	if filepath.Base(sourcePath) == ".release-version" {
+		currentVersion := filepath.Join(cfg.CurrentDir, "VERSION")
+		if err := tools.WriteFileAtomic(currentVersion, []byte(version+"\n"), 0o644); err != nil {
+			return fmt.Errorf("legacy .release-version konnte nicht nach current/VERSION migriert werden: %w", err)
+		}
+	}
+	return writeProjectVersion(cfg, version)
+}
+
 func writeLegacyRootMarkers(cfg config.Config, version, source string) error {
+	// VERSION is a project-root compatibility marker as well as the canonical
+	// version input for many Justfiles. Keep it synchronized with current/ only
+	// after an operation has reached its final state.
+	if err := writeProjectVersion(cfg, version); err != nil {
+		return err
+	}
 	for n, v := range map[string]string{".project-name": cfg.ProjectName, ".last-version": version, ".last-source": source} {
 		if err := tools.WriteMarker(cfg.ReleaseRoot, n, v); err != nil {
 			return err
@@ -1301,12 +1620,12 @@ func writeReleaseState(s *state) error {
 }
 
 func verifyMarker(dir, expected string) error {
-	b, err := os.ReadFile(filepath.Join(dir, ".release-version"))
+	b, err := os.ReadFile(filepath.Join(dir, "VERSION"))
 	if err != nil {
-		return fmt.Errorf("Release-Marker fehlt in %s: %w", dir, err)
+		return fmt.Errorf("VERSION fehlt in %s: %w", dir, err)
 	}
 	if strings.TrimSpace(string(b)) != expected {
-		return fmt.Errorf("Release-Marker in %s ist inkonsistent", dir)
+		return fmt.Errorf("VERSION in %s ist inkonsistent", dir)
 	}
 	return nil
 }
@@ -1450,16 +1769,115 @@ func updatePlanJSON(s *state) updatePlanResult {
 	return r
 }
 
-func initialize(console *ui.Console, root string, o options) error {
-	cfg, err := config.Init(root, config.InitOptions{ProjectName: o.projectName, Mode: o.mode, SourceType: o.sourceType, Folder: firstNonEmpty(o.sourceFolder, o.downloadDir), URL: o.sourceURL, Repository: o.repository, Force: o.force})
-	if err != nil {
-		return err
+func debugEffectiveConfig(console *ui.Console, cfg config.Config) {
+	console.Header("Debug — effektive Konfiguration")
+	console.Row("Globale config.json", cfg.GlobalConfigFile)
+	console.Row("Lokale config.json", cfg.ConfigFile)
+	if cfg.ProjectManifestFile != "" {
+		console.Row("Projekt update-cli.yaml", cfg.ProjectManifestFile)
+		if len(cfg.ManifestOverrides) > 0 {
+			console.Row("Manifest überschreibt", strings.Join(cfg.ManifestOverrides, ", "))
+		}
 	}
-	if err := templates.Ensure(cfg.TemplatesFile); err != nil {
+	console.Row("Config-Merge", "global -> lokal (lokal überschreibt; sync.preserve wird vereinigt)")
+	console.Row("Globale templates.json", cfg.GlobalTemplatesFile)
+	console.Row("Lokale templates.json", cfg.TemplatesFile)
+	console.Row("Templates-Merge", "global -> lokal (gleichnamige lokale Templates überschreiben)")
+	console.Row("History", cfg.HistoryFile)
+	console.Row("Quelle", fmt.Sprintf("%s: %s", cfg.Source.Type, sourceConfigReference(cfg)))
+	console.Row("Release-Verzeichnis", cfg.ReleaseRoot)
+	console.Row("Current-Verzeichnis", cfg.CurrentDir)
+	console.Row("Preserve/Exclude", strings.Join(cfg.Preserve, ", "))
+	console.Row("Setup-Fehler/Rsync", fmt.Sprintf("keepRsyncOnError=%t", cfg.KeepRsyncOnSetupError))
+	console.Row("Rsync Release", "Artefakt -> versioniertes release (Preserve-Dateien bleiben im Release enthalten)")
+	console.Row("Rsync Current", "release -> current (bestehende Preserve-Pfade schützen; fehlende werden initial übernommen)")
+}
+
+func sourceConfigReference(cfg config.Config) string {
+	switch cfg.Source.Type {
+	case "repository":
+		return cfg.Source.Repository
+	case "url":
+		return cfg.Source.URL
+	default:
+		return cfg.Source.Folder
+	}
+}
+
+func resolveInitRoot(explicit, _ string) (string, error) {
+	if strings.TrimSpace(explicit) != "" {
+		return config.ResolveRoot(explicit)
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Abs(cwd)
+}
+
+func initialize(ctx context.Context, console *ui.Console, root string, o options) error {
+	var cfg config.Config
+	var err error
+	configExists := false
+	if info, statErr := os.Stat(filepath.Join(root, config.ConfigDirName, config.ConfigFileName)); statErr == nil && !info.IsDir() {
+		configExists = true
+	} else if statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
+		return statErr
+	}
+
+	repository := strings.TrimSpace(o.repository)
+	if strings.TrimSpace(o.fromRepository) != "" {
+		defaultUser := config.DefaultRepositoryUser
+		if configExists {
+			if existing, loadErr := config.Load(root, ""); loadErr == nil && strings.TrimSpace(existing.Source.DefaultUser) != "" {
+				defaultUser = existing.Source.DefaultUser
+			}
+		}
+		repository, err = config.NormalizeRepositorySpec(o.fromRepository, defaultUser)
+		if err != nil {
+			return err
+		}
+		if o.debug {
+			console.Row("Repository Eingabe", o.fromRepository)
+			console.Row("Repository DefaultUser", defaultUser)
+			console.Row("Repository normalisiert", repository)
+		}
+	}
+
+	if configExists && !o.force {
+		cfg, err = config.Load(root, "")
+		if err != nil {
+			return err
+		}
+		if cfg.ProjectName != strings.TrimSpace(o.projectName) {
+			return fmt.Errorf("Projekt %q ist bereits als %q initialisiert; --force zum Ersetzen verwenden", root, cfg.ProjectName)
+		}
+		if strings.TrimSpace(o.fromRepository) != "" || strings.TrimSpace(o.repository) != "" || strings.TrimSpace(o.sourceType) != "" || strings.TrimSpace(o.sourceFolder) != "" || strings.TrimSpace(o.downloadDir) != "" || strings.TrimSpace(o.sourceURL) != "" || strings.TrimSpace(o.mode) != "" {
+			requested, overrideErr := config.WithSourceOverrides(cfg, o.mode, o.sourceType, firstNonEmpty(o.sourceFolder, o.downloadDir), o.sourceURL, repository)
+			if overrideErr != nil {
+				return overrideErr
+			}
+			if requested.Mode != cfg.Mode || requested.Source.Type != cfg.Source.Type || requested.Source.Folder != cfg.Source.Folder || requested.Source.URL != cfg.Source.URL || requested.Source.Repository != cfg.Source.Repository {
+				return errors.New("Projekt ist bereits mit einer anderen Quelle initialisiert; --force zum Neuinitialisieren verwenden")
+			}
+		}
+		console.Info("Vorhandene Projektkonfiguration wird für den Bootstrap weiterverwendet")
+	} else {
+		cfg, err = config.Init(root, config.InitOptions{ProjectName: o.projectName, Mode: o.mode, SourceType: o.sourceType, Folder: firstNonEmpty(o.sourceFolder, o.downloadDir), URL: o.sourceURL, Repository: repository, Force: o.force})
+		if err != nil {
+			return err
+		}
+	}
+
+	if err := templates.EnsureLocal(cfg.TemplatesFile); err != nil {
 		return err
 	}
 	if o.useTemplate != "" {
-		if err := templates.Apply(cfg.ConfigFile, cfg.TemplatesFile, o.useTemplate); err != nil {
+		t, err := templates.LookupMerged(cfg.GlobalTemplatesFile, cfg.TemplatesFile, o.useTemplate)
+		if err != nil {
+			return err
+		}
+		if err := config.ApplyTemplate(root, t.NoParameter, t.Preserve); err != nil {
 			return err
 		}
 		cfg, err = config.Load(root, "")
@@ -1467,15 +1885,43 @@ func initialize(console *ui.Console, root string, o options) error {
 			return err
 		}
 	}
+
+	if o.debug {
+		debugEffectiveConfig(console, cfg)
+	}
+
 	console.Header("Update CLI initialisiert")
 	console.Row("Projekt", cfg.ProjectName)
+	console.Row("Projektordner", cfg.RootDir)
 	console.Row("Konfiguration", cfg.ConfigFile)
-	console.Row("Quelle", cfg.Source.Type)
+	console.Row("Quelle", initSourceDescription(cfg))
 	console.Row("Release", cfg.ReleaseRoot)
 	console.Row("Current", cfg.CurrentDir)
 	console.Row("Backup", cfg.BackupRoot)
-	return nil
+	console.Info("Initiales Release wird installiert und vorhandenes Projekt-Setup automatisch ausgeführt")
+
+	return runUpdate(ctx, console, cfg, options{
+		update:  true,
+		setup:   true,
+		force:   o.force,
+		noUI:    o.noUI,
+		noColor: o.noColor,
+		wait:    o.wait,
+		noWait:  o.noWait,
+	})
 }
+
+func initSourceDescription(cfg config.Config) string {
+	switch cfg.Source.Type {
+	case source.Repository:
+		return "repository: " + cfg.Source.Repository
+	case source.URL:
+		return "url: " + cfg.Source.URL
+	default:
+		return fmt.Sprintf("download: %s (%s-v<MAJOR>.<MINOR>.<PATCH>.zip)", cfg.Source.Folder, cfg.ProjectName)
+	}
+}
+
 func runConfig(ctx context.Context, console *ui.Console, root string, o options) error {
 	if o.configCheck {
 		result, err := config.Check(root)
@@ -1538,16 +1984,22 @@ func runConfig(ctx context.Context, console *ui.Console, root string, o options)
 	}
 	if o.configList {
 		console.Header("Konfigurationsdateien")
-		for _, p := range []string{cfg.ConfigFile, cfg.TemplatesFile, cfg.HistoryFile} {
-			console.Row(filepath.Base(p), p)
-		}
+		console.Row("config.json:", cfg.GlobalConfigFile)
+		console.Row("", cfg.ConfigFile)
+		console.Row("templates.json:", cfg.GlobalTemplatesFile)
+		console.Row("", cfg.TemplatesFile)
+		console.Row("history.jsonl", cfg.HistoryFile)
 		return nil
 	}
 	if o.useTemplate != "" {
-		if err := templates.Ensure(cfg.TemplatesFile); err != nil {
+		if err := templates.EnsureLocal(cfg.TemplatesFile); err != nil {
 			return err
 		}
-		if err := templates.Apply(cfg.ConfigFile, cfg.TemplatesFile, o.useTemplate); err != nil {
+		t, err := templates.LookupMerged(cfg.GlobalTemplatesFile, cfg.TemplatesFile, o.useTemplate)
+		if err != nil {
+			return err
+		}
+		if err := config.ApplyTemplate(root, t.NoParameter, t.Preserve); err != nil {
 			return err
 		}
 		if _, err := config.Load(root, ""); err != nil {
@@ -1564,7 +2016,7 @@ func runConfig(ctx context.Context, console *ui.Console, root string, o options)
 			return err
 		}
 		if _, err := config.Load(root, ""); err != nil {
-			return fmt.Errorf("Editor %s geschlossen, aber config ungültig: %w", used, err)
+			return fmt.Errorf("Editor %s geschlossen, aber config.json ungültig: %w", used, err)
 		}
 		console.Success("config.json ist gültig")
 		return nil
@@ -1583,11 +2035,8 @@ func runTemplates(ctx context.Context, console *ui.Console, root string, o optio
 	if err != nil {
 		return err
 	}
-	if err := templates.Ensure(cfg.TemplatesFile); err != nil {
-		return err
-	}
 	if o.templatesList {
-		f, err := templates.Load(cfg.TemplatesFile)
+		f, err := templates.LoadMerged(cfg.GlobalTemplatesFile, cfg.TemplatesFile)
 		if err != nil {
 			return err
 		}
@@ -1606,7 +2055,11 @@ func runTemplates(ctx context.Context, console *ui.Console, root string, o optio
 		return nil
 	}
 	if o.templateUse != "" {
-		if err := templates.Apply(cfg.ConfigFile, cfg.TemplatesFile, o.templateUse); err != nil {
+		t, err := templates.LookupMerged(cfg.GlobalTemplatesFile, cfg.TemplatesFile, o.templateUse)
+		if err != nil {
+			return err
+		}
+		if err := config.ApplyTemplate(root, t.NoParameter, t.Preserve); err != nil {
 			return err
 		}
 		if _, err := config.Load(root, ""); err != nil {
@@ -1616,6 +2069,9 @@ func runTemplates(ctx context.Context, console *ui.Console, root string, o optio
 		return nil
 	}
 	if o.edit {
+		if err := templates.EnsureLocal(cfg.TemplatesFile); err != nil {
+			return err
+		}
 		used, err := editor.Open(ctx, cfg.TemplatesFile)
 		if err != nil {
 			return err
@@ -1658,11 +2114,28 @@ func printSetupCatalog(console *ui.Console, catalog projectsetup.Catalog) {
 			console.Append(fmt.Sprintf("  %-16s %s", task.Name, detail))
 		}
 	}
+	if len(catalog.Steps) > 0 {
+		console.Append("Steps")
+		for _, step := range catalog.Steps {
+			id := step.ID
+			if strings.TrimSpace(id) == "" {
+				id = "(keine id)"
+			}
+			detail := step.Name
+			if strings.TrimSpace(step.Task) != "" {
+				detail = step.Task + " | " + detail
+			}
+			if strings.TrimSpace(step.Operation) != "" {
+				detail += " | " + step.Operation
+			}
+			console.Append(fmt.Sprintf("  %-24s %s", id, strings.TrimSpace(detail)))
+		}
+	}
 }
 
 func setupManagementDirectory(root string) (string, error) {
-	configFile := filepath.Join(root, config.ConfigDirName, config.ConfigFileName)
-	if _, err := os.Stat(configFile); err == nil {
+	stateDir := filepath.Join(root, config.ConfigDirName)
+	if _, err := os.Stat(stateDir); err == nil {
 		cfg, loadErr := config.Load(root, "")
 		if loadErr != nil {
 			return "", loadErr

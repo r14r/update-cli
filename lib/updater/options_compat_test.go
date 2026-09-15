@@ -230,3 +230,49 @@ func TestParseOptionsConfigActionsAreExclusive(t *testing.T) {
 		}
 	}
 }
+
+func TestDoctorMigrateOption(t *testing.T) {
+	o, err := parseOptions([]string{"doctor", "--migrate"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !o.doctor || !o.doctorMigrate {
+		t.Fatalf("unexpected doctor migrate options: %#v", o)
+	}
+	if _, err := parseOptions([]string{"--migrate"}); err == nil {
+		t.Fatal("standalone --migrate must be rejected")
+	}
+	o, err = parseOptions([]string{"--config", "--migrate"})
+	if err != nil {
+		t.Fatalf("legacy flag-style config migrate must remain accepted: %v", err)
+	}
+	if !o.config || !o.configMigrate || o.doctorMigrate {
+		t.Fatalf("unexpected config migrate options: %#v", o)
+	}
+}
+
+func TestFixOption(t *testing.T) {
+	o, err := parseOptions([]string{"fix", "--json", "--root", "/tmp/project"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !o.fix || !o.jsonOutput || o.rootDir != "/tmp/project" {
+		t.Fatalf("unexpected fix options: %#v", o)
+	}
+}
+
+func TestDoctorFixOption(t *testing.T) {
+	o, err := parseOptions([]string{"doctor", "--fix"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !o.doctor || !o.doctorFix || o.fix {
+		t.Fatalf("unexpected doctor fix options: %#v", o)
+	}
+	if _, err := parseOptions([]string{"doctor", "--fix", "--migrate"}); err == nil {
+		t.Fatal("doctor --fix and --migrate must be rejected")
+	}
+	if _, err := parseOptions([]string{"doctor", "--fix", "--json"}); err == nil {
+		t.Fatal("doctor --fix and --json must be rejected")
+	}
+}

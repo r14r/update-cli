@@ -9,11 +9,15 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 var (
-	lookPath       = exec.LookPath
-	commandContext = exec.CommandContext
+	lookPath             = exec.LookPath
+	commandContext       = exec.CommandContext
+	composeProbeTimeout  = 15 * time.Second
+	composeStatusTimeout = 15 * time.Second
+	composeActionTimeout = 2 * time.Minute
 )
 
 var ComposeFiles = []string{"compose.yml", "compose.yaml", "docker-compose.yml", "docker-compose.yaml"}
@@ -69,16 +73,29 @@ func Running(ctx context.Context, current string) (bool, error) {
 	}
 	args := append([]string{}, prefix...)
 	args = append(args, "-f", filepath.Base(d.ComposeFile), "ps", "-q")
-	cmd := commandContext(ctx, exe, args...)
+	statusCtx, cancel := context.WithTimeout(ctx, composeStatusTimeout)
+	defer cancel()
+	cmd := commandContext(statusCtx, exe, args...)
 	cmd.Dir = current
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if runErr := cmd.Run(); runErr != nil {
-		return false, commandFailure("Docker Compose Status fehlgeschlagen", exe, args, current, runErr, stdout.String(), stderr.String())
+		return false, commandFailureWithContext("Docker Compose Status fehlgeschlagen", exe, args, current, runErr, statusCtx.Err(), stdout.String(), stderr.String())
 	}
 	return strings.TrimSpace(stdout.String()) != "", nil
 }
+func commandFailureWithContext(summary, exe string, args []string, cwd string, runErr, ctxErr error, stdout, stderr string) error {
+	err := commandFailure(summary, exe, args, cwd, runErr, stdout, stderr)
+	if errors.Is(ctxErr, context.DeadlineExceeded) {
+		return fmt.Errorf("%w\nTimeout: Docker Compose wurde wegen Zeitüberschreitung abgebrochen", err)
+	}
+	if errors.Is(ctxErr, context.Canceled) {
+		return fmt.Errorf("%w\nAbbruch: Docker Compose wurde durch den aufrufenden Kontext beendet", err)
+	}
+	return err
+}
+
 func commandFailure(summary, exe string, args []string, cwd string, runErr error, stdout, stderr string) error {
 	command := strings.TrimSpace(filepath.Base(exe) + " " + strings.Join(args, " "))
 	exitCode := -1
@@ -132,13 +149,15 @@ func invoke(ctx context.Context, current, action string) (Result, error) {
 		args = append(args, "up", "-d", "--remove-orphans")
 	}
 	r.Command = filepath.Base(exe) + " " + strings.Join(args, " ")
-	cmd := commandContext(ctx, exe, args...)
+	actionCtx, cancel := context.WithTimeout(ctx, composeActionTimeout)
+	defer cancel()
+	cmd := commandContext(actionCtx, exe, args...)
 	cmd.Dir = current
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if runErr := cmd.Run(); runErr != nil {
-		return r, commandFailure(fmt.Sprintf("Docker Compose %s fehlgeschlagen", action), exe, args, current, runErr, stdout.String(), stderr.String())
+		return r, commandFailureWithContext(fmt.Sprintf("Docker Compose %s fehlgeschlagen", action), exe, args, current, runErr, actionCtx.Err(), stdout.String(), stderr.String())
 	}
 	r.Changed = true
 	return r, nil
@@ -146,16 +165,19 @@ func invoke(ctx context.Context, current, action string) (Result, error) {
 func composeCommand(ctx context.Context, dir string) (string, []string, error) {
 	var dockerComposeErr error
 	if d, err := lookPath("docker"); err == nil {
-		cmd := commandContext(ctx, d, "compose", "version")
+		probeCtx, cancel := context.WithTimeout(ctx, composeProbeTimeout)
+		cmd := commandContext(probeCtx, d, "compose", "version")
 		cmd.Dir = dir
 		var stdout, stderr bytes.Buffer
 		cmd.Stdout = &stdout
 		cmd.Stderr = &stderr
-		if runErr := cmd.Run(); runErr == nil {
+		runErr := cmd.Run()
+		ctxErr := probeCtx.Err()
+		cancel()
+		if runErr == nil {
 			return d, []string{"compose"}, nil
-		} else {
-			dockerComposeErr = commandFailure("Docker Compose ist nicht verfügbar", d, []string{"compose", "version"}, dir, runErr, stdout.String(), stderr.String())
 		}
+		dockerComposeErr = commandFailureWithContext("Docker Compose ist nicht verfügbar", d, []string{"compose", "version"}, dir, runErr, ctxErr, stdout.String(), stderr.String())
 	}
 	if d, err := lookPath("docker-compose"); err == nil {
 		return d, nil, nil

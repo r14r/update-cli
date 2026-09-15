@@ -113,3 +113,79 @@ func Apply(configPath, templatesPath, name string) error {
 	}
 	return os.WriteFile(configPath, append(out, '\n'), 0o644)
 }
+
+// LoadMerged loads installation-wide templates first and overlays project-local
+// templates by name. If the global file does not exist, the compiled-in
+// defaults are used. A missing local file is treated as an empty override.
+func LoadMerged(globalPath, localPath string) (File, error) {
+	base := Defaults()
+	if strings.TrimSpace(globalPath) != "" {
+		if _, err := os.Stat(globalPath); err == nil {
+			loaded, err := Load(globalPath)
+			if err != nil {
+				return File{}, fmt.Errorf("globale templates.json %s: %w", globalPath, err)
+			}
+			base = loaded
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return File{}, err
+		}
+	}
+	if strings.TrimSpace(localPath) == "" {
+		return base, nil
+	}
+	if _, err := os.Stat(localPath); errors.Is(err, os.ErrNotExist) {
+		return base, nil
+	} else if err != nil {
+		return File{}, err
+	}
+	local, err := Load(localPath)
+	if err != nil {
+		return File{}, fmt.Errorf("lokale templates.json %s: %w", localPath, err)
+	}
+	return Merge(base, local), nil
+}
+
+// Merge overlays templates from local on global by case-insensitive name.
+// Project-local definitions replace complete global template definitions with
+// the same name; new local templates are appended.
+func Merge(global, local File) File {
+	out := File{SchemaVersion: SchemaVersion, Templates: append([]Template(nil), global.Templates...)}
+	index := make(map[string]int, len(out.Templates))
+	for i, template := range out.Templates {
+		index[strings.ToLower(strings.TrimSpace(template.Name))] = i
+	}
+	for _, template := range local.Templates {
+		key := strings.ToLower(strings.TrimSpace(template.Name))
+		if i, ok := index[key]; ok {
+			out.Templates[i] = template
+			continue
+		}
+		index[key] = len(out.Templates)
+		out.Templates = append(out.Templates, template)
+	}
+	return out
+}
+
+func LookupMerged(globalPath, localPath, name string) (Template, error) {
+	f, err := LoadMerged(globalPath, localPath)
+	if err != nil {
+		return Template{}, err
+	}
+	for _, template := range f.Templates {
+		if strings.EqualFold(template.Name, name) {
+			return template, nil
+		}
+	}
+	return Template{}, fmt.Errorf("Template %q nicht gefunden", name)
+}
+
+// EnsureLocal creates an empty project-local override file. Global templates
+// remain the baseline and are therefore not copied into every project.
+func EnsureLocal(path string) error {
+	if _, err := os.Stat(path); err == nil {
+		return nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return Save(path, File{SchemaVersion: SchemaVersion, Templates: []Template{}})
+}

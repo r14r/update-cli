@@ -122,6 +122,30 @@ func TestCompareForProjectUpdateCLI130IsNewerThan121(t *testing.T) {
 	}
 }
 
+func TestCompareForProjectUpdateCLI2xIsNewerThan1x(t *testing.T) {
+	newer := mustVersion(t, "2.2.0")
+	older := mustVersion(t, "1.5.1")
+	if got := CompareForProject("update-cli", newer, older); got <= 0 {
+		t.Fatalf("expected 2.2.0 > 1.5.1, got %d", got)
+	}
+}
+
+func TestUpdateCLIArchiveSelectionPrefersCurrent2x(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"update-cli-v3.3.4.zip", "update-cli-v0.8.23.zip", "update-cli-v1.5.1.zip", "update-cli-v2.1.0.zip", "update-cli-v2.2.0.zip"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, v, err := SelectNewest(dir, "update-cli")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := v.String(), "2.2.0"; got != want {
+		t.Fatalf("newest version = %s, want %s", got, want)
+	}
+}
+
 func TestParseArchiveNameAcceptsOptionalVPrefix(t *testing.T) {
 	for _, name := range []string{"demo-v1.2.3.zip", "demo-1.2.3.zip"} {
 		v, err := ParseArchiveName("demo", name)
@@ -147,7 +171,6 @@ func TestListArchivesAcceptsBothFilenameFormsAndSelectsNewest(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-
 	archives, err := ListArchives(dir, "demo")
 	if err != nil {
 		t.Fatal(err)

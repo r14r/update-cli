@@ -46,16 +46,14 @@ func (v Version) Compare(o Version) int {
 	return 0
 }
 
-// CompareForProject compares versions using the historical Update CLI release
-// epochs. Update CLI used 1.x-3.x during early development, reset its public
-// numbering to 0.8.x, and promotes that line to stable 1.x starting with
-// 1.0.0. For update-cli itself the chronological order is therefore:
+// CompareForProject compares versions using Update CLI's historical release
+// epochs. The project reset from legacy 2.x/3.x to 0.8.x, promoted that line
+// to stable 1.x, and now uses 2.x as the current stable major line.
 //
-//	legacy 2.x/3.x < transitional 0.8.x+ < stable 1.x
-//
-// This preserves upgrades from both 3.3.4 and 0.8.x to 1.0.0. Other projects
-// always use strict SemVer. The special rule intentionally remains scoped to
-// update-cli; it must not affect projects managed by Update CLI.
+// There is an unavoidable ambiguity between very old pre-reset 2.x releases
+// and current 2.x releases because both use the same SemVer major. Current 2.x
+// must win so that normal 1.x -> 2.x upgrades and archive discovery work.
+// Legacy 3.x remains explicitly below the 0.8+/1.x/2.x lines.
 func CompareForProject(project string, a, b Version) int {
 	if !strings.EqualFold(strings.TrimSpace(project), "update-cli") {
 		return a.Compare(b)
@@ -73,11 +71,13 @@ func CompareForProject(project string, a, b Version) int {
 
 func updateCLIReleaseEpoch(v Version) int {
 	switch {
+	case v.Major == 2:
+		return 4 // current stable 2.x line
 	case v.Major == 1:
-		return 3 // stable line starting with 1.0.0
+		return 3 // stable 1.x line
 	case v.Major == 0 && v.Minor >= 8:
 		return 2 // public 0.8.x/0.9.x transition line
-	case v.Major == 2 || v.Major == 3:
+	case v.Major == 3:
 		return 1 // pre-reset development releases
 	default:
 		return 0

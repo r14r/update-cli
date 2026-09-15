@@ -24,7 +24,7 @@ type Result struct {
 }
 
 func FindManifest(dir string) (string, bool, error) {
-	for _, name := range []string{"update-cli.yaml"} {
+	for _, name := range []string{"update-cli.yaml", "setup.yaml"} {
 		p := filepath.Join(dir, name)
 		i, err := os.Stat(p)
 		if err == nil {
@@ -49,6 +49,9 @@ func Detect(c config.Config) (string, bool, error) {
 	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return "", false, err
 	}
+	if hasJustfile(c.CurrentDir) {
+		return filepath.Join(c.CurrentDir, "justfile"), true, nil
+	}
 	return "", len(c.LegacySetupCommands) > 0, nil
 }
 
@@ -57,6 +60,9 @@ func Run(ctx context.Context, c config.Config, console *ui.Console) (Result, err
 }
 
 func RunSelected(ctx context.Context, c config.Config, console *ui.Console, selection Selection) (Result, error) {
+	if _, err := EnsureMigration(ctx, c, console); err != nil {
+		return Result{}, err
+	}
 	i, err := os.Stat(c.CurrentDir)
 	if err != nil || !i.IsDir() {
 		return Result{}, fmt.Errorf("Current-Ordner fehlt oder ist ungültig: %s", c.CurrentDir)
@@ -80,15 +86,27 @@ func RunStandaloneSelected(ctx context.Context, path string, console *ui.Console
 	if err != nil {
 		return Result{}, err
 	}
-	manifest, err := ParseManifest(absolute)
+	workDir := filepath.Dir(absolute)
+	projectRoot := workDir
+	if filepath.Base(filepath.Clean(workDir)) == "current" {
+		parent := filepath.Dir(filepath.Clean(workDir))
+		if info, statErr := os.Stat(filepath.Join(parent, config.ConfigDirName)); statErr == nil && info.IsDir() {
+			projectRoot = parent
+		}
+	}
+	cfg := config.Config{RootDir: projectRoot, ConfigDir: filepath.Join(projectRoot, config.ConfigDirName), ProjectName: filepath.Base(projectRoot), CurrentDir: workDir}
+	if _, err := EnsureMigration(ctx, cfg, console); err != nil {
+		return Result{}, err
+	}
+	manifest, err := ParseManifestForUse(absolute)
 	if err != nil {
 		return Result{}, err
 	}
 	projectName := manifest.ProjectName
 	if projectName == "" {
-		projectName = filepath.Base(filepath.Dir(absolute))
+		projectName = filepath.Base(workDir)
 	}
-	cfg := config.Config{ProjectName: projectName, CurrentDir: filepath.Dir(absolute)}
+	cfg.ProjectName = projectName
 	return runManifestSelected(ctx, cfg, console, absolute, selection)
 }
 
@@ -97,7 +115,7 @@ func runManifest(ctx context.Context, c config.Config, console *ui.Console, path
 }
 
 func runManifestSelected(ctx context.Context, c config.Config, console *ui.Console, path string, selection Selection) (Result, error) {
-	m, err := ParseManifest(path)
+	m, err := ParseManifestForUse(path)
 	if err != nil {
 		return Result{}, err
 	}
@@ -105,7 +123,10 @@ func runManifestSelected(ctx context.Context, c config.Config, console *ui.Conso
 		return runManifestV2(ctx, c.CurrentDir, m, console, path, selection)
 	}
 	if selection.Task != "" || selection.Workflow != "" {
-		return Result{}, errors.New("--setup-task/--setup-workflow benötigen update-cli.yaml schemaVersion 2")
+		return Result{}, errors.New("setup task/workflow benötigen update-cli.yaml schemaVersion 2")
+	}
+	if strings.TrimSpace(selection.Step) != "" {
+		return runLegacyManifestStep(ctx, c, console, path, m, selection.Step)
 	}
 	if console.Fullscreen() {
 		if strings.HasSuffix(console.Title(), "— Setup") {
@@ -186,6 +207,60 @@ func runManifestSelected(ctx context.Context, c config.Config, console *ui.Conso
 		}
 		r.StepsExecuted++
 	}
+	return r, nil
+}
+
+func runLegacyManifestStep(ctx context.Context, c config.Config, console *ui.Console, path string, m Manifest, stepID string) (Result, error) {
+	matches := []int{}
+	for i, step := range m.Steps {
+		if strings.TrimSpace(step.ID) == strings.TrimSpace(stepID) {
+			matches = append(matches, i)
+		}
+	}
+	if len(matches) == 0 {
+		return Result{Manifest: path}, fmt.Errorf("unbekannte setup step id %q; mit 'update-cli setup --list' verfügbare IDs anzeigen", stepID)
+	}
+	if len(matches) > 1 {
+		return Result{Manifest: path}, fmt.Errorf("setup step id %q ist nicht eindeutig", stepID)
+	}
+	step := m.Steps[matches[0]]
+	label := step.Name
+	if strings.TrimSpace(label) == "" {
+		label = step.ID
+	}
+	if console.Fullscreen() {
+		console.SetInfoTitle("Projekt-Setup")
+		console.InfoRow("Manifest", path)
+		console.InfoRow("Step", step.ID)
+	} else {
+		console.Header("Projekt-Setup")
+		console.Row("Manifest", path)
+		console.Row("Step", step.ID)
+	}
+	r := Result{Manifest: path}
+	run, reason, err := shouldRunStep(c.CurrentDir, step)
+	if err != nil {
+		return r, fmt.Errorf("setup step %s Bedingung ungültig: %w", step.ID, err)
+	}
+	if !run {
+		r.StepsSkipped = 1
+		console.SkipStep(0, 1, label, reason)
+		return r, nil
+	}
+	err = console.Step(ctx, 0, 1, label, func() error {
+		if console.Details() && step.Command != "" {
+			console.Append("❯ " + step.Command)
+		}
+		return runStep(ctx, c.CurrentDir, step, console)
+	})
+	if err != nil {
+		if step.ContinueOnError {
+			console.Warn(fmt.Sprintf("Schritt fehlgeschlagen, wird fortgesetzt: %v", err))
+			return r, nil
+		}
+		return r, fmt.Errorf("setup step %s (%s) fehlgeschlagen: %w", step.ID, label, err)
+	}
+	r.StepsExecuted = 1
 	return r, nil
 }
 
@@ -281,12 +356,16 @@ func runLegacy(ctx context.Context, c config.Config, console *ui.Console) (Resul
 		return r, statErr
 	}
 
+	hasJust := hasJustfile(c.CurrentDir)
 	total := len(c.LegacySetupCommands)
 	if hasScript {
 		total++
 	}
+	if !hasScript && len(c.LegacySetupCommands) == 0 && hasJust {
+		total = 2
+	}
 	if total == 0 {
-		console.Warn("Kein update-cli.yaml/setup.sh vorhanden")
+		console.Warn("Kein update-cli.yaml/setup.yaml/setup.sh/justfile vorhanden")
 		return r, nil
 	}
 
@@ -328,6 +407,24 @@ func runLegacy(ctx context.Context, c config.Config, console *ui.Console) (Resul
 		}
 		r.LegacyScriptExecuted = true
 		stepIndex++
+	}
+	if !hasScript && len(c.LegacySetupCommands) == 0 && hasJust {
+		just, lookErr := exec.LookPath("just")
+		if lookErr != nil {
+			return r, errors.New("justfile gefunden, aber Kommando 'just' ist nicht installiert")
+		}
+		console.Warn("Kein Setup-Manifest gefunden; Fallback auf just build; just install")
+		for _, recipe := range []string{"build", "install"} {
+			label := "Fallback: just " + recipe
+			err := console.Step(ctx, stepIndex, total, label, func() error {
+				return runCommand(ctx, c.CurrentDir, just, []string{recipe}, console)
+			})
+			if err != nil {
+				return r, err
+			}
+			r.LegacyCommandsExecuted++
+			stepIndex++
+		}
 	}
 	for i, cmdText := range c.LegacySetupCommands {
 		label := fmt.Sprintf("Legacy Setup-Kommando %d", i+1)
@@ -695,9 +792,18 @@ func displayCommand(exe string, args []string) string {
 	return strings.Join(parts, " ")
 }
 
+func hasJustfile(dir string) bool {
+	for _, name := range []string{"justfile", "Justfile"} {
+		if i, err := os.Stat(filepath.Join(dir, name)); err == nil && !i.IsDir() {
+			return true
+		}
+	}
+	return false
+}
+
 func Available(c config.Config) (bool, error) { _, ok, err := Detect(c); return ok, err }
 func ManifestPath(c config.Config) string {
-	for _, n := range []string{"update-cli.yaml"} {
+	for _, n := range []string{"update-cli.yaml", "setup.yaml"} {
 		p := filepath.Join(c.CurrentDir, n)
 		if _, err := os.Stat(p); err == nil {
 			return p
@@ -707,5 +813,5 @@ func ManifestPath(c config.Config) string {
 }
 func IsManifest(path string) bool {
 	b := strings.ToLower(filepath.Base(path))
-	return b == "update-cli.yaml"
+	return b == "update-cli.yaml" || b == "setup.yaml"
 }

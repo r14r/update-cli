@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestRunningAndStart(t *testing.T) {
@@ -116,5 +117,72 @@ func TestComposeCommandReportsComposeVersionFailureDetails(t *testing.T) {
 		if !strings.Contains(text, want) {
 			t.Fatalf("missing %q in %q", want, text)
 		}
+	}
+}
+
+func TestRunningTimesOutWhenComposeStatusHangs(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip()
+	}
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "compose.yaml"), []byte("services: {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	bin := t.TempDir()
+	script := `#!/bin/sh
+if [ "$1 $2" = "compose version" ]; then exit 0; fi
+case "$*" in *"ps -q"*) exec /bin/sleep 5;; esac
+`
+	if err := os.WriteFile(filepath.Join(bin, "docker"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+	oldTimeout := composeStatusTimeout
+	composeStatusTimeout = 50 * time.Millisecond
+	defer func() { composeStatusTimeout = oldTimeout }()
+
+	started := time.Now()
+	_, err := Running(context.Background(), root)
+	if err == nil {
+		t.Fatal("expected compose status timeout")
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("compose status timeout took too long: %s", elapsed)
+	}
+	text := err.Error()
+	for _, want := range []string{"Docker Compose Status fehlgeschlagen", "Timeout:", "Zeitüberschreitung"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("timeout error missing %q:\n%s", want, text)
+		}
+	}
+}
+
+func TestComposeVersionProbeTimesOut(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip()
+	}
+	dir := t.TempDir()
+	bin := t.TempDir()
+	script := `#!/bin/sh
+if [ "$1 $2" = "compose version" ]; then exec /bin/sleep 5; fi
+`
+	if err := os.WriteFile(filepath.Join(bin, "docker"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+	oldTimeout := composeProbeTimeout
+	composeProbeTimeout = 50 * time.Millisecond
+	defer func() { composeProbeTimeout = oldTimeout }()
+
+	started := time.Now()
+	_, _, err := composeCommand(context.Background(), dir)
+	if err == nil {
+		t.Fatal("expected compose version timeout")
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("compose version timeout took too long: %s", elapsed)
+	}
+	if !strings.Contains(err.Error(), "Timeout:") {
+		t.Fatalf("expected timeout detail, got:\n%s", err)
 	}
 }

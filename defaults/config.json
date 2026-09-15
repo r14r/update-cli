@@ -1,0 +1,27 @@
+{
+  "source": {
+    "defaultUser": "r1r"
+  },
+  "sync": {
+    "preserve": [
+      ".git/",
+      ".gitignore",
+      ".venv/",
+      ".env",
+      ".env.*",
+      "data/",
+      "storage/",
+      "uploads/",
+      "media/",
+      "logs/",
+      "var/"
+    ]
+  },
+  "setup": {
+    "keepRsyncOnError": false
+  },
+  "no parameter": [
+    "update",
+    "no-setup"
+  ]
+}

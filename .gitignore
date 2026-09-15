@@ -2,8 +2,14 @@ dist/
 update-cli
 *.zip
 .DS_Store
-.updater-cli/
+.update-cli/*
+!.update-cli/config.json
+.update-cli/
 .release-update.lock/
 .release-project
 .release-source
 .release-version
+
+.demo-install/
+.demo-quickstart/
+docs/videos/*.gif

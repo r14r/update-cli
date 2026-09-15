@@ -13,3 +13,15 @@ func TestRunCommandAndFlag(t *testing.T) {
 		}
 	}
 }
+
+func TestInstallCommandAndCompatibilityFlag(t *testing.T) {
+	for _, args := range [][]string{{"install"}, {"--install"}} {
+		o, err := parseOptions(args)
+		if err != nil {
+			t.Fatalf("parseOptions(%v): %v", args, err)
+		}
+		if !o.install {
+			t.Fatalf("parseOptions(%v) did not select install", args)
+		}
+	}
+}

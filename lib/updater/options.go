@@ -9,11 +9,11 @@ import (
 )
 
 type options struct {
-	archive, downloadDir, mode, sourceType, sourceFolder, sourceURL, repository, rootDir, projectName, setupManifest, setupTask, setupWorkflow                                                                                                                                                                                                                                                                            string
-	dryRun, plan, allowDowngrade, jsonOutput, update, backup, rollback, history, cleanup, clean, init, upgrade, check, doctor, status, list, verify, setup, noSetup, config, configList, configCheck, configMigrate, templatesMode, templatesList, setupList, convertYAML, createYAML, createSetupScript, withAI, details, edit, force, noColor, noUI, noAsk, wait, noWait, showHelp, showHowTo, showVersion, unlock, run bool
-	rollbackVersion, restore, useTemplate, templateUse, templateName                                                                                                                                                                                                                                                                                                                                                      string
-	keep, limit                                                                                                                                                                                                                                                                                                                                                                                                           int
-	configSet                                                                                                                                                                                                                                                                                                                                                                                                             []string
+	archive, downloadDir, mode, sourceType, sourceFolder, sourceURL, repository, fromRepository, rootDir, projectName, setupManifest, setupTask, setupWorkflow, setupStep, helpTopic                                                                                                                                                                                                                                                                                                                                               string
+	dryRun, plan, allowDowngrade, jsonOutput, update, backup, rollback, history, cleanup, clean, init, upgrade, check, doctor, fix, status, list, verify, setup, noSetup, config, configList, configCheck, configMigrate, templatesMode, templatesList, setupList, convertYAML, createYAML, createSetupScript, withAI, details, debug, edit, force, noColor, noUI, noAsk, wait, noWait, showHelp, showHowTo, showVersion, unlock, run, install, schema, schemaView, schemaVersion, doctorMigrate, doctorFix, noParameterInvocation bool
+	rollbackVersion, restore, useTemplate, templateUse, templateName, schemaSave                                                                                                                                                                                                                                                                                                                                                                                                                                                   string
+	keep, limit                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    int
+	configSet                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      []string
 }
 
 func parseOptions(args []string) (options, error) {
@@ -29,6 +29,9 @@ func parseOptions(args []string) (options, error) {
 	fs.StringVar(&o.sourceFolder, "folder", "", "")
 	fs.StringVar(&o.sourceURL, "url", "", "")
 	fs.StringVar(&o.repository, "repository", "", "")
+	fs.StringVar(&o.projectName, "project", "", "")
+	fs.StringVar(&o.rollbackVersion, "rollback-version", "", "")
+	fs.StringVar(&o.restore, "snapshot", "", "")
 	fs.StringVar(&o.rootDir, "root", "", "")
 	fs.StringVar(&o.rootDir, "r", "", "")
 	fs.BoolVar(&o.dryRun, "dry-run", false, "")
@@ -46,17 +49,26 @@ func parseOptions(args []string) (options, error) {
 	fs.IntVar(&o.keep, "keep", -1, "")
 	fs.IntVar(&o.limit, "limit", 20, "")
 	fs.BoolVar(&o.init, "init", false, "")
+	fs.StringVar(&o.fromRepository, "from-repository", "", "")
 	fs.BoolVar(&o.upgrade, "upgrade", false, "")
 	fs.BoolVar(&o.check, "check", false, "")
 	fs.BoolVar(&o.doctor, "doctor", false, "")
+	fs.BoolVar(&o.fix, "fix", false, "")
+	fs.BoolVar(&o.doctorMigrate, "migrate", false, "")
 	fs.BoolVar(&o.status, "status", false, "")
 	fs.BoolVar(&o.list, "list", false, "")
 	fs.BoolVar(&o.verify, "verify", false, "")
 	fs.BoolVar(&o.setup, "setup", false, "")
 	fs.StringVar(&o.setupManifest, "setup-manifest", "", "")
+	fs.StringVar(&o.setupManifest, "manifest", "", "")
 	fs.BoolVar(&o.setupList, "setup-list", false, "")
 	fs.StringVar(&o.setupTask, "setup-task", "", "")
+	fs.StringVar(&o.setupTask, "task", "", "")
 	fs.StringVar(&o.setupWorkflow, "setup-workflow", "", "")
+	fs.StringVar(&o.setupWorkflow, "workflow", "", "")
+	fs.StringVar(&o.setupStep, "setup-step", "", "")
+	fs.StringVar(&o.helpTopic, "help-topic", "", "")
+	fs.StringVar(&o.helpTopic, "command", "", "")
 	fs.BoolVar(&o.convertYAML, "convert-yaml", false, "")
 	fs.BoolVar(&o.createYAML, "create-yaml", false, "")
 	fs.BoolVar(&o.createSetupScript, "create-setup-script", false, "")
@@ -68,6 +80,7 @@ func parseOptions(args []string) (options, error) {
 	fs.Var((*stringListFlag)(&o.configSet), "set", "")
 	fs.BoolVar(&o.templatesMode, "templates", false, "")
 	fs.BoolVar(&o.details, "details", false, "")
+	fs.BoolVar(&o.debug, "debug", false, "")
 	fs.StringVar(&o.templateUse, "use", "", "")
 	fs.BoolVar(&o.edit, "edit", false, "")
 	fs.StringVar(&o.useTemplate, "use-template", "", "")
@@ -86,20 +99,92 @@ func parseOptions(args []string) (options, error) {
 	fs.BoolVar(&o.showVersion, "V", false, "")
 	fs.BoolVar(&o.unlock, "unlock", false, "")
 	fs.BoolVar(&o.run, "run", false, "")
-	normalizedArgs := normalizeFlagArguments(normalizeCommandArguments(append([]string(nil), args...)))
+	fs.BoolVar(&o.install, "install", false, "")
+	fs.BoolVar(&o.schema, "schema", false, "")
+	fs.BoolVar(&o.schemaView, "view", false, "")
+	fs.StringVar(&o.schemaSave, "save", "", "")
+	argsWithoutDebug, debugRequested := stripGlobalDebugArgument(append([]string(nil), args...))
+	normalizedArgs := normalizeFlagArguments(normalizeCommandArguments(normalizeLegacyFromRepositoryArguments(argsWithoutDebug)))
+	if debugRequested {
+		normalizedArgs = append([]string{"--debug"}, normalizedArgs...)
+	}
 	if err := validateKnownFlags(fs, normalizedArgs); err != nil {
 		return o, err
 	}
 	if err := fs.Parse(normalizedArgs); err != nil {
 		return o, err
 	}
+	// doctor --fix reuses the historical --fix flag as a doctor parameter.
+	// Normalize it before primary-mode validation so it is not treated as a
+	// second top-level command.
+	if o.doctor && o.fix {
+		o.doctorFix = true
+		o.fix = false
+	}
+	if o.doctorFix && o.doctorMigrate {
+		return o, errors.New("doctor --fix und --migrate schließen sich gegenseitig aus")
+	}
+	if o.doctorFix && o.jsonOutput {
+		return o, errors.New("doctor --fix ist interaktiv und kann nicht mit --json kombiniert werden")
+	}
+	// Public parameter aliases are translated after flag parsing.
+	if o.rollback && o.showVersion {
+		return o, errors.New("rollback --version benötigt einen Versionswert")
+	}
 	o.mode = strings.ToLower(strings.TrimSpace(o.mode))
+	if strings.TrimSpace(o.fromRepository) != "" {
+		if !o.init {
+			return o, errors.New("--from-repository ist nur mit --init zulässig")
+		}
+		if strings.TrimSpace(o.sourceType) != "" && !strings.EqualFold(strings.TrimSpace(o.sourceType), "repository") {
+			return o, errors.New("--from-repository kann nicht mit einer anderen --from-Quelle kombiniert werden")
+		}
+		if o.mode != "" && o.mode != "pull" {
+			return o, errors.New("--from-repository benötigt mode pull")
+		}
+		if strings.TrimSpace(o.repository) != "" {
+			return o, errors.New("--from-repository REPOSITORY und --repository dürfen nicht kombiniert werden")
+		}
+		o.sourceType = "repository"
+		o.mode = "pull"
+	}
+
+	if o.schema && o.showVersion {
+		o.schemaVersion = true
+		o.showVersion = false
+	}
+	if (o.schemaView || strings.TrimSpace(o.schemaSave) != "" || o.schemaVersion) && !o.schema {
+		return o, errors.New("--view/--save sind nur mit schema zulässig")
+	}
+	if o.doctorMigrate && !o.doctor {
+		return o, errors.New("--migrate ist nur mit doctor zulässig; für Runtime-Konfiguration 'config --migrate' verwenden")
+	}
+	if o.schema {
+		actions := boolInt(o.schemaView) + boolInt(strings.TrimSpace(o.schemaSave) != "") + boolInt(o.schemaVersion)
+		if actions == 0 {
+			return o, errors.New("schema benötigt --view, --save <datei.json> oder --version")
+		}
+		if actions > 1 {
+			return o, errors.New("schema --view, --save und --version schließen sich gegenseitig aus")
+		}
+	}
+
 	if o.mode != "" && o.mode != "update" && o.mode != "pull" {
 		return o, errors.New("--mode unterstützt nur update oder pull")
 	}
 	if o.config && o.list {
 		o.configList = true
 		o.list = false
+	}
+	// `setup --list` is a setup subcommand, not a second top-level mode.
+	// Normalize the legacy flag spelling before primary-mode validation.
+	if o.setup && o.list {
+		o.setupList = true
+		o.list = false
+		o.setup = false
+	}
+	if o.setup && (strings.TrimSpace(o.setupManifest) != "" || strings.TrimSpace(o.setupTask) != "" || strings.TrimSpace(o.setupWorkflow) != "" || strings.TrimSpace(o.setupStep) != "") {
+		o.setup = false
 	}
 	if (o.configCheck || o.configMigrate) && !o.config {
 		return o, errors.New("config --check/--migrate sind nur mit config zulässig")
@@ -127,10 +212,13 @@ func parseOptions(args []string) (options, error) {
 		}
 	}
 	standaloneBackup := o.backup && !o.update
-	setupSelectorMode := (o.setupList || o.setupTask != "" || o.setupWorkflow != "") && o.setupManifest == ""
+	setupSelectorMode := (o.setupList || o.setupTask != "" || o.setupWorkflow != "" || o.setupStep != "") && o.setupManifest == ""
 	setupManageMode := o.convertYAML || o.createYAML || o.createSetupScript
+	if setupSelectorMode && (o.update || o.rollback || o.restore != "") {
+		return o, errors.New("setup --list/task/workflow/run sind eigenständige Befehle; update/rollback/restore entfernen")
+	}
 	primary := 0
-	for _, b := range []bool{o.update, standaloneBackup, o.rollback, o.restore != "", o.history, o.cleanup, o.clean, o.init, o.upgrade, o.check, o.doctor, o.status, o.list, o.verify, o.config, o.templatesMode, o.showHelp, o.showHowTo, o.showVersion, o.unlock, o.run, o.setupManifest != "", setupSelectorMode, setupManageMode} {
+	for _, b := range []bool{o.update, standaloneBackup, o.rollback, o.restore != "", o.history, o.cleanup, o.clean, o.init, o.upgrade, o.check, o.doctor, o.fix, o.status, o.list, o.verify, o.config, o.templatesMode, o.showHelp, o.showHowTo, o.showVersion, o.unlock, o.run, o.install, o.schema, o.setupManifest != "", setupSelectorMode, setupManageMode} {
 		if b {
 			primary++
 		}
@@ -158,11 +246,11 @@ func parseOptions(args []string) (options, error) {
 	if o.setupManifest != "" && (o.setup || o.update || o.rollback || o.restore != "") {
 		return o, errors.New("--setup-manifest kann nicht mit Update-/Setup-Modi kombiniert werden")
 	}
-	if o.setupTask != "" && o.setupWorkflow != "" {
-		return o, errors.New("--setup-task und --setup-workflow schließen sich aus")
+	if boolInt(o.setupTask != "")+boolInt(o.setupWorkflow != "")+boolInt(o.setupStep != "") > 1 {
+		return o, errors.New("--setup-task, --setup-workflow und setup --run <stepid> schließen sich gegenseitig aus")
 	}
-	if o.setupManifest == "" && (o.setupList || o.setupTask != "" || o.setupWorkflow != "") && (o.update || o.rollback || o.restore != "" || o.setup) {
-		return o, errors.New("--setup-list/--setup-task/--setup-workflow sind eigenständige Setup-Befehle")
+	if o.setupManifest == "" && (o.setupList || o.setupTask != "" || o.setupWorkflow != "" || o.setupStep != "") && (o.update || o.rollback || o.restore != "" || o.setup) {
+		return o, errors.New("setup --list/task/workflow/run sind eigenständige Setup-Befehle und können nicht mit update/rollback/restore kombiniert werden")
 	}
 	if o.setup && !(o.update || o.rollback || primary == 0) {
 		return o, errors.New("--setup kann nur allein oder mit --update/--rollback verwendet werden")
@@ -206,7 +294,7 @@ func parseOptions(args []string) (options, error) {
 	if o.jsonOutput && o.update && !o.plan {
 		return o, errors.New("--json wird bei --update nur zusammen mit --plan unterstützt")
 	}
-	if o.details && !(o.templatesMode && o.templatesList) && !o.setup && o.setupManifest == "" && !o.setupList && o.setupTask == "" && o.setupWorkflow == "" && !setupManageMode {
+	if o.details && !o.showHelp && !(o.templatesMode && o.templatesList) && !o.setup && o.setupManifest == "" && !o.setupList && o.setupTask == "" && o.setupWorkflow == "" && o.setupStep == "" && !setupManageMode {
 		return o, errors.New("--details ist nur mit --templates --list oder Setup zulässig")
 	}
 	if o.noAsk && !o.check {
@@ -215,7 +303,7 @@ func parseOptions(args []string) (options, error) {
 	if o.wait && o.noWait {
 		return o, errors.New("--wait und --no-wait schließen sich aus")
 	}
-	if (o.wait || o.noWait) && !(o.check || o.update || o.setup || o.setupManifest != "" || o.setupTask != "" || o.setupWorkflow != "" || (o.rollback && o.setup)) {
+	if (o.wait || o.noWait) && !(o.check || o.update || o.setup || o.setupManifest != "" || o.setupTask != "" || o.setupWorkflow != "" || o.setupStep != "" || (o.rollback && o.setup)) {
 		return o, errors.New("--wait/--no-wait sind nur mit --check, --update oder Setup zulässig")
 	}
 	if len(o.configSet) > 0 && !o.config {
@@ -238,7 +326,11 @@ func parseOptions(args []string) (options, error) {
 		return o, errors.New("--use ist nur mit --templates zulässig")
 	}
 	if primary == 0 && !o.setup {
-		return o, errors.New("keine Betriebsart angegeben")
+		if o.debug {
+			o.noParameterInvocation = true
+		} else {
+			return o, errors.New("keine Betriebsart angegeben")
+		}
 	}
 	return o, nil
 }
@@ -255,6 +347,19 @@ func (v *stringListFlag) String() string { return strings.Join(*v, ",") }
 func (v *stringListFlag) Set(value string) error {
 	*v = append(*v, value)
 	return nil
+}
+
+func stripGlobalDebugArgument(args []string) ([]string, bool) {
+	out := make([]string, 0, len(args))
+	debug := false
+	for _, arg := range args {
+		if arg == "--debug" {
+			debug = true
+			continue
+		}
+		out = append(out, arg)
+	}
+	return out, debug
 }
 
 func normalizeCommandArguments(args []string) []string {
@@ -276,23 +381,45 @@ func normalizeCommandArguments(args []string) []string {
 		return append([]string{flag}, rest...)
 	}
 
+	// `<command> --help` should show help for that command instead of
+	// activating both the command and the global help mode.
+	if command != "help" {
+		for _, arg := range rest {
+			if arg == "--help" || arg == "-h" {
+				out := []string{"--help", "--help-topic", command}
+				for _, value := range rest {
+					if value == "--details" || value == "--json" {
+						out = append(out, value)
+					}
+				}
+				return out
+			}
+		}
+	}
+
 	switch command {
 	case "help":
+		if len(rest) > 0 && !strings.HasPrefix(rest[0], "-") {
+			return append([]string{"--help", "--help-topic", strings.ToLower(strings.TrimSpace(rest[0]))}, rest[1:]...)
+		}
 		return prepend("--help")
+	case "howto":
+		return prepend("--howto")
+	case "version":
+		return prepend("--version")
 	case "check":
 		return prepend("--check")
 	case "update":
+		if len(rest) > 0 && strings.EqualFold(strings.TrimSpace(rest[0]), "plan") {
+			return append([]string{"--update", "--plan"}, rest[1:]...)
+		}
 		return prepend("--update")
 	case "backup":
 		return prepend("--backup")
 	case "rollback":
 		return prepend("--rollback")
 	case "restore":
-		if len(rest) > 0 && !strings.HasPrefix(rest[0], "-") {
-			value := rest[0]
-			return append([]string{"--restore", value}, rest[1:]...)
-		}
-		return prepend("--restore")
+		return append([]string{"--restore", "latest"}, rest...)
 	case "history":
 		return prepend("--history")
 	case "cleanup":
@@ -304,10 +431,25 @@ func normalizeCommandArguments(args []string) []string {
 	case "upgrade":
 		return prepend("--upgrade")
 	case "doctor":
+		if len(rest) > 0 && strings.EqualFold(strings.TrimSpace(rest[0]), "migrate") {
+			return append([]string{"--doctor", "--migrate"}, rest[1:]...)
+		}
 		return prepend("--doctor")
+	case "fix":
+		return prepend("--fix")
 	case "status":
 		return prepend("--status")
+	case "releases":
+		if len(rest) == 0 {
+			return []string{"--list"}
+		}
+		sub := strings.ToLower(strings.TrimSpace(rest[0]))
+		if sub == "list" || sub == "--list" {
+			return append([]string{"--list"}, rest[1:]...)
+		}
+		return prepend("--list")
 	case "list":
+		// Compatibility alias for releases --list.
 		return prepend("--list")
 	case "verify":
 		return prepend("--verify")
@@ -315,6 +457,24 @@ func normalizeCommandArguments(args []string) []string {
 		return prepend("--unlock")
 	case "run":
 		return prepend("--run")
+	case "install":
+		return prepend("--install")
+	case "schema":
+		if len(rest) > 0 && !strings.HasPrefix(rest[0], "-") {
+			sub := strings.ToLower(strings.TrimSpace(rest[0]))
+			switch sub {
+			case "view":
+				return append([]string{"--schema", "--view"}, rest[1:]...)
+			case "version":
+				return append([]string{"--schema", "--version"}, rest[1:]...)
+			case "save":
+				if len(rest) > 1 {
+					return append([]string{"--schema", "--save", rest[1]}, rest[2:]...)
+				}
+				return []string{"--schema", "--save"}
+			}
+		}
+		return prepend("--schema")
 	case "convert-yaml":
 		return prepend("--convert-yaml")
 	case "create-yaml":
@@ -322,23 +482,31 @@ func normalizeCommandArguments(args []string) []string {
 	case "create-setup-script":
 		return prepend("--create-setup-script")
 	case "setup":
-		if len(rest) == 0 || strings.HasPrefix(rest[0], "-") {
-			return prepend("--setup")
+		// Support both command-first and familiar flag spelling:
+		//   setup list / setup --list
+		//   setup run STEP / setup --run STEP
+		if len(rest) > 0 {
+			sub := strings.ToLower(strings.TrimSpace(rest[0]))
+			switch sub {
+			case "list", "--list":
+				return append([]string{"--setup-list"}, rest[1:]...)
+			case "run", "--run":
+				if len(rest) > 1 {
+					return append([]string{"--setup-step", rest[1]}, rest[2:]...)
+				}
+				return []string{"--setup-step"}
+			case "task":
+				rest = rest[1:]
+				return position("--setup-task")
+			case "workflow":
+				rest = rest[1:]
+				return position("--setup-workflow")
+			case "manifest":
+				rest = rest[1:]
+				return position("--setup-manifest")
+			}
 		}
-		sub := strings.ToLower(strings.TrimSpace(rest[0]))
-		rest = rest[1:]
-		switch sub {
-		case "list":
-			return append([]string{"--setup-list"}, rest...)
-		case "task":
-			return position("--setup-task")
-		case "workflow":
-			return position("--setup-workflow")
-		case "manifest":
-			return position("--setup-manifest")
-		default:
-			return append([]string{"--setup", sub}, rest...)
-		}
+		return prepend("--setup")
 	case "config":
 		if len(rest) > 0 {
 			sub := strings.ToLower(strings.TrimSpace(rest[0]))
@@ -347,6 +515,16 @@ func normalizeCommandArguments(args []string) []string {
 				return append([]string{"--config", "--config-check"}, rest[1:]...)
 			case "migrate", "--migrate":
 				return append([]string{"--config", "--config-migrate"}, rest[1:]...)
+			case "set":
+				out := []string{"--config"}
+				for _, value := range rest[1:] {
+					if strings.HasPrefix(value, "-") {
+						out = append(out, value)
+					} else {
+						out = append(out, "--set", value)
+					}
+				}
+				return out
 			}
 		}
 		if len(rest) > 0 && !strings.HasPrefix(rest[0], "-") {
@@ -390,8 +568,83 @@ func normalizeCommandArguments(args []string) []string {
 	return args
 }
 
-func normalizeFlagArguments(args []string) []string {
+func normalizeLegacyFromRepositoryArguments(args []string) []string {
+	fromIndex := -1
+	repositoryIndex := -1
 	for i, arg := range args {
+		switch arg {
+		case "--from-repository":
+			fromIndex = i
+		case "--repository":
+			repositoryIndex = i
+		}
+	}
+	if fromIndex < 0 || repositoryIndex < 0 || repositoryIndex+1 >= len(args) {
+		return args
+	}
+	// New syntax already supplies the repository directly after --from-repository.
+	if fromIndex+1 < len(args) && !strings.HasPrefix(args[fromIndex+1], "-") {
+		return args
+	}
+	repository := args[repositoryIndex+1]
+	if strings.HasPrefix(repository, "-") {
+		return args
+	}
+	out := make([]string, 0, len(args)-1)
+	for i := 0; i < len(args); i++ {
+		if i == fromIndex {
+			out = append(out, "--from-repository", repository)
+			continue
+		}
+		if i == repositoryIndex || i == repositoryIndex+1 {
+			continue
+		}
+		out = append(out, args[i])
+	}
+	return out
+}
+
+func normalizeFlagArguments(args []string) []string {
+	hasRollback := false
+	for _, arg := range args {
+		if arg == "--rollback" {
+			hasRollback = true
+			break
+		}
+	}
+	if hasRollback {
+		for i := 0; i+1 < len(args); i++ {
+			if args[i] == "--version" && !strings.HasPrefix(args[i+1], "-") {
+				args[i] = "--rollback-version"
+			}
+		}
+	}
+	hasSetup := false
+	for _, arg := range args {
+		if arg == "--setup" {
+			hasSetup = true
+			break
+		}
+	}
+	if hasSetup {
+		for i := 0; i+1 < len(args); i++ {
+			if args[i] == "--run" && !strings.HasPrefix(args[i+1], "-") {
+				args[i] = "--setup-step"
+			}
+		}
+	}
+	hasConfig := false
+	for _, arg := range args {
+		if arg == "--config" {
+			hasConfig = true
+			break
+		}
+	}
+	for i, arg := range args {
+		if arg == "--migrate" && hasConfig {
+			args[i] = "--config-migrate"
+			arg = args[i]
+		}
 		if arg == "---no-ui" {
 			args[i] = "--no-ui"
 		}
@@ -402,7 +655,7 @@ func normalizeFlagArguments(args []string) []string {
 			args[i] = "--create-setup-script"
 		}
 	}
-	value := map[string]bool{"--archive": true, "-a": true, "--downloads": true, "-d": true, "--mode": true, "--from": true, "--folder": true, "--url": true, "--repository": true, "--root": true, "-r": true, "--restore": true, "--keep": true, "--limit": true, "--use-template": true, "--use": true, "--setup-manifest": true, "--setup-task": true, "--setup-workflow": true, "--set": true}
+	value := map[string]bool{"--archive": true, "-a": true, "--downloads": true, "-d": true, "--mode": true, "--from": true, "--folder": true, "--url": true, "--repository": true, "--from-repository": true, "--root": true, "-r": true, "--restore": true, "--keep": true, "--limit": true, "--use-template": true, "--use": true, "--setup-manifest": true, "--setup-task": true, "--setup-workflow": true, "--setup-step": true, "--help-topic": true, "--command": true, "--manifest": true, "--task": true, "--workflow": true, "--project": true, "--rollback-version": true, "--snapshot": true, "--set": true, "--save": true}
 	flags := []string{}
 	pos := []string{}
 	for i := 0; i < len(args); i++ {

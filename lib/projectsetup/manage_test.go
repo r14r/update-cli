@@ -120,7 +120,7 @@ func TestGenerateSetupScript(t *testing.T) {
 	}
 	data, _ := os.ReadFile(res.Path)
 	text := string(data)
-	if !strings.Contains(text, "--setup-manifest") || !strings.Contains(text, "go run") {
+	if !strings.Contains(text, "setup --manifest") || !strings.Contains(text, "go run") {
 		t.Fatalf("unexpected script:\n%s", text)
 	}
 }
@@ -202,5 +202,245 @@ go build -o demo .
 	}
 	if !strings.Contains(text, "Go-Tests ausführen") || !strings.Contains(text, "go build -o demo .") {
 		t.Fatalf("unexpected manifest:\n%s", text)
+	}
+}
+
+func TestMigrateProjectManifestCanonicalizesSetupYAML(t *testing.T) {
+	root := t.TempDir()
+	legacy := filepath.Join(root, "setup.yaml")
+	data := `schemaVersion: 1
+project:
+  name: Demo
+steps:
+  - id: test
+    run: echo ok
+`
+	if err := os.WriteFile(legacy, []byte(data), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, err := MigrateProjectManifest(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.Changed || !res.Canonicalized || res.PreviousSchema != 1 || res.CurrentSchema != SchemaVersion {
+		t.Fatalf("unexpected result: %#v", res)
+	}
+	if filepath.Base(res.Path) != "update-cli.yaml" {
+		t.Fatalf("unexpected target: %s", res.Path)
+	}
+	if _, err := os.Stat(legacy); err != nil {
+		t.Fatalf("legacy source should remain untouched: %v", err)
+	}
+	m, err := ParseManifest(res.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Version != SchemaVersion {
+		t.Fatalf("version=%d", m.Version)
+	}
+}
+
+func TestRepairProjectManifestRemovesUnknownAndNormalizesValues(t *testing.T) {
+	root := t.TempDir()
+	manifest := `schemaVersion: 2
+unknownTop: true
+project:
+  name: demo
+  obsolete: value
+defaults:
+  failFast: definitely-not-bool
+  obsolete: true
+tasks:
+  setup:
+    obsolete: value
+    steps:
+      - name: Build
+        unknownStep: true
+        shell: echo ok
+workflows:
+  setup:
+    tasks: [setup, missing]
+`
+	path := filepath.Join(root, "update-cli.yaml")
+	if err := os.WriteFile(path, []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	result, err := RepairProjectManifest(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Changed {
+		t.Fatal("expected manifest repair")
+	}
+	if result.BackupPath == "" {
+		t.Fatal("expected manifest backup")
+	}
+	if _, err := ParseManifest(path); err != nil {
+		t.Fatalf("repaired manifest invalid: %v", err)
+	}
+	body, _ := os.ReadFile(path)
+	for _, bad := range []string{"unknownTop", "obsolete:", "unknownStep", "missing"} {
+		if strings.Contains(string(body), bad) {
+			t.Fatalf("manifest still contains %q:\n%s", bad, body)
+		}
+	}
+}
+
+func TestRepairProjectManifestMigratesTransitionalUpdateSetupPolicy(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "update-cli.yaml")
+	manifest := `schemaVersion: 2
+update:
+  sync:
+    preserve: [.env]
+  setup:
+    keepRsyncOnError: true
+run:
+  command: echo ok
+`
+	if err := os.WriteFile(path, []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	result, err := RepairProjectManifest(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Changed {
+		t.Fatal("expected transitional policy migration")
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(body)
+	if strings.Contains(text, "\n  setup:") || strings.Contains(text, "keepRsyncOnError") {
+		t.Fatalf("transitional setup policy still present:\n%s", text)
+	}
+	m, err := ParseManifest(path)
+	if err != nil {
+		t.Fatalf("migrated manifest invalid: %v", err)
+	}
+	if m.Update.Sync.KeepOnSetupError == nil || !*m.Update.Sync.KeepOnSetupError {
+		t.Fatalf("canonical sync policy missing after migration:\n%s", text)
+	}
+}
+
+func TestInspectManifestDoesNotTreatFormattingOnlyDifferenceAsMigration(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "update-cli.yaml")
+	manifest := `schemaVersion: 2
+project:
+  name: demo
+update:
+  mode: update
+  source:
+    type: download
+    folder: $HOME/Downloads
+  sync:
+    preserve:
+      - .env
+tasks:
+  setup:
+    steps:
+      - shell: echo ok
+workflows:
+  setup:
+    tasks:
+      - setup
+`
+	if err := os.WriteFile(path, []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	inspection := InspectManifest(path)
+	if !inspection.Valid {
+		t.Fatalf("current manifest must be valid: %#v", inspection)
+	}
+	if inspection.Repairable {
+		t.Fatalf("formatting-only canonical renderer difference must not require migration: %#v", inspection)
+	}
+	if len(inspection.RemovedFields) != 0 || len(inspection.Normalized) != 0 {
+		t.Fatalf("unexpected structural diagnostics: %#v", inspection)
+	}
+}
+
+func TestInspectManifestReportsAllRepairableProblemsWithoutChangingFile(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "update-cli.yaml")
+	original := `schemaVersion: 2
+project:
+  name: demo
+  magic: remove-me
+defaults:
+  failFast: maybe
+  obsolete: yes
+update:
+  mode: invalid
+  sync:
+    preserve: [.env]
+    unknownSync: true
+tasks:
+  build:
+    strangeTaskField: yes
+    steps:
+      - shell: echo ok
+        alienStepField: yes
+workflows:
+  setup:
+    tasks: [build]
+`
+	if err := os.WriteFile(path, []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	inspection := InspectManifest(path)
+	if inspection.Valid {
+		t.Fatal("invalid manifest unexpectedly reported valid")
+	}
+	if !inspection.Repairable {
+		t.Fatalf("manifest should be repairable: %#v", inspection)
+	}
+	joined := strings.Join(inspection.RemovedFields, "|")
+	for _, want := range []string{"project.magic", "defaults.obsolete", "update.sync.unknownSync", "tasks.build.strangeTaskField"} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("missing diagnostic %q in %#v", want, inspection.RemovedFields)
+		}
+	}
+	normalized := strings.Join(inspection.Normalized, "|")
+	if !strings.Contains(normalized, "defaults.failFast") || !strings.Contains(normalized, "update.mode") {
+		t.Fatalf("missing normalization diagnostics: %#v", inspection.Normalized)
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != original {
+		t.Fatal("inspection modified original manifest")
+	}
+}
+
+func TestParseManifestForUseIncludesRepairCommand(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "update-cli.yaml")
+	manifest := `schemaVersion: 2
+project:
+  name: demo
+  wrongField: value
+tasks:
+  build:
+    steps:
+      - shell: echo ok
+workflows:
+  setup:
+    tasks: [build]
+`
+	if err := os.WriteFile(path, []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := ParseManifestForUse(path)
+	if err == nil {
+		t.Fatal("expected parser error")
+	}
+	text := err.Error()
+	if !strings.Contains(text, "project.wrongField") || !strings.Contains(text, "update-cli fix") {
+		t.Fatalf("repair diagnostics missing: %s", text)
 	}
 }

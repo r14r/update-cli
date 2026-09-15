@@ -25,12 +25,14 @@ import (
 type Selection struct {
 	Workflow string
 	Task     string
+	Step     string
 }
 
 type Catalog struct {
 	Project   string            `json:"project,omitempty"`
 	Workflows []CatalogWorkflow `json:"workflows"`
 	Tasks     []CatalogTask     `json:"tasks"`
+	Steps     []CatalogStep     `json:"steps"`
 }
 
 type CatalogWorkflow struct {
@@ -46,8 +48,16 @@ type CatalogTask struct {
 	Steps       int      `json:"steps"`
 }
 
+type CatalogStep struct {
+	ID        string `json:"id"`
+	Name      string `json:"name,omitempty"`
+	Task      string `json:"task,omitempty"`
+	Operation string `json:"operation,omitempty"`
+	Index     int    `json:"index"`
+}
+
 func CatalogForManifest(path string) (Catalog, error) {
-	m, err := ParseManifest(path)
+	m, err := ParseManifestForUse(path)
 	if err != nil {
 		return Catalog{}, err
 	}
@@ -55,6 +65,9 @@ func CatalogForManifest(path string) (Catalog, error) {
 	if m.Version == 1 {
 		c.Workflows = []CatalogWorkflow{{Name: "setup", Description: "Legacy setup workflow", Tasks: []string{"setup"}}}
 		c.Tasks = []CatalogTask{{Name: "setup", Steps: len(m.Steps)}}
+		for i, step := range m.Steps {
+			c.Steps = append(c.Steps, CatalogStep{ID: strings.TrimSpace(step.ID), Name: step.Name, Task: "setup", Operation: legacyStepOperation(step), Index: i + 1})
+		}
 		return c, nil
 	}
 	names := make([]string, 0, len(m.Workflows))
@@ -74,8 +87,24 @@ func CatalogForManifest(path string) (Catalog, error) {
 	for _, name := range names {
 		t := m.Tasks[name]
 		c.Tasks = append(c.Tasks, CatalogTask{Name: name, Description: t.Description, Requires: append([]string(nil), t.Requires...), Steps: len(t.Steps)})
+		for i, step := range t.Steps {
+			c.Steps = append(c.Steps, CatalogStep{ID: strings.TrimSpace(step.ID), Name: step.Name, Task: name, Operation: step.Operation, Index: i + 1})
+		}
 	}
 	return c, nil
+}
+
+func legacyStepOperation(step Step) string {
+	if strings.TrimSpace(step.Command) != "" {
+		return "shell"
+	}
+	if strings.TrimSpace(step.Type) != "" && strings.TrimSpace(step.Action) != "" {
+		return step.Type + "." + step.Action
+	}
+	if strings.TrimSpace(step.Type) != "" {
+		return step.Type
+	}
+	return strings.TrimSpace(step.Action)
 }
 
 func runManifestV2(ctx context.Context, root string, m Manifest, console *ui.Console, path string, selection Selection) (Result, error) {
@@ -83,6 +112,9 @@ func runManifestV2(ctx context.Context, root string, m Manifest, console *ui.Con
 		return Result{Manifest: path}, err
 	}
 	vars := resolveVariables(root, m)
+	if strings.TrimSpace(selection.Step) != "" {
+		return runManifestV2Step(ctx, root, m, console, path, selection.Step, vars)
+	}
 	taskNames, err := resolveTaskPlan(m, selection)
 	if err != nil {
 		return Result{Manifest: path}, err
@@ -175,6 +207,69 @@ func runManifestV2(ctx context.Context, root string, m Manifest, console *ui.Con
 		}
 	}
 	return result, nil
+}
+
+func runManifestV2Step(ctx context.Context, root string, m Manifest, console *ui.Console, path, stepID string, vars map[string]string) (Result, error) {
+	type stepMatch struct {
+		task string
+		idx  int
+		step StepV2
+	}
+	matches := []stepMatch{}
+	for taskName, task := range m.Tasks {
+		for i, step := range task.Steps {
+			if strings.TrimSpace(step.ID) == strings.TrimSpace(stepID) {
+				matches = append(matches, stepMatch{task: taskName, idx: i, step: step})
+			}
+		}
+	}
+	if len(matches) == 0 {
+		return Result{Manifest: path}, fmt.Errorf("unbekannte setup step id %q; mit 'update-cli setup --list' verfügbare IDs anzeigen", stepID)
+	}
+	if len(matches) > 1 {
+		tasks := make([]string, 0, len(matches))
+		for _, m := range matches {
+			tasks = append(tasks, m.task)
+		}
+		sort.Strings(tasks)
+		return Result{Manifest: path}, fmt.Errorf("setup step id %q ist nicht eindeutig; gefunden in tasks: %s", stepID, strings.Join(tasks, ", "))
+	}
+	chosen := matches[0]
+	step := expandStepV2(chosen.step, vars)
+	label := step.Name
+	if strings.TrimSpace(label) == "" {
+		label = step.ID
+	}
+	if console.Fullscreen() {
+		console.SetInfoTitle("Projekt-Setup")
+		console.InfoRow("Manifest", path)
+		console.InfoRow("Task", chosen.task)
+		console.InfoRow("Step", step.ID)
+	} else {
+		console.Header("Projekt-Setup")
+		console.Row("Manifest", path)
+		console.Row("Task", chosen.task)
+		console.Row("Step", step.ID)
+	}
+	r := Result{Manifest: path}
+	run, reason, err := evaluateCondition(root, step.When)
+	if err != nil {
+		return r, fmt.Errorf("setup step %s Bedingung ungültig: %w", step.ID, err)
+	}
+	if !run {
+		r.StepsSkipped = 1
+		console.SkipStep(0, 1, label, reason)
+		return r, nil
+	}
+	if err := console.Step(ctx, 0, 1, label, func() error { return executeV2Step(ctx, root, step, m.Defaults, console) }); err != nil {
+		if step.AllowFailure || !m.Defaults.FailFast {
+			console.Warn(fmt.Sprintf("Schritt fehlgeschlagen, wird fortgesetzt: %v", err))
+			return r, nil
+		}
+		return r, fmt.Errorf("setup step %s (%s) fehlgeschlagen: %w", step.ID, label, err)
+	}
+	r.StepsExecuted = 1
+	return r, nil
 }
 
 func selectedWorkflowName(m Manifest, selection Selection) string {

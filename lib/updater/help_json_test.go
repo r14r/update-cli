@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -171,5 +172,143 @@ func TestHelpJSONAdvertisesUpdateAndPullModes(t *testing.T) {
 		if !foundCommand || !foundMode {
 			t.Fatalf("mode option missing for %s", commandName)
 		}
+	}
+}
+
+func TestHelpJSONUsesCommandSyntaxAndReleasesCommand(t *testing.T) {
+	cli := discovery.Build("2.9.0")
+	names := map[string]bool{}
+	for _, command := range cli.Commands {
+		names[command.Name] = true
+	}
+	for _, name := range []string{"upgrade", "unlock", "howto", "version", "check", "update", "backup", "rollback", "restore", "status", "releases", "verify", "doctor", "fix"} {
+		if !names[name] {
+			t.Fatalf("discovery missing command %q", name)
+		}
+	}
+	if names["list"] {
+		t.Fatal("legacy list command must not be advertised; use releases --list")
+	}
+	for _, command := range cli.Commands {
+		if command.Name != "releases" {
+			continue
+		}
+		foundList := false
+		for _, option := range command.Options {
+			if option.Name == "list" {
+				foundList = true
+			}
+		}
+		if !foundList {
+			t.Fatal("releases command missing --list option")
+		}
+	}
+}
+
+func TestConfigListShowsGlobalAndLocalFiles(t *testing.T) {
+	root := t.TempDir()
+	globalDir := t.TempDir()
+	t.Setenv("UPDATE_CLI_GLOBAL_CONFIG_DIR", globalDir)
+	downloads := t.TempDir()
+	cfg, err := config.Init(root, config.InitOptions{ProjectName: "demo", SourceType: "download", Folder: downloads})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := captureStdout(func() error {
+		return Run(context.Background(), "2.5.0", []string{"config", "--list", "--root", root, "--no-ui"})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		filepath.Join(globalDir, config.ConfigFileName),
+		cfg.ConfigFile,
+		filepath.Join(globalDir, config.TemplatesFileName),
+		cfg.TemplatesFile,
+		cfg.HistoryFile,
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("config --list missing %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestSetupListShowsStepIDsAndSetupRunExecutesOnlySelectedStep(t *testing.T) {
+	root := t.TempDir()
+	manifest := `schemaVersion: 2
+project:
+  name: demo
+workflows:
+  setup:
+    tasks: [build]
+tasks:
+  build:
+    steps:
+      - id: first
+        name: First step
+        shell: "printf first > first.txt"
+      - id: second
+        name: Second step
+        shell: "printf second > second.txt"
+`
+	if err := os.WriteFile(filepath.Join(root, "update-cli.yaml"), []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := captureStdout(func() error {
+		return Run(context.Background(), "9.9.9", []string{"setup", "--list", "--no-ui", "--root", root})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "first") || !strings.Contains(out, "second") || !strings.Contains(out, "Steps") {
+		t.Fatalf("setup --list did not show step ids:\n%s", out)
+	}
+	if err := Run(context.Background(), "9.9.9", []string{"setup", "--run", "second", "--no-ui", "--root", root}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "second.txt")); err != nil {
+		t.Fatalf("selected step did not run: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "first.txt")); !os.IsNotExist(err) {
+		t.Fatalf("non-selected step unexpectedly ran: %v", err)
+	}
+}
+
+func TestSetupDetailedHelpIsCommandSpecific(t *testing.T) {
+	out, err := captureStdout(func() error {
+		return Run(context.Background(), "9.9.9", []string{"setup", "--help", "--details"})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Update CLI 9.9.9 — setup", "Beschreibung:", "--run STEP_ID", "Beispiele:"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("missing %q in detailed setup help:\n%s", want, out)
+		}
+	}
+}
+
+func TestSetupRunRejectsAmbiguousStepID(t *testing.T) {
+	root := t.TempDir()
+	manifest := `schemaVersion: 2
+workflows:
+  setup:
+    tasks: [a, b]
+tasks:
+  a:
+    steps:
+      - id: duplicate
+        shell: "true"
+  b:
+    steps:
+      - id: duplicate
+        shell: "true"
+`
+	if err := os.WriteFile(filepath.Join(root, "update-cli.yaml"), []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	err := Run(context.Background(), "9.9.9", []string{"setup", "--run", "duplicate", "--no-ui", "--root", root})
+	if err == nil || !strings.Contains(err.Error(), "nicht eindeutig") {
+		t.Fatalf("expected ambiguous step id error, got %v", err)
 	}
 }

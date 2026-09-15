@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -39,9 +40,12 @@ func TestLoadMigratesSchema5DefaultsInMemory(t *testing.T) {
 	if cfg.Security.MaxArchiveBytes <= 0 || cfg.Security.MaxEntries <= 0 {
 		t.Fatalf("security defaults missing: %#v", cfg.Security)
 	}
+	if cfg.Source.DefaultUser != DefaultRepositoryUser {
+		t.Fatalf("source.defaultUser = %q, want %q", cfg.Source.DefaultUser, DefaultRepositoryUser)
+	}
 }
 
-func TestUpgradeWritesSchema7AndBackup(t *testing.T) {
+func TestUpgradeWritesSchema9AndBackup(t *testing.T) {
 	root := t.TempDir()
 	downloads := t.TempDir()
 	dir := filepath.Join(root, ConfigDirName)
@@ -65,7 +69,7 @@ func TestUpgradeWritesSchema7AndBackup(t *testing.T) {
 	if err := json.Unmarshal(b, &got); err != nil {
 		t.Fatal(err)
 	}
-	if int(got["schemaVersion"].(float64)) != 7 {
+	if int(got["schemaVersion"].(float64)) != 9 {
 		t.Fatalf("schema not upgraded: %v", got["schemaVersion"])
 	}
 }
@@ -110,6 +114,26 @@ func TestNoParameterCheckMayEnableSetupAfterConfirmedUpdate(t *testing.T) {
 		if actions[i] != want[i] {
 			t.Fatalf("actions = %#v, want %#v", actions, want)
 		}
+	}
+}
+
+func TestNoParameterUpdateMayDisableSetup(t *testing.T) {
+	actions, err := normalizedNoParameter(NoParameterConfig{"update", "no-setup"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := NoParameterConfig{"update", "no-setup"}
+	if !reflect.DeepEqual(actions, want) {
+		t.Fatalf("actions = %#v, want %#v", actions, want)
+	}
+}
+
+func TestNoParameterNoSetupRequiresUpdate(t *testing.T) {
+	if _, err := normalizedNoParameter(NoParameterConfig{"no-setup"}); err == nil {
+		t.Fatal("expected no-setup without update to be rejected")
+	}
+	if _, err := normalizedNoParameter(NoParameterConfig{"update", "setup", "no-setup"}); err == nil {
+		t.Fatal("expected setup + no-setup to be rejected")
 	}
 }
 
@@ -186,15 +210,16 @@ func TestLoadAddsGitignoreToExistingPreserveList(t *testing.T) {
 	}
 }
 
-func TestInitDefaultsNoParameterToCheck(t *testing.T) {
+func TestInitDefaultsNoParameterToUpdateWithoutSetup(t *testing.T) {
 	root := t.TempDir()
 	downloads := t.TempDir()
 	cfg, err := Init(root, InitOptions{ProjectName: "demo", SourceType: "download", Folder: downloads})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(cfg.NoParameterActions) != 1 || cfg.NoParameterActions[0] != "check" {
-		t.Fatalf("new project no parameter = %#v, want [check]", cfg.NoParameterActions)
+	wantActions := []string{"update", "no-setup"}
+	if !reflect.DeepEqual(cfg.NoParameterActions, wantActions) {
+		t.Fatalf("new project no parameter = %#v, want %#v", cfg.NoParameterActions, wantActions)
 	}
 	b, err := os.ReadFile(filepath.Join(root, ConfigDirName, ConfigFileName))
 	if err != nil {
@@ -205,8 +230,8 @@ func TestInitDefaultsNoParameterToCheck(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, ok := raw["no parameter"].([]any)
-	if !ok || len(got) != 1 || got[0] != "check" {
-		t.Fatalf("persisted no parameter = %#v, want [check]", raw["no parameter"])
+	if !ok || len(got) != 2 || got[0] != "update" || got[1] != "no-setup" {
+		t.Fatalf("persisted no parameter = %#v, want [update no-setup]", raw["no parameter"])
 	}
 }
 
@@ -298,6 +323,59 @@ func TestInitPullModeWithRepository(t *testing.T) {
 	}
 }
 
+func TestNormalizeRepositorySpec(t *testing.T) {
+	tests := []struct {
+		name        string
+		spec        string
+		defaultUser string
+		want        string
+	}{
+		{"full URL", "https://github.com/r14r/git-cli", "r1r", "https://github.com/r14r/git-cli.git"},
+		{"full URL with git", "https://github.com/r14r/git-cli.git", "r1r", "https://github.com/r14r/git-cli.git"},
+		{"user repo", "r14r/ollama-cli", "r1r", "https://github.com/r14r/ollama-cli.git"},
+		{"repo only default", "ollama-cli", "r1r", "https://github.com/r1r/ollama-cli.git"},
+		{"repo only configured user", "ollama-cli", "custom-user", "https://github.com/custom-user/ollama-cli.git"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := NormalizeRepositorySpec(tt.spec, tt.defaultUser)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tt.want {
+				t.Fatalf("got %q want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNormalizeRepositorySpecRejectsInvalidValues(t *testing.T) {
+	for _, spec := range []string{"", "https://gitlab.com/r14r/demo", "a/b/c", "bad user/repo"} {
+		if _, err := NormalizeRepositorySpec(spec, DefaultRepositoryUser); err == nil {
+			t.Fatalf("invalid repository %q accepted", spec)
+		}
+	}
+}
+
+func TestInitWritesDefaultRepositoryUser(t *testing.T) {
+	root := t.TempDir()
+	downloads := t.TempDir()
+	cfg, err := Init(root, InitOptions{ProjectName: "demo", SourceType: "download", Folder: downloads})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Source.DefaultUser != DefaultRepositoryUser {
+		t.Fatalf("source.defaultUser = %q, want %q", cfg.Source.DefaultUser, DefaultRepositoryUser)
+	}
+	body, err := os.ReadFile(filepath.Join(root, ConfigDirName, ConfigFileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), `"defaultUser": "`+DefaultRepositoryUser+`"`) {
+		t.Fatalf("config.json does not contain source.defaultUser: %s", body)
+	}
+}
+
 func TestCheckCurrentConfig(t *testing.T) {
 	root := t.TempDir()
 	downloads := t.TempDir()
@@ -341,5 +419,295 @@ func TestCheckReportsMigrationWithoutWriting(t *testing.T) {
 	after, _ := os.ReadFile(path)
 	if string(before) != string(after) {
 		t.Fatal("config --check must not modify config.json")
+	}
+}
+
+func TestUpgradeKeepsBackupInsideUpdateCLIConfigDirectory(t *testing.T) {
+	root := t.TempDir()
+	downloads := t.TempDir()
+	configDir := filepath.Join(root, ConfigDirName)
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(configDir, ConfigFileName)
+	data := `{"schemaVersion":6,"projectName":"demo","mode":"update","source":{"type":"download","folder":"` + downloads + `"},"releaseDir":"release","currentDir":"current","no parameter":["check"],"setup":{"commands":[]},"backup":{"directory":"backup","keep":3},"retention":{"releases":5},"sync":{"preserve":[".gitignore"]},"security":{"allowHttp":false,"maxArchiveBytes":2147483648,"maxUncompressedBytes":8589934592,"maxFileBytes":2147483648,"maxEntries":100000,"maxCompressionRatio":200},"docker":{"lifecycle":"auto"},"healthcheck":{}}`
+	if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	r, err := Upgrade(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !r.Changed || r.ConfigFile != path || r.BackupFile == "" {
+		t.Fatalf("unexpected upgrade result: %#v", r)
+	}
+	if filepath.Dir(r.BackupFile) != configDir {
+		t.Fatalf("backup dir = %q, want %q", filepath.Dir(r.BackupFile), configDir)
+	}
+}
+
+func TestLegacyTopLevelDefaultUserIsAcceptedAndCanonicalized(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "config.json")
+	data := `{"schemaVersion":8,"projectName":"demo","mode":"update","defaultUser":"legacyuser","source":{"type":"download","folder":"$HOME/Downloads"},"releaseDir":"release","currentDir":"current","backup":{"directory":"backup","keep":3},"retention":{"releases":5},"security":{"allowHttp":false,"maxArchiveBytes":2147483648,"maxUncompressedBytes":8589934592,"maxFileBytes":2147483648,"maxEntries":100000,"maxCompressionRatio":200},"docker":{"lifecycle":"auto"}}`
+	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	fc, err := readConfigFile(root, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fc, changed, err := migrate(fc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !changed {
+		t.Fatal("legacy top-level defaultUser should require canonicalization")
+	}
+	if fc.DefaultUser != "" {
+		t.Fatalf("legacy defaultUser not cleared: %q", fc.DefaultUser)
+	}
+	if fc.Source == nil || fc.Source.DefaultUser != "legacyuser" {
+		t.Fatalf("source.defaultUser = %#v, want legacyuser", fc.Source)
+	}
+}
+
+func TestRepairProjectConfigMigratesLegacyAndRemovesUnknownFields(t *testing.T) {
+	root := t.TempDir()
+	globalDir := t.TempDir()
+	t.Setenv(globalConfigDirEnv, globalDir)
+	if err := os.MkdirAll(filepath.Join(root, ConfigDirName), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	local := `{
+  "schemaVersion": 8,
+  "projectName": "demo",
+  "defaultUser": "r1r",
+  "mode": "broken",
+  "source": {"type":"download","folder":"$HOME/Downloads","obsolete":true},
+  "releaseDir":"release",
+  "currentDir":"current",
+  "setup":{"commands":[],"keepRsyncOnError":"true","old":1},
+  "docker":{"lifecycle":"invalid"},
+  "unknownTop":"remove-me"
+}`
+	if err := os.WriteFile(filepath.Join(root, ConfigDirName, ConfigFileName), []byte(local), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	global := `{"defaultUser":"globaluser","mode":"explode","source":{"type":"wat"},"sync":{"preserve":[".env","../unsafe"],"obsolete":true},"backup":{"keep":-2},"retention":{"releases":-3},"security":{"maxEntries":0},"docker":{"lifecycle":"wat"},"healthcheck":{"type":"wat","timeoutSeconds":-5},"unknownGlobal":1}`
+	if err := os.WriteFile(filepath.Join(globalDir, ConfigFileName), []byte(global), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := RepairProjectConfig(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Local.Changed {
+		t.Fatal("expected local config repair")
+	}
+	if result.Global == nil || !result.Global.Changed {
+		t.Fatal("expected global config repair")
+	}
+	cfg, err := Load(root, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Source.DefaultUser != "r1r" {
+		t.Fatalf("default user=%q", cfg.Source.DefaultUser)
+	}
+	if cfg.Mode != ModeUpdate {
+		t.Fatalf("mode=%q", cfg.Mode)
+	}
+	if !cfg.KeepRsyncOnSetupError {
+		t.Fatal("keepRsyncOnError was not coerced")
+	}
+	body, _ := os.ReadFile(filepath.Join(root, ConfigDirName, ConfigFileName))
+	var repaired map[string]any
+	if err := json.Unmarshal(body, &repaired); err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := repaired["defaultUser"]; exists {
+		t.Fatalf("legacy top-level defaultUser still present: %s", body)
+	}
+	for _, bad := range []string{"unknownTop", "obsolete"} {
+		if strings.Contains(string(body), bad) {
+			t.Fatalf("repaired local config still contains %q: %s", bad, body)
+		}
+	}
+	globalBody, _ := os.ReadFile(filepath.Join(globalDir, ConfigFileName))
+	if strings.Contains(string(globalBody), `"defaultUser":`) && !strings.Contains(string(globalBody), `"source"`) {
+		t.Fatalf("legacy global defaultUser not migrated: %s", globalBody)
+	}
+	if strings.Contains(string(globalBody), "unknownGlobal") {
+		t.Fatalf("unknown global field not removed: %s", globalBody)
+	}
+	for _, bad := range []string{"explode", `"type": "wat"`, "../unsafe", `"keep": -2`, `"releases": -3`, `"maxEntries": 0`, `"lifecycle": "wat"`, `"timeoutSeconds": -5`} {
+		if strings.Contains(string(globalBody), bad) {
+			t.Fatalf("invalid global value %q was not repaired: %s", bad, globalBody)
+		}
+	}
+}
+
+func TestResolveRootFromCurrentPrefersParentOverNestedRuntimeState(t *testing.T) {
+	root := t.TempDir()
+	for _, dir := range []string{
+		filepath.Join(root, ConfigDirName),
+		filepath.Join(root, "current", ConfigDirName),
+	} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, ConfigFileName), []byte("{}\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	current := filepath.Join(root, "current")
+	old, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(current); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chdir(old) }()
+
+	got, err := ResolveRoot("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotCanonical, err := filepath.EvalSymlinks(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotCanonical != want {
+		t.Fatalf("ResolveRoot from polluted current = %q (canonical %q), want parent %q", got, gotCanonical, want)
+	}
+}
+
+func TestRepairProjectConfigMigratesLegacyKeepRsyncOnErrorLocations(t *testing.T) {
+	root := t.TempDir()
+	global := t.TempDir()
+	t.Setenv(globalConfigDirEnv, global)
+	if err := os.MkdirAll(filepath.Join(root, ConfigDirName), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := `{
+  "schemaVersion": 9,
+  "projectName": "demo",
+  "source": {"type": "download", "folder": "."},
+  "releaseDir": "release",
+  "currentDir": "current",
+  "backup": {"directory": "backup", "keep": 3},
+  "retention": {"releases": 5},
+  "sync": {"preserve": [".env"], "keepRsyncOnError": true},
+  "security": {"maxArchiveBytes": 2147483648, "maxUncompressedBytes": 8589934592, "maxFileBytes": 2147483648, "maxEntries": 100000, "maxCompressionRatio": 200}
+}`
+	path := filepath.Join(root, ConfigDirName, ConfigFileName)
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	result, err := RepairProjectConfig(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Local.Changed {
+		t.Fatal("expected repair to persist canonical setup policy")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(data)
+	if !strings.Contains(text, `"keepRsyncOnError": true`) || !strings.Contains(text, `"setup"`) {
+		t.Fatalf("canonical setup.keepRsyncOnError missing after repair:\n%s", text)
+	}
+	if strings.Contains(text, `"sync": {\n    "keepRsyncOnError"`) {
+		t.Fatalf("legacy sync.keepRsyncOnError remained after repair:\n%s", text)
+	}
+	cfg, err := Load(root, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.KeepRsyncOnSetupError {
+		t.Fatal("repaired policy was not effective")
+	}
+}
+
+func TestLoadResilientRepairsFutureSchemaAndLegacyFields(t *testing.T) {
+	root := t.TempDir()
+	stateDir := filepath.Join(root, ConfigDirName)
+	if err := os.MkdirAll(stateDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := `{
+  "schemaVersion": 99,
+  "projectName": "demo",
+  "defaultUser": "legacyuser",
+  "source": {"type": "download", "folder": "$HOME/Downloads"},
+  "releaseDir": "release",
+  "currentDir": "current",
+  "no parameter": ["update", "no-setup"],
+  "setup": {"commands": []},
+  "backup": {"directory": "backup", "keep": 3},
+  "retention": {"releases": 5},
+  "sync": {"preserve": [".env"], "obsolete": true},
+  "unknownTop": true
+}`
+	path := filepath.Join(stateDir, ConfigFileName)
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, repair, err := LoadResilient(root, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repair == nil || !repair.Local.Changed {
+		t.Fatal("expected automatic repair")
+	}
+	if cfg.Source.DefaultUser != "legacyuser" {
+		t.Fatalf("source.defaultUser = %q", cfg.Source.DefaultUser)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), `"defaultUser": "legacyuser"`) && !strings.Contains(string(data), `"source"`) {
+		t.Fatalf("legacy defaultUser remained top-level: %s", data)
+	}
+	if !strings.Contains(string(data), `"schemaVersion": 9`) {
+		t.Fatalf("schema not migrated: %s", data)
+	}
+}
+
+func TestLoadAcceptsNoParamAliasAsDirectUpdate(t *testing.T) {
+	root := t.TempDir()
+	downloads := t.TempDir()
+	dir := filepath.Join(root, ConfigDirName)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	data := `{
+  "schemaVersion": 9,
+  "projectName": "demo",
+  "mode": "update",
+  "source": {"type": "download", "folder": "` + downloads + `"},
+  "releaseDir": "release",
+  "currentDir": "current",
+  "no-param": "update"
+}`
+	if err := os.WriteFile(filepath.Join(dir, ConfigFileName), []byte(data), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(root, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(cfg.NoParameterActions, []string{"update"}) {
+		t.Fatalf("no-param actions = %#v, want [update]", cfg.NoParameterActions)
 	}
 }

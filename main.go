@@ -19,7 +19,6 @@ var embeddedVersion string
 
 //go:embed build-config.json
 var embeddedBuildConfig []byte
-var version = "dev"
 
 func main() {
 	c, err := buildconfig.Parse(embeddedBuildConfig)
@@ -33,6 +32,10 @@ func main() {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if err := updater.ValidatePublicSyntax(os.Args[1:]); err != nil {
+		fmt.Fprintf(os.Stderr, "\nERROR  %s\n", ui.DisplayText(err.Error()))
+		os.Exit(2)
+	}
 	if err := updater.Run(ctx, resolvedVersion(), os.Args[1:]); err != nil {
 		var e *updater.ExitError
 		if errors.As(err, &e) {
@@ -46,13 +49,9 @@ func main() {
 	}
 }
 func resolvedVersion() string {
-	v := strings.TrimSpace(version)
-	if v != "" && v != "dev" && !strings.Contains(v, "{{") {
+	// VERSION is the single canonical source for the update-cli release version.
+	if v := strings.TrimSpace(embeddedVersion); v != "" && !strings.Contains(v, "{{") {
 		return v
 	}
-	v = strings.TrimSpace(embeddedVersion)
-	if v == "" {
-		return "dev"
-	}
-	return v
+	return "dev"
 }

@@ -83,7 +83,7 @@ func DetectInstalledCommit(current string) string {
 }
 
 func DetectInstalled(current string) (versionutil.Version, string, bool, error) {
-	for _, p := range []string{filepath.Join(current, ".release-version"), filepath.Join(current, "VERSION")} {
+	for _, p := range []string{filepath.Join(current, "VERSION"), filepath.Join(current, ".release-version")} {
 		b, err := os.ReadFile(p)
 		if errors.Is(err, os.ErrNotExist) {
 			continue

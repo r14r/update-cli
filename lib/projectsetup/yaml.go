@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -27,9 +28,56 @@ type Manifest struct {
 }
 
 type UpdateConfig struct {
+	Configured       bool
+	SourceConfigured bool
+	Mode             string
+	Source           UpdateSourceConfig
+	ReleaseDir       string
+	CurrentDir       string
+	Backup           UpdateBackupConfig
+	Retention        UpdateRetentionConfig
+	Sync             UpdateSyncConfig
+	Setup            UpdateSetupConfig
+	Docker           UpdateDockerConfig
+	Healthcheck      UpdateHealthcheckConfig
+}
+
+type UpdateBackupConfig struct {
 	Configured bool
-	Mode       string
-	Source     UpdateSourceConfig
+	Directory  string
+	Keep       *int
+}
+
+type UpdateRetentionConfig struct {
+	Configured bool
+	Releases   *int
+}
+
+type UpdateSyncConfig struct {
+	Configured       bool
+	Preserve         []string
+	KeepOnSetupError *bool
+}
+
+// UpdateSetupConfig is retained only for reading the transitional
+// update.setup.keepRsyncOnError layout used by 2.11.x/2.12.0-2.12.1.
+// New manifests use update.sync.keepOnSetupError.
+type UpdateSetupConfig struct {
+	Configured       bool
+	KeepRsyncOnError *bool
+}
+
+type UpdateDockerConfig struct {
+	Configured bool
+	Lifecycle  string
+}
+
+type UpdateHealthcheckConfig struct {
+	Configured     bool
+	Type           *string
+	URL            *string
+	Command        *string
+	TimeoutSeconds *int
 }
 
 type UpdateSourceConfig struct {
@@ -117,10 +165,32 @@ func ParseManifest(path string) (Manifest, error) {
 	if err != nil {
 		return Manifest{}, err
 	}
+	data = normalizeLegacySetupYAML(path, data)
+	var m Manifest
 	if detectSetupSchemaVersion(data) == 2 {
-		return parseManifestV2(path, data)
+		m, err = parseManifestV2(path, data)
+	} else {
+		m, err = parseManifestV1(path, data)
 	}
-	return parseManifestV1(path, data)
+	if err != nil && strings.EqualFold(filepath.Base(path), "setup.yaml") {
+		return Manifest{}, fmt.Errorf("%s", strings.ReplaceAll(err.Error(), "update-cli.yaml", "setup.yaml"))
+	}
+	return m, err
+}
+
+func normalizeLegacySetupYAML(path string, data []byte) []byte {
+	if !strings.EqualFold(filepath.Base(path), "setup.yaml") || detectSetupSchemaVersion(data) != 0 {
+		return data
+	}
+	root, err := parseSimpleYAML(data)
+	if err == nil && root.kind == yamlMap {
+		for _, key := range []string{"tasks", "workflows", "run", "defaults", "variables", "requirements"} {
+			if root.m[key] != nil {
+				return append([]byte("schemaVersion: 2\n"), data...)
+			}
+		}
+	}
+	return append([]byte("version: 1\n"), data...)
 }
 
 func parseManifestV1(path string, data []byte) (Manifest, error) {
@@ -179,7 +249,10 @@ func parseManifestV1(path string, data []byte) (Manifest, error) {
 				}
 				section = "steps"
 			default:
-				return m, fmt.Errorf("update-cli.yaml Zeile %d: unbekanntes Top-Level-Feld %q", lineNo, k)
+				// Transitional manifests may contain top-level metadata from newer or
+				// older schema revisions. Ignore only the unknown top-level section;
+				// known sections remain strictly validated below.
+				section = "ignored"
 			}
 			continue
 		}
@@ -253,6 +326,8 @@ func parseManifestV1(path string, data []byte) (Manifest, error) {
 				return m, fmt.Errorf("update-cli.yaml Zeile %d: %w", lineNo, assignErr)
 			}
 			m.LegacySchema = m.LegacySchema || legacy
+		case "ignored":
+			continue
 		default:
 			return m, fmt.Errorf("update-cli.yaml Zeile %d: eingerückter Inhalt ohne Abschnitt", lineNo)
 		}

@@ -2,7 +2,6 @@
 """PTY smoke tests for fullscreen setup/update terminal contracts."""
 
 import fcntl
-import json
 import os
 import pathlib
 import pty
@@ -80,19 +79,26 @@ def write_config(
     project: str,
     no_parameter: list[str] | None = None,
 ) -> None:
-    config_dir = root / ".updater-cli"
+    config_dir = root / ".update-cli"
     config_dir.mkdir(parents=True, exist_ok=True)
-    (config_dir / "config.json").write_text(
-        json.dumps(
-            {
-                "schemaVersion": 6,
-                "projectName": project,
-                "source": {"type": "download", "folder": str(downloads)},
-                "releaseDir": "release",
-                "currentDir": "current",
-                "no parameter": no_parameter or ["check"],
-            }
-        ),
+    actions = no_parameter or ["check"]
+    action_lines = "\n".join(f"    - {action}" for action in actions)
+    (root / "update-cli.yaml").write_text(
+        f"""schemaVersion: 2
+project:
+  name: {project}
+  slug: {project}
+update:
+  mode: update
+  source:
+    type: download
+    folder: {downloads}
+  releaseDir: release
+  currentDir: current
+cli:
+  noParameter:
+{action_lines}
+""",
         encoding="utf-8",
     )
 

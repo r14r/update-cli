@@ -1,1955 +1,1014 @@
-# Update CLI
+# update-cli
 
-![Update CLI — transactional updates and project setup automation](docs/update-cli-readme-header.png)
+**Transactional project updates from ZIP releases or Git repositories.**
 
-**Update CLI** is a transactional release updater and project setup/automation runner for versioned applications. It installs validated releases into a stable `current/` directory, keeps immutable release copies and recovery state, and can prepare, check, test, build, deploy, start, stop, migrate, and verify projects through `update-cli.yaml`.
+Current release: **2.16.3**
 
-Current release: **1.5.0**
-
-### 1.5.0 repository source in `update-cli.yaml`
-
-Version 1.5.0 allows the project itself to declare its default update source in `update-cli.yaml`. This is useful for GitHub-managed deployments because the repository URL and ref can travel with the project instead of being repeated in each machine-local `.updater-cli/config.json`. Explicit CLI source flags still have the highest priority.
-
-```yaml
-update:
-  mode: pull
-  source:
-    type: repository
-    repository: https://github.com/r14r/update-cli.git
-    ref: main
-```
-
-Source precedence is: **CLI override → `update-cli.yaml` → `.updater-cli/config.json`**. The local config remains responsible for updater state and machine-specific policy such as directories, retention, security, Docker lifecycle and health checks.
-
-### 1.4.0 command aliases
-
-Version 1.4.0 formalizes the primary actions as equivalent subcommands and flags. The following pairs are guaranteed to use the same parser path and behavior:
-
-```bash
-update-cli check    # same as: update-cli --check
-update-cli update   # same as: update-cli --update
-update-cli run      # same as: update-cli --run
-```
-
-Options and positional arguments work identically with either form, for example `update-cli update --plan`, `update-cli update release.zip`, and `update-cli check --json`.
-
-### 1.3.0 structured run and config validation
-
-Version 1.3.0 extends `update-cli --run` so schemaVersion-2 manifests can use either the compact `run.command` form or structured `run.steps` with typed commands such as `command.exec` plus `args`. It also adds `update-cli config --check` for read-only validation and `update-cli config --migrate` for explicit schema migration with backup.
-
-### 1.2.1 install recipe rename
-
-Version 1.2.1 renames the project Justfile installation recipe from `just deploy` to **`just install`**. The recipe still performs the same validated build and installs the `update-cli` binary, global setup template, AI conversion prompt, and example AI configuration into the configured global locations. The `deploy` operation inside `update-cli.yaml` remains unchanged because it is a project-automation operation, not the Justfile command.
-
-### 1.2.0 application runner and unified project manifest
-
-Version 1.2.0 adds `update-cli --run` / `update-cli run`. The executable command is declared in the top-level `run` block of `update-cli.yaml` and is executed from the active `current/` release. The project automation file is renamed from `setup.yaml` to **`update-cli.yaml`** across discovery, generation, conversion, setup execution, documentation, templates, and tests. A schemaVersion-2 `update-cli.yaml` may now contain only `run` when no setup tasks are required.
-
-### 1.1.2 GitHub onboarding documentation
-
-Version 1.1.2 expands the README with a new Introduction before Quickstart. It explains why Update CLI is used, contrasts Download Folder ZIP releases with GitHub/Git pull sources, shows minimal setup for both modes, and extends Quickstart with complete configuration, inspection, branch/ref selection, source switching, check, plan, pull/update, setup, and recovery examples. Runtime behavior is unchanged from 1.1.1.
-
-### 1.1.1 documentation patch
-
-Version 1.1.1 updates the project README for the two acquisition modes introduced in 1.1.0. The Quickstart now shows complete, separate workflows for ZIP-based `mode: update` and Git-based `mode: pull`, and the Documentation section contains an explicit mode/source matrix, CLI overrides, and Git commit detection behavior. Runtime behavior is unchanged from 1.1.0.
-
-### 1.1.0 update/pull modes
-
-Version 1.1.0 separates project acquisition into two explicit modes. `mode: update` installs versioned ZIP releases from a download folder or HTTPS URL. `mode: pull` maintains a persistent Git checkout in `.updater-cli/repository`, updates it with `git pull --ff-only`, snapshots the checked-out content without `.git`, and deploys it through the same transactional `release/` → `current/` pipeline. Pull mode tracks the Git commit in `.release-commit`, so a new commit is detected even when the repository's `VERSION` value is unchanged. Existing schemaVersion-6 repository configurations migrate automatically to `mode: pull`; download/URL configurations migrate to `mode: update`.
-
-### 1.0.3 UI path release
-
-Version 1.0.3 keeps the stable CLI contract and shortens user-home paths in terminal presentation: absolute paths below the current user home are shown as `$HOME/...` while internal filesystem paths and JSON output remain absolute.
-
-### 1.0.2 documentation release
-
-Version 1.0.2 refreshes the README around the actual stable CLI contract. The Quickstart now follows the real onboarding/update flow, explicitly documents that setup-file generation targets the configured `current/` directory, and uses terminal captures produced from an isolated demo project. A new complete Documentation section covers command-token and flag forms, subcommands, supported option variations, compatibility aliases, source overrides, JSON discovery, configuration/templates, setup selectors, retention/recovery commands, and accompanying command screenshots. Runtime behavior and configuration/setup schemas are unchanged.
-
-### 1.0.1 patch release
-
-Version 1.0.1 keeps the 1.0.0 behavior unchanged and adds regression coverage for normal stable-line patch updates (`1.0.0 -> 1.0.1`) and newest-release selection. This release is intended to verify that the corrected Update CLI release-epoch policy continues with ordinary SemVer ordering inside the stable 1.x line.
-
-### 1.0 stability baseline
-
-Version 1.0.0 promotes the hardened 0.8.x line to the stable release line. It keeps the existing CLI, command aliases, config schema, setup schema and transactional workflow compatible while tightening crash recovery and reducing unnecessary I/O. Notable 1.0 hardening includes unique release/transaction staging paths, recoverable incomplete locks, validated-only `restore latest`, canonical backup path checks, crash-tolerant trailing history records, and single-pass ZIP extraction during update/verify.
-
-The Update CLI-specific version policy explicitly treats **1.0.0 as newer than both 0.8.x and the pre-reset 2.x/3.x development line**. Version ordering for every other managed project remains normal semantic versioning.
-
-See [CODE_REVIEW.md](CODE_REVIEW.md) for the complete pre-1.0 review.
-
-## Introduction
-
-`update-cli` provides one consistent way to **acquire, validate, install, configure, and recover application releases** without making the application itself responsible for its update lifecycle.
-
-Instead of manually extracting ZIP files, replacing project directories, running ad-hoc setup commands, or executing `git pull` directly inside a live deployment, `update-cli` keeps the deployment structure predictable:
+Update CLI separates installation defaults, local runtime state, and versioned project configuration/automation:
 
 ```text
-project/
-├── .updater-cli/        updater configuration and state
-├── release/             validated, immutable release snapshots
-├── current/             active application version
-├── backup/              persistent recovery backups
-└── update-cli.yaml           project run/setup/build/deployment workflow
+INSTALLFOLDER/../etc/update-cli/config.json   installation-wide host/user defaults
+.update-cli/config.json                       local runtime state and project fallbacks
+update-cli.yaml                               versioned project update/setup/run configuration
+current/update-cli.yaml                       installed release manifest, also checked by doctor
+setup.yaml                                    legacy setup manifest fallback
 ```
 
-The active application always lives in the stable `current/` path. The acquisition source can change without changing the downstream deployment workflow. After a ZIP has been extracted or a Git repository has been pulled, both modes continue through the same transactional release, backup, setup, health-check, and rollback pipeline.
-
-### Why use `update-cli`?
-
-`update-cli` is useful when an application should be updated repeatedly and safely while keeping deployment operations reproducible. It provides:
-
-- a stable `current/` directory independent of the installed version;
-- transactional updates instead of modifying the active tree in place;
-- validated release snapshots under `release/`;
-- backup, rollback and restore support;
-- application launch and optional project setup through `update-cli.yaml`;
-- health checks and Docker lifecycle integration;
-- a common CLI for local development, servers and automation;
-- two acquisition sources: **Download Folder** and **GitHub/Git repository**.
-
-### Source 1 — Download Folder
-
-Use **Download Folder** when releases are distributed as versioned ZIP files, for example:
+For the normal installation `/usr/local/bin/update-cli`, the global directory is `/usr/local/etc/update-cli/`. Effective update settings are resolved in this order:
 
 ```text
-$HOME/Downloads/DigitalProductsPlatform-v4.5.0.zip
+global config.json < local .update-cli/config.json < update-cli.yaml < explicit CLI options
 ```
 
-Configure the project once:
+Project-dependent settings can therefore travel with the project in `update-cli.yaml`, while host security limits, `source.defaultUser`, CLI defaults and templates remain outside the release-controlled manifest.
+
+`.update-cli/` is reserved runtime state at the project root. It must never be shipped as release payload or appear below `current/`; Update CLI now enforces this during release/current synchronization.
+
+## CLI syntax
+
+All invocations use one canonical grammar:
 
 ```bash
-update-cli init DigitalProductsPlatform \
-  --mode update \
-  --folder "$HOME/Downloads"
+update-cli <command> --<parameter> --<parameter>
 ```
 
-Then place new ZIP releases in that folder and run:
+Only the command is written without `--`. Every option and every value-bearing selector is a parameter. There are no command aliases with a leading `--` and no bare secondary subcommands. Examples:
 
 ```bash
-update-cli check
-update-cli update --plan
+update-cli version
+update-cli help --command setup --details
+update-cli update --archive app-v1.2.3.zip --no-setup
+update-cli setup --list
+update-cli setup --run go-vet
+update-cli config --migrate
+update-cli schema --version
+update-cli releases --list --json
+```
+
+
+
+## What changed in 2.16.3
+
+### Release archive compatibility
+
+Download-folder and explicit archive updates now accept both supported release names:
+
+```text
+<project>-v<MAJOR>.<MINOR>.<PATCH>.zip
+<project>-<MAJOR>.<MINOR>.<PATCH>.zip
+```
+
+The `v` prefix remains fully backward compatible but is no longer required.
+
+### Docker lifecycle timeout hardening
+
+Docker Compose probing and status checks can no longer block an update indefinitely when Docker Desktop or the Docker Engine is unhealthy. `docker compose version` and `docker compose ... ps -q` use bounded probe/status timeouts, while `up`/`down` lifecycle actions use a bounded action timeout. Timeout failures retain the full command context so `auto` lifecycle mode can skip unavailable Docker cleanly and `required` mode can fail explicitly.
+
+## What changed in 2.16.2
+
+### Doctor manifest selection and interactive repair
+
+`update-cli doctor` treats the root and installed `current/` manifest as alternative valid project-manifest locations. When Update CLI is started from the managed project root and `current/update-cli.yaml` exists, a missing root-level `update-cli.yaml` is shown in the inventory row as `(fehlt)` but is **not** emitted as a warning. An error is reported only when neither location contains a usable manifest.
+
+The `Projektkonfiguration` warning is now conditional. It means that project-specific runtime values still come from local `.update-cli/config.json` without an equivalent override in the active `update-cli.yaml`. Doctor lists the concrete mappings, for example `releaseDir → update.releaseDir` or `source.repository → update.source`. This is an architecture/reproducibility warning, not a schema migration error. Host-specific values such as `security.*`, `source.defaultUser`, and CLI defaults remain intentionally in `config.json`.
+
+Doctor can now repair deterministic schema/structure problems interactively:
+
+```bash
+update-cli doctor --fix
+```
+
+Before changing any file it prints the planned config/manifest repairs and then asks:
+
+```text
+Geplante Reparaturen durchführen? [y/N]
+```
+
+Only `y`/`yes` (and German `j`/`ja`) applies the fix. `n`, Enter, or any other answer leaves all files unchanged. Normal timestamped backups are created by the existing repair engine before changed files are written. `doctor --fix` is intentionally separate from the advisory project-configuration warning and cannot be combined with `--json` or `--migrate`.
+
+## What changed in 2.16.1
+
+### Doctor explains the UI migration badge
+
+`update-cli doctor` now reports the exact migration state used by the fullscreen header. The UI and Doctor share one migration-requirement inspection, so they cannot independently disagree about whether **Migration required** should be shown.
+
+Example when a migration is still pending:
+
+```text
+Migration required   JA
+Migration reason     manifest-current — unbekannte/entfernbare Felder: project.oldField
+Migration file       /project/current/update-cli.yaml
+```
+
+If the runtime config and all relevant project manifests are current, Doctor explicitly reports:
+
+```text
+Migration required   nein
+```
+
+`update-cli doctor --json` exposes the same information as `migrationRequired` and `migrationReasons`. A successful `update-cli config --migrate` only updates `.update-cli/config.json`; if the red badge remains, `doctor` now identifies whether the remaining cause is the root manifest or the installed `current/update-cli.yaml`.
+
+## What changed in 2.16.0
+
+### Command-specific detailed help
+
+`--details` can now be combined with help to show the purpose, command-specific options, and examples instead of only the compact usage summary:
+
+```bash
+update-cli help --command setup --details
+update-cli help --command setup --details
+update-cli help --command update --details
+update-cli help --details
+```
+
+Without `--details`, help remains compact. The JSON discovery output (`help --json`) remains machine-readable and now also advertises the setup step selector.
+
+### Setup step inspection and execution
+
+`setup --list` is now a real standalone setup command and lists workflows, tasks, and every setup step including its `id`, task, name, and operation:
+
+```bash
+update-cli setup --list
+update-cli setup --list --json
+```
+
+A single setup step can be executed by its manifest `id`:
+
+```bash
+update-cli setup --run go-vet
+update-cli setup --run go-vet --details
+```
+
+Only the selected step is executed. Task dependencies and neighboring steps are **not** run automatically. The step's own `when`, timeout, retry, and failure policy still apply. Step IDs should therefore be unique within the manifest; duplicate IDs are rejected as ambiguous.
+
+`setup --list` and `setup --run` are standalone commands and cannot be combined with `update`, `rollback`, or `restore`. This removes the previous contradictory mode errors around `setup --list`.
+
+## What changed in 2.14.6
+
+### Migration badge only for real migrations
+
+The fullscreen **Migration required** badge now reflects only an actual pending runtime-config or project-manifest migration/repair. A valid current-schema `update-cli.yaml` is no longer marked as requiring migration merely because the internal repair renderer would format the YAML differently.
+
+Running `update-cli config --migrate` on an already current schema therefore clears the badge unless a root/current manifest still has a genuine schema mismatch, unknown field, invalid value, legacy filename/structure, or another deterministic structural repair requirement. Pure formatting differences are ignored.
+
+## What changed in 2.14.5
+
+### Canonical runtime directory and migration warning
+
+`.update-cli/` is now the only project runtime-state directory used anywhere in code, tests, help text, packaging, and documentation. `update-cli config --migrate` upgrades `.update-cli/config.json` in place, and its timestamped backup is written beside the source file in `.update-cli/`.
+
+The fullscreen UI now shows a right-aligned **Migration required** badge in white text on a red background whenever the runtime config or the root/current project manifest requires a supported migration or deterministic repair. The badge stays visible while the UI changes between check, update, and setup phases.
+
+## What changed in 2.14.4
+
+### Stable macOS test paths and concise test output
+
+macOS exposes the same temporary directory through both `/var/folders/...` and `/private/var/folders/...`. The root-discovery and install integration tests now compare canonical filesystem paths, so these aliases no longer produce false failures.
+
+`just test` intentionally exercises many independent integration scenarios: setup schema 1/2, migration, failed migration, rollback, Docker lifecycle, `no-setup`, init, install, doctor/fix and other workflows. Go normally suppresses stdout from passing test packages. If one test in a package fails, Go prints the buffered output from the entire package, which can make the individual scenarios look like duplicated setup runs. With the macOS path assertions fixed, a successful `just test` remains compact.
+
+## What changed in 2.14.3
+
+### Parameterless update aliases no longer fall back to an install prompt
+
+The canonical runtime key remains `"no parameter"`, but Update CLI now also accepts the common spellings `"no-param"`, `"no-parameter"`, and `"noParameter"`. A scalar string or a string list is supported. For example:
+
+```json
+"no-param": "update"
+```
+
+is interpreted exactly like:
+
+```json
+"no parameter": ["update"]
+```
+
+Therefore a parameterless `update-cli` invocation enters the update path directly and does **not** first execute `check` or ask `Update jetzt installieren?`. `update-cli fix` / `config migrate` normalize alias spellings back to the canonical `"no parameter"` key.
+
+To also suppress the separate project-setup question after a successful update, configure:
+
+```json
+"no parameter": ["update", "no-setup"]
+```
+
+## What changed in 2.14.2
+
+### Bootstrap-safe commands and runtime configuration
+
+All documented actions are first-class commands without a leading `--`. In particular, version inspection does not need project configuration:
+
+```bash
+update-cli version
+update-cli version
+```
+
+The normal runtime-config path is now resilient. Update CLI first tries the strict parser. If an existing local/global `config.json` uses a known legacy or transition structure, Update CLI creates the normal timestamped backup, repairs the files to the current runtime schema, and retries the strict parser. This includes top-level `defaultUser`, historical setup-policy aliases, unknown obsolete fields, and older/newer schema markers whose known content can be safely normalized.
+
+A parameterless invocation therefore no longer gets permanently blocked by errors such as:
+
+```text
+json: unknown field "defaultUser"
+schemaVersion 9 ist neuer als unterstützt 7
+```
+
+After installing the current binary, the configuration is migrated to runtime schema 9 before the configured no-parameter action is executed. Explicit `update-cli fix` and `update-cli doctor --migrate` remain available for manual diagnostics/migration.
+
+### Command-first syntax
+
+The canonical form uses commands rather than action flags:
+
+```bash
+update-cli version
 update-cli update
-```
-
-The relevant `.updater-cli/config.json` section is:
-
-```json
-{
-  "mode": "update",
-  "source": {
-    "type": "download",
-    "folder": "$HOME/Downloads"
-  }
-}
-```
-
-In this mode, `update-cli` selects the newest matching versioned ZIP unless a specific archive is supplied explicitly.
-
-### Source 2 — GitHub Repository
-
-Use **GitHub Repository** / **Git repository** when the project should be updated directly from source control instead of receiving ZIP releases.
-
-Configure the project once:
-
-```bash
-update-cli init DigitalProductsPlatform \
-  --mode pull \
-  --repository https://github.com/acme/DigitalProductsPlatform.git
-```
-
-Optionally pin the repository branch or ref:
-
-```bash
-update-cli config --set source.ref=main
-```
-
-Then use exactly the same operational workflow:
-
-```bash
-update-cli check
-update-cli update --plan
-update-cli update
-```
-
-The relevant `.updater-cli/config.json` section is:
-
-```json
-{
-  "mode": "pull",
-  "source": {
-    "type": "repository",
-    "repository": "https://github.com/acme/DigitalProductsPlatform.git",
-    "ref": "main"
-  }
-}
-```
-
-`update-cli` keeps a persistent checkout in `.updater-cli/repository/`. `check` fetches repository metadata without deploying it. `update` fast-forwards the configured branch/ref with `git pull --ff-only`, creates a clean snapshot without `.git`, and deploys that snapshot through the normal transactional pipeline.
-
-The active `current/` directory is therefore **not** the Git working tree. This keeps application deployment state separate from source-control state and preserves the same rollback semantics used for ZIP releases.
-
-### Which source should I use?
-
-| Requirement | Download Folder | GitHub Repository |
-|---|---:|---:|
-| Receive prepared release ZIPs | **Recommended** | — |
-| Pull changes directly from Git | — | **Recommended** |
-| Work without Git on the target system | **Yes** | No |
-| Pin a branch/ref | — | **Yes** |
-| Install a specific ZIP manually | **Yes** | — |
-| Transactional `release/` → `current/` deployment | **Yes** | **Yes** |
-| Backup / rollback / setup / health checks | **Yes** | **Yes** |
-
----
-
-## Quickstart
-
-The following two workflows cover the normal setup from an empty project directory to the first managed update.
-
-### 1. Verify Update CLI
-
-```bash
-update-cli --version
-update-cli --help
-```
-
-For machine-readable command discovery:
-
-```bash
-update-cli --help --json
-```
-
-### 2. Create the project directory
-
-```bash
-mkdir DigitalProductsPlatform
-cd DigitalProductsPlatform
-```
-
-`update-cli` stores project-specific configuration in:
-
-```text
-.updater-cli/config.json
-```
-
-You can display the effective configuration at any time with:
-
-```bash
-update-cli config list
-```
-
-and edit individual values with:
-
-```bash
-update-cli config --set KEY=VALUE
-```
-
-### 3A. Quickstart with a Download Folder
-
-Use this workflow when releases arrive as ZIP files.
-
-#### Initialize
-
-```bash
-update-cli init DigitalProductsPlatform \
-  --mode update \
-  --folder "$HOME/Downloads"
-```
-
-Verify the stored configuration:
-
-```bash
-update-cli config list
-```
-
-The relevant configuration is:
-
-```json
-{
-  "mode": "update",
-  "source": {
-    "type": "download",
-    "folder": "$HOME/Downloads"
-  }
-}
-```
-
-#### Add a release
-
-Copy or download a versioned archive into the configured folder:
-
-```text
-$HOME/Downloads/DigitalProductsPlatform-v4.5.0.zip
-```
-
-The expected naming convention is:
-
-```text
-<PROJECT>-v<MAJOR>.<MINOR>.<PATCH>.zip
-```
-
-#### Check for an update
-
-```bash
-update-cli check
-```
-
-For unattended use:
-
-```bash
-update-cli check --no-ask
-```
-
-![Quickstart — check for update](doc/images/quickstart/03-check.png)
-
-#### Preview the update
-
-```bash
-update-cli update --plan
-```
-
-#### Install the newest release
-
-```bash
-update-cli update
-```
-
-![Quickstart — transactional update](doc/images/quickstart/04-update.png)
-
-To install a specific archive explicitly:
-
-```bash
-update-cli update "$HOME/Downloads/DigitalProductsPlatform-v4.5.0.zip"
-```
-
-or with the mode stated explicitly:
-
-```bash
-update-cli update \
-  --mode update \
-  "$HOME/Downloads/DigitalProductsPlatform-v4.5.0.zip"
-```
-
-### 3B. Quickstart with a GitHub Repository
-
-Use this workflow when `update-cli` should obtain new project content directly from GitHub or another Git server.
-
-#### Initialize
-
-```bash
-update-cli init DigitalProductsPlatform \
-  --mode pull \
-  --repository https://github.com/acme/DigitalProductsPlatform.git
-```
-
-![Quickstart — initialize project](doc/images/quickstart/01-init.png)
-
-The relevant configuration is:
-
-```json
-{
-  "mode": "pull",
-  "source": {
-    "type": "repository",
-    "repository": "https://github.com/acme/DigitalProductsPlatform.git"
-  }
-}
-```
-
-#### Select a branch or Git ref
-
-If `source.ref` is omitted, `update-cli` resolves the repository's default branch. To explicitly use `main`:
-
-```bash
-update-cli config --set source.ref=main
-```
-
-The resulting configuration becomes:
-
-```json
-{
-  "mode": "pull",
-  "source": {
-    "type": "repository",
-    "repository": "https://github.com/acme/DigitalProductsPlatform.git",
-    "ref": "main"
-  }
-}
-```
-
-You can inspect it with:
-
-```bash
-update-cli config list
-```
-
-#### Change an existing project from ZIP updates to GitHub pull
-
-An already initialized project can be switched without recreating it:
-
-```bash
-update-cli config \
-  --set mode=pull \
-  --set source.type=repository \
-  --set source.repository=https://github.com/acme/DigitalProductsPlatform.git \
-  --set source.ref=main
-```
-
-Then verify:
-
-```bash
-update-cli config list
-update-cli doctor
-```
-
-#### Check GitHub for changes
-
-```bash
-update-cli check
-```
-
-For pull mode, `check` updates repository metadata and compares the target Git commit with the commit recorded for the installed release. A newer commit can therefore be detected even when the repository's `VERSION` file has not changed.
-
-#### Preview the GitHub update
-
-```bash
-update-cli update --plan
-```
-
-The plan shows the repository source, target version/commit, release directory and active `current/` directory without deploying the new state.
-
-#### Pull and deploy
-
-```bash
-update-cli update
-```
-
-Internally the pull workflow is:
-
-```text
-GitHub / Git repository
-        │
-        │ git fetch --prune --tags
-        ▼
-.updater-cli/repository/
-        │
-        │ git pull --ff-only
-        ▼
-clean source snapshot (.git excluded)
-        │
-        ▼
-release/<version>/
-        │
-        ▼
-current/
-        │
-        ├── optional update-cli.yaml
-        └── optional health check
-```
-
-The deployed release records the selected commit in `.release-commit`. This allows `update-cli check` to distinguish two commits that use the same semantic `VERSION` value.
-
-#### Temporarily use another repository
-
-For a one-time source override:
-
-```bash
-update-cli update \
-  --mode pull \
-  --repository https://github.com/acme/DigitalProductsPlatform.git
-```
-
-The persistent repository URL remains stored in `.updater-cli/config.json`; the command-line option applies to the current invocation.
-
-### 4. Create or maintain `update-cli.yaml`
-
-`update-cli.yaml` can now describe both the project's **default update source** and the actions that run after content has been acquired. For GitHub-managed projects, keep the repository source with the project:
-
-```yaml
-update:
-  mode: pull
-  source:
-    type: repository
-    repository: https://github.com/acme/DigitalProductsPlatform.git
-    ref: main
-```
-
-`.updater-cli/config.json` remains the machine-local updater configuration and state file. If the same source setting is present in both places, `update-cli.yaml` wins. Explicit command-line source options such as `--repository` or `--mode` override both.
-
-`create-yaml` operates on the configured `current/` project directory. After the first deployment, generate a schemaVersion-2 setup manifest from the project:
-
-```bash
-update-cli create-yaml --from project --dry-run
-update-cli create-yaml --from project
-```
-
-If `current/` already contains `setup.sh`:
-
-```bash
-update-cli create-yaml --from setup-script --dry-run
-update-cli create-yaml --from setup-script
-```
-
-Optional AI-assisted refinement:
-
-```bash
-update-cli create-yaml --from setup-script --with-ai
-```
-
-Generate the generic setup wrapper when required:
-
-```bash
-update-cli create-setup-script
-```
-
-![Quickstart — generate update-cli.yaml](doc/images/quickstart/02-create-yaml.png)
-
-### 5. Run project setup
-
-Run setup independently:
-
-```bash
-update-cli setup
-```
-
-Run it automatically after an update or pull:
-
-```bash
-update-cli update --setup
-```
-
-Suppress post-update setup explicitly:
-
-```bash
-update-cli update --no-setup
-```
-
-For direct terminal/CI streaming:
-
-```bash
-update-cli setup --no-ui
-update-cli update --setup --no-ui
-```
-
-![Quickstart — project setup](doc/images/quickstart/05-setup.png)
-
-### 6. Run the application
-
-Store the application start command in `current/update-cli.yaml` (or in the source `update-cli.yaml` before deployment):
-
-```yaml
-schemaVersion: 2
-
-project:
-  name: DigitalProductsPlatform
-
-run:
-  command: docker compose up
-  cwd: .
-```
-
-Then start the active application with:
-
-```bash
-update-cli --run
-```
-
-The command-token form is equivalent:
-
-```bash
-update-cli run
-```
-
-`--run` always uses the active `current/` release when the project has `.updater-cli/config.json`. The optional `cwd` value must remain inside `current/`. Environment variables can be declared directly in the manifest:
-
-```yaml
-run:
-  command: npm run dev
-  cwd: frontend
-  env:
-    NODE_ENV: development
-    API_URL: http://localhost:8080
-```
-
-Typical commands include:
-
-```yaml
-# Docker Compose
-run:
-  command: docker compose up
-
-# Just
-run:
-  command: just start
-
-# Node.js
-run:
-  command: npm run dev
-
-# Python
-run:
-  command: .venv/bin/python -m myapp
-
-# Go
-run:
-  command: ./dist/myapp
-```
-
-`run` supports two equivalent forms. The compact form uses `run.command`; the structured form uses `run.steps` and the same typed step syntax as setup automation. For example, a Streamlit application can be started without a shell wrapper:
-
-```yaml
-run:
-  description: Start Streamlit app
-  steps:
-    - name: Start Streamlit
-      command:
-        exec: .venv/bin/streamlit
-        args:
-          - run
-          - app/app.py
-```
-
-Structured run steps also support the normal step controls such as `cwd`, `env`, `timeout`, `retries`, `when`, and `allowFailure`. A manifest must define either `run.command` or `run.steps`; defining both is rejected. If neither is present, `update-cli --run` stops with a configuration error instead of guessing how the application should be started.
-
-![Quickstart — run application](doc/images/documentation/17-run.png)
-
-### 7. Configure the no-parameter workflow
-
-New projects default to:
-
-```json
-{
-  "no parameter": ["check"]
-}
-```
-
-A bare invocation therefore checks the configured source, regardless of whether it is a Download Folder or Git repository:
-
-```bash
-update-cli
-```
-
-To run setup automatically after an accepted update:
-
-```bash
-update-cli config --set no-parameter="check,setup"
-```
-
-### 8. Verify the final state
-
-```bash
-update-cli status
-update-cli doctor
-update-cli list
-```
-
-`status` summarizes the active installation and source state, `doctor` validates project prerequisites and updater state, and `list` shows validated releases and backups.
-
-![Quickstart — status and doctor](doc/images/quickstart/06-status.png)
-
-### Quickstart workflows at a glance
-
-| Goal | Download Folder (`mode: update`) | GitHub Repository (`mode: pull`) |
-|---|---|---|
-| Initialize | `update-cli init APP --mode update --folder "$HOME/Downloads"` | `update-cli init APP --mode pull --repository REPO` |
-| Show config | `update-cli config list` | `update-cli config list` |
-| Configure source | `source.type=download`, `source.folder=...` | `source.type=repository`, `source.repository=...` |
-| Select branch/ref | — | `update-cli config --set source.ref=main` |
-| Check | `update-cli check` | `update-cli check` |
-| Preview | `update-cli update --plan` | `update-cli update --plan` |
-| Install | `update-cli update` | `update-cli update` |
-| Explicit source | `update-cli update release.zip` | `update-cli update --mode pull --repository REPO` |
-| Setup after update | `update-cli update --setup` | `update-cli update --setup` |
-| Run active application | `update-cli --run` | `update-cli --run` |
-| Recovery | `update-cli rollback` / `restore` | `update-cli rollback` / `restore` |
-
-## Documentation
-
-This section is the complete CLI command reference for the current release. It documents the preferred command-token syntax, established flag syntax, subcommands, short aliases, compatibility aliases, positional arguments, and command-specific modifiers.
-
-### Command conventions
-
-Both styles execute the same internal command path:
-
-```bash
-update-cli check
-update-cli --check
-
-update-cli update release.zip
-update-cli --update release.zip
-```
-
-Common conventions:
-
-| Option | Meaning | Scope |
-|---|---|---|
-| `--root DIR`, `-r DIR` | Use another updater project root | Most project commands |
-| `--json` | Request structured JSON where supported | Discovery/status/list/plan/diagnostic commands |
-| `--no-color` | Disable ANSI colors | Most output commands |
-| `--no-ui`, `--noui` | Disable fullscreen TUI and stream process output | Check/update/rollback/setup |
-| `---no-ui` | Historical compatibility spelling for `--no-ui` | Same as `--no-ui` |
-| `--wait` / `--no-wait` | Control waiting before leaving interactive output | Check/update/rollback/setup |
-| `--force`, `-f` | Force replacement/reinstall where explicitly supported | Update/init/setup-file generation |
-| `--dry-run`, `-n` | Preview without writing/applying | Update/setup-file generation |
-| `--downloads DIR`, `-d DIR` | Override download/source directory | Release discovery commands |
-| `--mode MODE` | Override acquisition mode: `update` or `pull` | Release discovery/update/init |
-| `--from TYPE` | Override source type: `download`, `url`, `repository` | Release discovery/init; create-yaml uses `project`/`setup-script` |
-| `--folder DIR` | Override release source folder | Release discovery/init |
-| `--url URL` | Override release URL | Release discovery/init |
-| `--repository REPO` | Override release repository | Release discovery/init |
-
-![Documentation — help and version](doc/images/documentation/01-help-version.png)
-
-### Help, discovery and version
-
-| Command | Supported forms and variations |
-|---|---|
-| Help | `update-cli --help`, `update-cli -h`, `update-cli help` |
-| Machine-readable help | `update-cli --help --json`, `update-cli help --json` |
-| Extended operating notes | `update-cli --howto` |
-| Version | `update-cli --version`, `update-cli -V` |
-
-`--help --json` is deterministic, side-effect free, TUI-free, and intended for tools such as **command-ui**. It exposes `schemaVersion: 1`, command arguments, options, and dynamic selectors.
-
-### Check and update
-
-| Command | Purpose | Supported variations |
-|---|---|---|
-| `check` / `--check` | Find the newest applicable release | `--no-ask`, `--json`, `--wait`, `--no-wait`, `--no-ui`/`--noui`, `--no-color`, source overrides, `--root` |
-| `update [ARCHIVE.zip]` / `--update [ARCHIVE.zip]` | Apply the configured update/pull mode transactionally | Positional ZIP or `--archive/-a`; `--dry-run/-n`; `--plan [--json]`; `--allow-downgrade`; `--backup`; `--setup` or `--no-setup`; `--force/-f`; wait/UI/color/source/root modifiers |
-
-Typical variations:
-
-```bash
-update-cli check
-update-cli check --no-ask
-update-cli check --json
-update-cli check --no-ui
-
-update-cli update
-update-cli update --mode update release.zip
-update-cli update --mode pull --repository https://github.com/acme/demo-app.git
-update-cli update release.zip
-update-cli update --archive release.zip
-update-cli update --plan
 update-cli update --plan --json
-update-cli update --dry-run
-update-cli update --backup
-update-cli update --setup
-update-cli update --no-setup
-update-cli update --force
-update-cli update --allow-downgrade
-update-cli update --setup --no-ui
-```
-
-In `mode=update`, a positional archive or `--archive/-a` selects a ZIP directly. In `mode=pull`, ZIP arguments are rejected and the configured repository is pulled. `--allow-downgrade` disables the normal version-order safety check for an intentional downgrade. `--force` is required to reinstall the same version where the updater would otherwise treat it as a no-op.
-
-![Documentation — check and update plan](doc/images/documentation/02-check-update.png)
-
-![Documentation — update execution](doc/images/documentation/03-update-execution.png)
-
-### Backup, rollback and restore
-
-| Command | Supported forms and variations |
-|---|---|
-| Backup | `update-cli backup`, `update-cli --backup`; optional `--json`, `--root`, `--no-color` |
-| Rollback | `update-cli rollback [VERSION]`, `update-cli --rollback [VERSION]`; optional `--setup`, `--json`, `--wait`, `--no-wait`, `--no-ui`, `--root`, `--no-color` |
-| Restore | `update-cli restore BACKUP`, `update-cli --restore BACKUP`; `BACKUP` can be `latest` or a validated backup name; optional `--json`, `--root`, `--no-color` |
-
-Examples:
-
-```bash
-update-cli backup
-update-cli backup --json
-update-cli rollback
-update-cli rollback 1.4.2
-update-cli rollback 1.4.2 --setup --no-ui
-update-cli restore latest
-update-cli restore 20260818-184500-v1.4.2
-```
-
-![Documentation — backup, rollback and restore](doc/images/documentation/04-backup-rollback-restore.png)
-
-### Status, inventory, verification and diagnostics
-
-| Command | Purpose | Supported variations |
-|---|---|---|
-| `status` / `--status` | Active/available release state | `--json`, `--no-color`, source overrides, `--root` |
-| `list` / `--list` | Validated releases and backups | `--json`, `--no-color`, source overrides, `--root` |
-| `verify ARCHIVE.zip` / `--verify ARCHIVE.zip` | Validate a release archive without installing | Positional ZIP or `--archive/-a`; `--json`, `--no-color`, source overrides, `--root` |
-| `doctor` / `--doctor` | Diagnose updater/project prerequisites | `--json`, `--no-color`, `--root` |
-
-```bash
-update-cli status
-update-cli status --json
-update-cli list
-update-cli list --json
-update-cli verify release.zip
-update-cli verify --archive release.zip --json
+update-cli setup
+update-cli install
 update-cli doctor
-update-cli doctor --json
+update-cli doctor --migrate
+update-cli fix
+update-cli schema --version
+update-cli schema --view
+update-cli config --check
+update-cli config --migrate
+update-cli releases --list --json
 ```
 
-![Documentation — status, list and doctor](doc/images/documentation/05-status-list-doctor.png)
+Legacy action flags such as `--version`, `--update`, `--setup`, and `--doctor` remain compatibility aliases.
 
-![Documentation — verify and history](doc/images/documentation/06-verify-history.png)
+## What changed in 2.14.0
 
-### History and retention
+- Every public action uses exactly one command without a leading `--`; every following option uses a `--parameter`.
+- Version handling introduced in 2.14.0 has been simplified by 2.14.1: `VERSION` is now the only release-version source.
 
-| Command | Purpose | Supported variations |
-|---|---|---|
-| `history` / `--history` | Show transaction history | `--limit N` (minimum 1, default 20), `--json`, `--root`, `--no-color` |
-| `clean` / `--clean` | Remove obsolete **release-directory entries only** | `--keep N`, `--plan`, `--json`, `--root`, `--no-color` |
-| `cleanup` / `--cleanup` | Apply release **and backup** retention | `--keep N`, `--plan`, `--json`, `--root`, `--no-color` |
+### Self-healing runtime config compatibility
+
+Normal commands now normalize known historical `keepRsyncOnError` placements **before** the strict `config.json` decoder runs. This prevents an older/transitional runtime config from blocking `update`, `upgrade`, `setup`, `doctor`, or parameterless execution before `fix` can be reached.
+
+The canonical runtime JSON remains:
+
+```json
+{
+  "setup": {
+    "keepRsyncOnError": false
+  }
+}
+```
+
+The loader accepts and normalizes these historical aliases in memory:
+
+```text
+keepRsyncOnError
+sync.keepRsyncOnError
+sync.keepOnSetupError
+setup.keepOnSetupError
+```
+
+Use `update-cli fix` to persist the canonical representation and create the normal timestamped backup. Project YAML continues to use the separate versioned setting `update.sync.keepOnSetupError`, which overrides the JSON fallback.
+
+### Binary version comes directly from VERSION
+
+The compiled CLI embeds `VERSION` directly. The build no longer supplies any second version value through `-ldflags`, so the source file and reported binary version cannot diverge through build configuration.
+
+## What changed in 2.13.2
+
+### One canonical setup/build path
+
+The Update CLI project now uses the same installation path for both manual installation and `update-cli setup`: `just install`. The setup manifest no longer duplicates the Go format/vet/test/race/build/deploy sequence. Before invoking `just install`, the internal `UPDATE_CLI_SETUP_RUNNING` marker is removed from the nested build/test environment so setup-driven validation behaves like a direct shell invocation.
+
+The previous recovery `WARN` lines shown by `lib/updater` tests are expected output from tests that deliberately simulate failed updates, Docker outages and rollback. They are not themselves test failures. Keeping the project setup on the canonical Just pipeline removes the divergent runner path that produced the reported `Go-Tests ausführen` failure while direct `just build` / `just install` succeeded.
+
+### README terminal demos
+
+Two VHS tapes now document the main onboarding paths:
+
+```text
+docs/tapes/install.tape
+docs/tapes/quickstart.tape
+```
+
+Render both with:
 
 ```bash
-update-cli history
-update-cli history --limit 10
-update-cli history --limit 10 --json
-update-cli clean --plan
-update-cli clean --keep 3
-update-cli cleanup --plan
-update-cli cleanup --keep 3
+just tapes
 ```
 
-Use `--plan` before destructive cleanup when you want to inspect the retention decision without deleting anything.
+Generated recordings are written to `docs/videos/`. The INSTALL tape uses `UPDATE_CLI_INSTALL_BIN_DIR` so it installs into a disposable project-local demo prefix instead of modifying `/usr/local`.
 
-![Documentation — clean and cleanup](doc/images/documentation/07-clean-cleanup.png)
+## What changed in 2.13.1
 
-### Project initialization, config migration and locks
+### Parameterless update without setup
 
-| Command | Supported forms and variations |
-|---|---|
-| Init | `update-cli init PROJECTNAME`, `update-cli --init PROJECTNAME`; source options; `--use-template NAME`; `--force/-f`; `--root`; `--no-color` |
-| Upgrade config | `update-cli upgrade`, `update-cli --upgrade`; optional `--json`, `--root`, `--no-color` |
-| Unlock | `update-cli unlock`, `update-cli --unlock`; optional `--root` |
+`"no parameter"` now accepts `"no-setup"` as an `"update"` modifier:
 
-Initialization source examples:
+```json
+"no parameter": ["update", "no-setup"]
+```
+
+With this configuration, invoking `update-cli` without a command performs the update directly, never opens the project-setup confirmation prompt, does not run project setup, and exits after the normal update transaction completes. `no-setup` is valid only together with `update`; `setup` and `no-setup` are mutually exclusive.
+
+Newly initialized projects use `["update", "no-setup"]` as the default parameterless action. Existing projects can enable it with:
 
 ```bash
-update-cli init demo-app
-update-cli init demo-app --from download --folder ~/Downloads
-update-cli init demo-app --from url --url https://example.org/demo-app-v1.0.0.zip
-update-cli init demo-app --from repository --repository github.com/acme/demo-app
-update-cli init demo-app --use-template Go
-update-cli init demo-app --force
+update-cli config --set no-parameter=update,no-setup
 ```
 
-`unlock` removes a stale update lock; it is not a replacement for terminating an active updater process.
+## What changed in 2.13.0
 
-![Documentation — init, upgrade and unlock](doc/images/documentation/08-init-upgrade-unlock.png)
+### Faster transactional rollback preparation
 
-### Run application
+The normal update path no longer copies the complete `current/` tree into a temporary transaction snapshot when the currently installed version already has a valid immutable `release/<VERSION>/` directory. Instead, Update CLI records that release as the rollback basis. On a later activation/setup/service/healthcheck failure it synchronizes the previous release back to `current/` while applying the same `sync.preserve` rules.
 
-`run` starts the application command declared in `update-cli.yaml`:
+This means directories such as `node_modules/`, `vendor/`, build output and other large generated trees are no longer duplicated before every successful update. The old exact full snapshot remains as a safety fallback when no matching previous release is available.
+
+Rollback strategy:
+
+```text
+current/VERSION -> release/<VERSION>/ exists and matches
+  -> lightweight release-based rollback metadata
+
+no usable previous release
+  -> exact temporary current/ snapshot (fallback)
+```
+
+`sync.preserve` remains the contract for state that must survive release changes. Preserved paths are not overwritten by release-based recovery.
+
+### More robust `update-cli.yaml` diagnostics and repair
+
+Manifest execution remains strict, but parser failures now include a non-mutating repair preview instead of only the first unknown field. Known unknown fields and safely normalizable values/structures are listed together with the appropriate repair command.
 
 ```bash
-update-cli run
-update-cli --run
+update-cli doctor
+update-cli doctor --migrate
+update-cli fix
 ```
 
-Supported options:
+- `doctor` inspects both `./update-cli.yaml` and `./current/update-cli.yaml` and reports all deterministically repairable drift it can identify.
+- `doctor --migrate` first performs schema migration and then automatically applies structural repair for known field/value problems.
+- `fix` repairs both root and current manifests when both exist and keeps timestamped backups before every actual change.
+- YAML syntax/content that cannot be repaired without guessing remains a hard error.
 
-```bash
-update-cli --run --root /path/to/project
-update-cli --run --no-color
-```
+## What changed in 2.12.3
 
-Manifest configuration:
+This patch fixes the reported `current/current` setup path and the incomplete 2.12.2 source archive.
 
-```yaml
-run:
-  command: just start
-  cwd: .
-  env:
-    APP_ENV: production
+- `.update-cli/` is reserved project-root runtime state. Release extraction and deployment never copy them into `release/` or `current/`.
+- Existing accidental `current/.update-cli/` directories are removed during the next current synchronization.
+- When a command is started directly inside a directory named `current`, the parent project configuration wins even if a stale nested runtime directory exists. This prevents `current/current/update-cli.yaml`.
+- Source packaging is now reproducible through `scripts/package-source.sh`; it requires core source packages such as `lib/backup`, excludes runtime/build state, and validates the archive after creation.
+- Historical note: this release still used `.release-version`; since 2.14.1, `VERSION` is authoritative and `.release-version` is only a legacy fallback.
+- `.update-cli/config.json` keeps the compatible runtime fallback `setup.keepRsyncOnError`; project YAML overrides it through `update.sync.keepOnSetupError`.
+- Superseded in 2.14.1: managed releases now use `current/VERSION` as the canonical installed version.
+- The Update CLI project manifest contains an early `version-sync` setup step so a stale installed 2.10.x binary can bootstrap the corrected source without first understanding newer manifest fields.
+
+## What changed in 2.12.1
+
+This historical patch attempted to harden the project-manifest bootstrap path around the transitional `update.setup` layout and synchronized the project-root `VERSION` with the active installation. Version 2.12.2 supersedes that YAML layout with `update.sync.keepOnSetupError`.
+
+- `update.sync.keepOnSetupError` is explicitly covered by parser/schema regression tests and remains a supported schema-2 project setting.
+- After a successful update, rollback or restore, `<project-root>/VERSION` is written to the same semantic version as `current/VERSION`.
+- A standalone managed `update-cli setup` also synchronizes the root `VERSION` after setup succeeds.
+- When an update resolves to an already-installed version, the root `VERSION` is repaired to that installed version instead of remaining stale.
+- If `setup.keepRsyncOnError=true` keeps a new `current/` after a setup failure, the root `VERSION` follows the retained current version as well.
+
+This prevents a stale root `VERSION` from causing a subsequent `just build`/`just install` to advertise or install an older Update CLI version.
+
+## What changed in 2.12.0
+
+Project releases can now provide a `migrate.sh` that runs automatically immediately before project setup. Migration state is tracked per installed semantic version, so the same release migration is not executed again by a later `update-cli setup`.
+
+The workflow is:
+
+```text
+release unpack/rsync
+  -> verify current/VERSION
+  -> migrate.sh (when setup is actually executed and migration is pending)
+  -> write .update-cli/.migration.done.<VERSION>
+  -> project setup
 ```
 
 Rules:
 
-- define either `run.command` or `run.steps` when `--run` is used;
-- compact `run.command` is executed by `bash -c` (or `sh -c` when Bash is unavailable), so shell syntax and compound commands are supported;
-- structured `run.steps` uses the schemaVersion-2 typed step engine and supports executable/argument separation;
-- with a configured project, execution takes place in the active `current/` tree;
-- `cwd` is optional, defaults to `.`, and must be a relative path contained by the active project tree;
-- `env` values extend or override the inherited process environment;
-- the child process receives stdin/stdout/stderr directly, so interactive applications remain usable;
-- the child application's non-zero exit status is propagated by `update-cli`;
-- when no `.updater-cli/config.json` exists, `update-cli --run` can execute a local `./update-cli.yaml` directly.
+- The migration script is `current/migrate.sh` for a managed project. When setup runs directly from a source project, `migrate.sh` is resolved beside that project's manifest.
+- The completion marker is stored persistently as `<project-root>/.update-cli/.migration.done.<VERSION>`; it is deliberately outside replaceable `current/`.
+- `migrate.sh` is invoked with `bash`, so the executable bit is not required.
+- The script receives `UPDATE_CLI_MIGRATION=1`, `UPDATE_CLI_PROJECT_ROOT`, `UPDATE_CLI_CURRENT_DIR`, and `UPDATE_CLI_VERSION`.
+- A marker is created only after a successful migration. A failed migration stops setup, leaves no done marker, and is retried by the next setup attempt.
+- If the marker already exists, `update-cli setup` skips `migrate.sh` and continues with setup.
+- Installing a different semantic version uses a different marker and therefore runs that version's migration once.
+- `--no-setup` or an interactively declined setup also defers migration, because migration is part of the pre-setup workflow. Running `update-cli setup` later performs the pending migration first.
 
-The `run` block and the optional `update` source block both belong in `update-cli.yaml`. Machine-local updater policy and state remain in `.updater-cli/config.json`.
+Migration scripts should still be idempotent themselves. The marker prevents normal repeated execution, while script-level idempotency protects manual execution, copied installations, or deliberately removed state markers.
 
-![Documentation — run application](doc/images/documentation/17-run.png)
-
-### Setup execution
-
-The default setup command executes workflow `setup` from the configured `current/update-cli.yaml`:
+Example project migration:
 
 ```bash
-update-cli setup
-update-cli --setup
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+: "${UPDATE_CLI_PROJECT_ROOT:?missing UPDATE_CLI_PROJECT_ROOT}"
+: "${UPDATE_CLI_CURRENT_DIR:?missing UPDATE_CLI_CURRENT_DIR}"
+: "${UPDATE_CLI_VERSION:?missing UPDATE_CLI_VERSION}"
+
+# Example: create a new persistent directory introduced by this release.
+mkdir -p "${UPDATE_CLI_PROJECT_ROOT}/data/cache"
+
+# Example: migrate an old file only when the new target does not yet exist.
+if [[ -f "${UPDATE_CLI_PROJECT_ROOT}/data/settings.json"    && ! -f "${UPDATE_CLI_PROJECT_ROOT}/data/config/settings.json" ]]; then
+  mkdir -p "${UPDATE_CLI_PROJECT_ROOT}/data/config"
+  cp "${UPDATE_CLI_PROJECT_ROOT}/data/settings.json"      "${UPDATE_CLI_PROJECT_ROOT}/data/config/settings.json"
+fi
 ```
 
-Supported modifiers:
+## What changed in 2.11.0
 
-```bash
-update-cli setup --details
-update-cli setup --wait
-update-cli setup --no-wait
-update-cli setup --no-ui
-update-cli setup --noui
-update-cli setup --no-color
-update-cli setup --root /path/to/project
-```
+Project-dependent updater settings can now be versioned directly in `update-cli.yaml`. The YAML layer is applied after the global and local JSON configuration, so project settings override the corresponding `config.json` fallback values. Explicit command-line source options remain the highest-priority layer.
 
-`--setup` can also modify `update` and `rollback`:
+Supported project-versioned settings are:
 
-```bash
-update-cli update --setup
-update-cli rollback 1.4.2 --setup
-```
+- `project.slug` as the updater project/artifact slug
+- `update.mode` and `update.source`
+- `update.releaseDir` and `update.currentDir`
+- `update.backup.directory` / `update.backup.keep`
+- `update.retention.releases`
+- `update.sync.preserve`
+- `update.sync.keepOnSetupError`
+- `update.docker.lifecycle`
+- `update.healthcheck.*`
 
-![Documentation — setup workflow](doc/images/documentation/09-setup.png)
+The following remain config-only by design: `source.defaultUser`, `security.*`, `no parameter`, global templates and installation-specific configuration paths. In particular, a repository-controlled `update-cli.yaml` cannot weaken host archive/HTTP security limits.
 
-### Setup catalog, task, workflow and external manifest
+`update-cli doctor` checks the complete project layout. From the project root it inspects `.update-cli/config.json`, `./update-cli.yaml`, and `./current/update-cli.yaml`. Root/current manifests are alternative valid locations: if one valid manifest exists, the missing alternate location is not a warning. When started inside a directory named `current`, Doctor recognizes the parent project and uses `../.update-cli/config.json`. It reports schema versions, root/current differences, effective configuration priority, migration reasons, and only those project-configuration values that still lack a versioned YAML override. `doctor --migrate` performs schema migration; `doctor --fix` previews deterministic repairs, asks y/n, and applies them only after confirmation.
 
-| Operation | Preferred form | Flag form |
-|---|---|---|
-| List catalog | `update-cli setup list` | `update-cli --setup-list` |
-| List catalog as JSON | `update-cli setup list --json` | `update-cli --setup-list --json` |
-| Run task | `update-cli setup task NAME` | `update-cli --setup-task NAME` |
-| Run workflow | `update-cli setup workflow NAME` | `update-cli --setup-workflow NAME` |
-| Use external manifest | `update-cli setup manifest FILE` | `update-cli --setup-manifest FILE` |
+## What changed in 2.10.0
 
-Task/workflow execution accepts `--details`, `--no-ui`/`--noui`, `--no-color`, and `--root`. External manifest execution additionally accepts selectors and wait behavior:
+`update-cli install` runs the project's canonical `just install` recipe without running the complete setup workflow.
 
-```bash
-update-cli setup manifest ./update-cli.yaml
-update-cli setup manifest ./update-cli.yaml --setup-list
-update-cli setup manifest ./update-cli.yaml --setup-task build
-update-cli setup manifest ./update-cli.yaml --setup-workflow ci
-update-cli setup manifest ./update-cli.yaml --details --no-ui
-update-cli setup manifest ./update-cli.yaml --wait
-update-cli setup manifest ./update-cli.yaml --no-wait
-```
-
-`--setup-task` and `--setup-workflow` are mutually exclusive.
-
-![Documentation — setup selectors](doc/images/documentation/10-setup-selectors.png)
-
-### `update-cli.yaml` lifecycle commands
-
-| Command | Supported forms and variations |
-|---|---|
-| Convert existing manifest | `update-cli convert-yaml`, `update-cli --convert-yaml`; `--dry-run/-n`, `--force/-f`, `--details`, `--root`, `--no-color` |
-| Generate from project | `update-cli create-yaml --from project`, `update-cli --create-yaml --from project`; `--dry-run/-n`, `--force/-f`, `--details`, `--root`, `--no-color` |
-| Generate from `setup.sh` | `update-cli create-yaml --from setup-script`; same modifiers plus optional `--with-ai` |
-| Generate setup wrapper | `update-cli create-setup-script`, `update-cli --create-setup-script`; `--dry-run/-n`, `--force/-f`, `--details`, `--root`, `--no-color` |
-
-Compatibility spelling retained for older scripts:
-
-```bash
-update-cli -create-setup-script
-```
-
-Important constraints:
-
-- `--with-ai` is valid only with `create-yaml --from setup-script`.
-- `convert-yaml`, `create-yaml`, and `create-setup-script` are mutually exclusive primary operations.
-- `--force` is required before replacing an existing generated file where overwrite protection applies.
-
-![Documentation — update-cli.yaml lifecycle](doc/images/documentation/11-yaml-management.png)
-
-### Configuration commands
-
-Preferred command forms:
-
-```bash
-update-cli config
-update-cli config --check
-update-cli config --migrate
-update-cli config list
-update-cli config edit
-update-cli config use-template NAME
-update-cli config --set KEY=VALUE
-```
-
-The command-token aliases `update-cli config check` and `update-cli config migrate` are also accepted.
-
-`config --check` validates JSON syntax, known fields, schema compatibility, mode/source consistency, security limits, protected paths and resolved project directories **without writing the file**. If the file is valid but older than the current schema, the command reports that a migration is available.
-
-```bash
-update-cli config --check
-update-cli config --check --json
-```
-
-`config --migrate` upgrades `.updater-cli/config.json` to the current schema. When a change is required, Update CLI creates a schema-versioned backup before writing the migrated configuration. It is the config-scoped equivalent of the established top-level `update-cli upgrade` command.
-
-```bash
-update-cli config --migrate
-update-cli config --migrate --json
-```
-
-Historical flag forms remain supported:
-
-```bash
-update-cli --config
-update-cli --config --list
-update-cli --config --edit
-update-cli --config --use-template NAME
-update-cli --config --set KEY=VALUE
-```
-
-`--set` is repeatable and all assignments are validated together before the configuration is written atomically:
-
-```bash
-update-cli config \
-  --set no-parameter="check,setup" \
-  --set backup.keep=7 \
-  --set retention.releases=10
-```
-
-Nested paths use dotted notation. Common examples include:
-
-```text
-projectName
-source.type
-source.folder
-source.url
-source.repository
-source.ref
-source.commit
-source.version
-source.sha256
-releaseDir
-currentDir
-no-parameter
-setup.commands
-backup.directory
-backup.keep
-retention.releases
-sync.preserve
-security.allowHttp
-security.maxArchiveBytes
-security.maxUncompressedBytes
-security.maxFileBytes
-security.maxEntries
-security.maxCompressionRatio
-healthcheck.type
-healthcheck.url
-healthcheck.command
-healthcheck.timeoutSeconds
-docker.lifecycle
-```
-
-Lists may be comma-separated or supplied as JSON arrays; booleans and numeric values retain their JSON types.
-
-![Documentation — configuration](doc/images/documentation/12-config.png)
-
-### Configuration templates
-
-```bash
-update-cli templates list
-update-cli templates list --details
-update-cli templates edit
-update-cli templates edit NAME
-update-cli templates use NAME
-```
-
-Equivalent flag forms:
-
-```bash
-update-cli --templates --list
-update-cli --templates --list --details
-update-cli --templates --edit
-update-cli --templates --edit NAME
-update-cli --templates --use NAME
-```
-
-`templates edit` opens the template for editing; `templates use NAME` applies the selected configuration template to the current project.
-
-![Documentation — templates](doc/images/documentation/13-templates.png)
-
-### JSON output and machine-readable discovery
-
-Important structured-output forms include:
-
-```bash
-update-cli --help --json
-update-cli help --json
-update-cli check --json
-update-cli update --plan --json
-update-cli backup --json
-update-cli rollback 1.4.2 --json
-update-cli restore latest --json
-update-cli status --json
-update-cli list --json
-update-cli verify release.zip --json
-update-cli doctor --json
-update-cli clean --plan --json
-update-cli cleanup --plan --json
-update-cli history --json
-update-cli setup list --json
-update-cli upgrade --json
-```
-
-`update --json` is intentionally restricted to `update --plan --json`; a real update remains an interactive/plain transaction rather than a JSON mutation stream.
-
-If **command-ui** is installed, the discovery contract can be consumed directly:
-
-```bash
-command-ui validate update-cli
-command-ui inspect update-cli
-command-ui update-cli
-```
-
-![Documentation — JSON and discovery](doc/images/documentation/14-json-discovery.png)
-
-### Release-source overrides
-
-Release discovery commands (`check`, `update`, `status`, `list`, `verify`) can override the configured acquisition mode/source for one invocation. `update` mode accepts ZIP sources (`download`/`url`); `pull` mode requires `repository`.
-
-Download/folder source:
-
-```bash
-update-cli check --mode update --downloads ~/Downloads
-update-cli check --mode update --from download --folder ~/Downloads
-```
-
-URL source:
-
-```bash
-update-cli check \
-  --mode update \
-  --from url \
-  --url https://example.org/releases/demo-app-v1.2.0.zip
-```
-
-Git pull source:
-
-```bash
-update-cli check \
-  --mode pull \
-  --from repository \
-  --repository https://github.com/acme/demo-app.git
-
-update-cli update \
-  --mode pull \
-  --repository https://github.com/acme/demo-app.git
-```
-
-The same source modifiers can be combined with `update`, `status`, `list`, and `verify` where advertised by `--help --json`.
-
-![Documentation — source overrides](doc/images/documentation/15-source-overrides.png)
-
-### Command aliases and compatibility spellings
-
-The command-token interface is an alias layer over the established flag interface. The following pairs are equivalent:
-
-```text
-check                         --check
-update release.zip            --update release.zip
-backup                        --backup
-rollback 1.2.3                --rollback 1.2.3
-restore latest                --restore latest
-status                        --status
-list                          --list
-verify release.zip            --verify release.zip
-doctor                        --doctor
-run                           --run
-clean                         --clean
-cleanup                       --cleanup
-history                       --history
-init demo-app                 --init demo-app
-upgrade                       --upgrade
-unlock                        --unlock
-setup                         --setup
-setup list                    --setup-list
-setup task build              --setup-task build
-setup workflow ci             --setup-workflow ci
-setup manifest update-cli.yaml     --setup-manifest update-cli.yaml
-convert-yaml                  --convert-yaml
-create-yaml                   --create-yaml
-create-setup-script           --create-setup-script
-config                        --config
-templates list                --templates --list
-```
-
-Short and compatibility options:
-
-```text
--r DIR       --root DIR
--a ZIP       --archive ZIP
--d DIR       --downloads DIR
--n           --dry-run
--f           --force
--V           --version
---noui       --no-ui
----no-ui     --no-ui
-```
-
-![Documentation — aliases](doc/images/documentation/16-aliases.png)
-
-### No-parameter behavior
-
-With no explicit primary command, Update CLI executes the actions configured in `.updater-cli/config.json` under `"no parameter"`.
-
-Default initialized configuration:
-
-```json
-{
-  "no parameter": ["check"]
-}
-```
-
-Automatic setup after an accepted update:
-
-```bash
-update-cli config --set no-parameter="check,setup"
-```
-
-Then:
-
-```bash
-update-cli
-```
-
-uses the configured sequence instead of requiring explicit command flags.
-
-
-## Highlights
-
-- transactional updates with automatic recovery of `current/`
-- crash-safe unique transaction/release staging and recoverable stale locks
-- local ZIP, HTTPS URL, and Git repository release sources
-- single-pass ZIP extraction/verification path with duplicate-path rejection
-- semantic version handling and downgrade protection
-- protected persistent paths such as `.env`, `data/`, `storage/`, and uploads
-- temporary transaction snapshots plus optional persistent backups
-- validated-only `restore latest` with canonical backup path protection
-- Docker Compose stop/start state preservation
-- application launch through `update-cli --run` using `update-cli.yaml`
-- post-update setup and health checks
-- rollback, restore, cleanup, history, status, doctor, and archive verification
-- fullscreen terminal UI with fixed Header / Info / Steps / Footer regions
-- confirmation modals with selectable `YES` / `NO` buttons
-- `--no-ui` mode for direct stdout/stderr streaming
-- declarative `update-cli.yaml` schemaVersion 2 with workflows, tasks, conditions, variables, and typed operations
-- automatic `update-cli.yaml` generation from project files
-- deterministic conversion of legacy `setup.sh` into schemaVersion 2
-- optional AI refinement of `setup.sh` conversions
-- schemaVersion-1 setup compatibility and legacy `setup.sh` fallback
-
-## Installation layout
-
-The default installation locations embedded in the binary are:
-
-```text
-Binary             /usr/local/bin/update-cli
-Global config      /usr/local/etc/update-cli
-Download folder    $HOME/Downloads
-```
-
-A managed project normally looks like this:
-
-```text
-project/
-├── .updater-cli/
-│   ├── config.json
-│   ├── templates.json
-│   ├── history.jsonl
-│   ├── logs/
-│   └── transactions/
-├── release/
-├── current/
-│   ├── update-cli.yaml
-│   └── ... application files ...
-├── backup/
-└── .release-update.lock/
-```
-
-Update CLI can resolve the project root while invoked from `current/` or a deeper subdirectory by walking upward to the nearest `.updater-cli/config.json`. An explicit `--root` always takes precedence.
-
-## Build from source
-
-```bash
-git clone <repository>
-cd update-cli
-just build
-```
-
-Or without `just`:
-
-```bash
-go vet ./...
-go test ./...
-go build -trimpath -ldflags "-s -w -X main.version=$(cat VERSION)" -o dist/update-cli .
-```
-
-Install the locally built binary and global setup template with:
-
-```bash
-just install
-```
-
-The `install` recipe runs the validated build first, then installs the binary and global Update CLI support files into the locations from `build-config.json`.
-
-## Docker lifecycle
-
-Docker Compose handling during update transactions is controlled by the project configuration in `.updater-cli/config.json`. The setting is **not** part of `update-cli.yaml`. Existing projects without a `docker` block automatically behave as `auto`.
-
-```json
-{
-  "docker": {
-    "lifecycle": "auto"
-  }
-}
-```
-
-Supported values:
-
-- `auto` — default and backward-compatible mode. If no Compose file exists, Update CLI does nothing. If a Compose file exists and Docker status can be determined, previously running services are stopped before replacing `current` and restarted afterward. If Docker, Compose, the daemon, or `compose ps` status detection is unavailable, Update CLI emits a warning and continues the filesystem transaction without Docker lifecycle management.
-- `disabled` — never interact with Docker during update transactions or transaction recovery. Compose files may remain in `current/`; they are simply ignored by the updater lifecycle.
-- `required` — Docker lifecycle handling is mandatory whenever a Compose file exists. Docker/Compose/status failures abort the transaction. If no Compose file exists, this mode is allowed and behaves as a no-op for Docker.
-
-Set the value through the CLI:
-
-```bash
-update-cli config --set docker.lifecycle=auto
-update-cli config --set docker.lifecycle=disabled
-update-cli config --set docker.lifecycle=required
-```
-
-For a project such as **Life OS**, where `docker-compose.yml` is only an optional deployment mechanism and Docker Desktop may be stopped, use:
-
-```bash
-update-cli config --set docker.lifecycle=disabled
-```
-
-which persists conceptually as:
-
-```json
-{
-  "docker": {
-    "lifecycle": "disabled"
-  }
-}
-```
-
-Then:
-
-```bash
-update-cli --update --no-ui
-```
-
-updates the project without invoking Docker and without requiring the Compose file to be renamed or moved.
-
-In `auto` mode, a degraded Docker status check is reported as a warning rather than an update failure. In `required` mode the same condition remains fatal. `update-cli --status` exposes the configured Docker lifecycle, and `update-cli --doctor` reports disabled as skipped/OK, auto failures as warnings, and required failures as errors.
-
-### Setup execution
-
-```bash
-update-cli --setup [--details] [--wait|--no-wait] [--no-ui]
-update-cli --setup-list
-update-cli --setup-task NAME [--details] [--no-ui]
-update-cli --setup-workflow NAME [--details] [--no-ui]
-update-cli --setup-manifest ./update-cli.yaml
-update-cli --setup-manifest ./update-cli.yaml --setup-list
-update-cli --setup-manifest ./update-cli.yaml --setup-task NAME
-update-cli --setup-manifest ./update-cli.yaml --setup-workflow NAME
-```
-
-### Setup-file management
-
-```bash
-update-cli --convert-yaml [--dry-run]
-update-cli --create-yaml [--from project|setup-script] [--with-ai] [--force] [--dry-run]
-update-cli --create-setup-script [--force] [--dry-run]
-```
-
-The compatibility spelling `-create-setup-script` is accepted, but `--create-setup-script` is the documented form.
-
-## Fullscreen TUI
-
-The header shows the project name together with the currently installed project version when available.
-
-
-Interactive `--check`, real `--update`, and setup execution use the fullscreen UI when stdout/stdin are terminals and colors are enabled.
-
-All human-readable terminal output abbreviates paths below the current user home with `$HOME`. For example, `/Users/Ralph.Goestenmeier/Downloads/DigitalProductsPlatform-v4.5.0.zip` is displayed as `$HOME/Downloads/DigitalProductsPlatform-v4.5.0.zip`. This applies to fullscreen TUI and plain/`--no-ui` presentation only; internal paths and `--json` output remain absolute.
-
-The screen has four independent regions:
-
-```text
-┌──────────────────────────────────────────────────────────────┐
-│ Update CLI Version 1.0.2   |   my-project v1.2.4   |   Setup       │
-└──────────────────────────────────────────────────────────────┘
-┌──────────────────────────────────────────────────────────────┐
-│ Project / update / setup information                         │
-└──────────────────────────────────────────────────────────────┘
-┌──────────────────────────────────────────────────────────────┐
-│ Scrollable steps and command stdout/stderr                   │
-│ [01/08] Prepare project                                  ✓   │
-│          │ PREPARE   workspace ... OK                         │
-│ [02/08] Run tests                                        …   │
-│          │ TEST      package ./... ... OK                      │
-└──────────────────────────────────────────────────────────────┘
-┌──────────────────────────────────────────────────────────────┐
-│ High-level status / final state only                         │
-└──────────────────────────────────────────────────────────────┘
-```
-
-Only the step/output area scrolls. Process output never owns the footer. During setup, fullscreen stdout/stderr is rendered in a fixed gutter directly below its step. Setup metadata shown in the scrollable content region uses that same gutter, so `Projekt:` and `Schema:` align exactly with the command output below:
-
-```text
-│ Projekt-Setup
-│         │ Projekt: Update CLI
-│         │ Schema: 2 | Tasks: 5 | Schritte: 14
-│ [01/14] Go-Module laden                                               ✓
-│         │ ! go: no module dependencies to download
-```
-
-Leading padding emitted by child tools is normalized, so all output begins at the same column; wrapped continuation lines keep the same indentation. stderr uses `│ !` in the same gutter.
-
-### Confirmation modal
-
-Update and post-update setup confirmations are displayed as centered modal dialogs:
-
-```text
-┌──────────────────────────────────────────────────────────┐
-│                      Bestätigung                         │
-│                                                          │
-│                Update jetzt installieren?                │
-│                                                          │
-│       ┌───────────────┐       ┌───────────────┐          │
-│       │      YES      │       │      NO       │          │
-│       └───────────────┘       └───────────────┘          │
-│   ←/→ auswählen · Enter bestätigen · j/y YES · n NO     │
-└──────────────────────────────────────────────────────────┘
-```
-
-Controls:
-
-- `←` selects **YES**
-- `→` selects **NO**
-- `Enter` confirms the highlighted button
-- `j`, `ja`, `y`, `yes` immediately choose **YES**
-- `n`, `nein`, `no` immediately choose **NO**
-- `Tab` toggles the highlighted button
-
-Both update and setup confirmations default to **YES**. In fullscreen mode, YES is preselected; in plain/`--no-ui` mode the confirmation suffix is `[J/n]`.
-
-### TUI modes
-
-```bash
-UPDATE_CLI_TUI=auto update-cli --update
-UPDATE_CLI_TUI=fullscreen update-cli --check
-UPDATE_CLI_TUI=plain update-cli --update
-update-cli --update --no-ui
-update-cli --setup --no-ui
-update-cli --setup --noui     # alias for --no-ui
-update-cli --update --no-wait
-```
-
-`--no-ui` completely disables the alternate-screen UI and streams command stdout/stderr directly. It does not disable colors; combine it with `--no-color` if plain uncolored output is required.
-
-Setup output in `--no-ui` mode is step-centric. Task headings and separate task rules are intentionally omitted; every visible block starts directly with its numbered step. Step stdout/stderr is indented behind a vertical guide, and a closing status line marks the end of each step:
-
-```text
-[01/03] Install Python dependencies ────────────────────────────────────
-│  ❯ .venv/bin/python -m pip install -r requirements.txt
-│  INSTALL   Python dependencies ... OK
-└─ ✓ Install Python dependencies
-
-[02/03] Install project CLI ────────────────────────────────────────────
-│  ❯ python static/scripts/install_cli.py
-│  INSTALL   dp-cli + digital-product-cli ... OK
-└─ ✓ Install project CLI
-```
-
-This keeps long command output visibly attached to the step that produced it. stderr lines use the same guide and receive an additional `!` marker. Skipped steps use a matching `└─ – ...` closing line.
-
-`--noui` is accepted as an alternative spelling of `--no-ui`. The historical compatibility spelling `---no-ui` also remains accepted. `--no-ui` remains the documented canonical option.
-
-`NO_COLOR=1`, `--no-color`, JSON output, non-interactive output, and `UPDATE_CLI_TUI=plain` avoid fullscreen rendering.
-
-External command failures now include the executed command, working directory, exit code, and captured stdout/stderr where available. This includes Docker Compose status/start/stop failures during update transactions.
-
-## Update modes and release sources
-
-| Mode | Valid source type(s) | Acquisition | Persistent source state | Update identity |
-|---|---|---|---|---|
-| `update` | `download`, `url` | Versioned ZIP | No source checkout | Semantic `VERSION` from archive |
-| `pull` | `repository` | Git fetch/pull | `.updater-cli/repository` | `VERSION` plus Git commit (`.release-commit`) |
-
-CLI mode override:
-
-```bash
-update-cli check --mode update
-update-cli update --mode update release.zip
-
-update-cli check --mode pull --repository https://github.com/acme/demo-app.git
-update-cli update --mode pull --repository https://github.com/acme/demo-app.git
-```
-
-`mode: update` intentionally rejects repository-only acquisition, and `mode: pull` intentionally rejects ZIP archives. This prevents a project from silently switching acquisition semantics.
-
-### Mode `update`: ZIP release
-
-`update` is the default mode and keeps the established immutable versioned-release workflow. Its source must be `download` or `url`.
-
-#### Local download directory
-
-```json
-{
-  "mode": "update",
-  "source": {
-    "type": "download",
-    "folder": "$HOME/Downloads"
-  }
-}
-```
-
-Release archives use:
-
-```text
-<PROJECT>-v<MAJOR>.<MINOR>.<PATCH>.zip
-```
+- In a managed Update CLI project, `current/` is used when it contains `justfile` or `Justfile`.
+- In a source project without an active `current/` justfile, the project root is used.
+- The command executes exactly `just install` and forwards stdin/stdout/stderr to the terminal.
+- Missing `just`, `justfile`, or `Justfile` is reported as an explicit error.
+- `--install` remains available as a compatibility alias, while `install` is the canonical command-first syntax.
 
 Example:
 
-```text
-nvidia-cli-v0.1.5.zip
+```bash
+update-cli install
 ```
 
-#### HTTPS URL
+## What changed in 2.9.1
+
+Interactive setup rejection is now treated as an intentional deployment-only update. When the prompt
+`Projekt-Setup ist verfügbar. Jetzt ausführen?` is answered with `n`, Update CLI keeps the verified
+rsync result and does not run the post-setup activation steps that could otherwise undo the update:
+
+- `Projekt-Setup ausführen` remains skipped.
+- `Vorher laufende Docker-Dienste starten` is skipped instead of restarting the new Compose stack.
+- `Healthcheck der neuen Installation ausführen` is skipped because activation was intentionally deferred.
+- A Docker stack that Update CLI stopped before synchronization remains stopped for manual setup/start.
+- The release is still activated and the successful update state is committed; no rollback is triggered merely because setup was declined.
+
+This specifically fixes the interactive `n` path. Explicit automation options such as `--no-setup` retain their previous Docker lifecycle semantics.
+
+## What changed in 2.9.0
+
+`update-cli fix` repairs a project when legacy or invalid Update CLI metadata prevents normal commands from loading it. Run it from the project root:
+
+```bash
+update-cli fix
+```
+
+The command checks and repairs:
+
+- project-local `.update-cli/config.json`
+- installation-wide `config.json` when present, for example `/usr/local/etc/update-cli/config.json`
+- `update-cli.yaml` in the project root
+
+Known legacy fields are migrated before strict parsing. In particular, the old top-level form:
 
 ```json
 {
-  "mode": "update",
+  "defaultUser": "r1r"
+}
+```
+
+is rewritten to the canonical structure:
+
+```json
+{
   "source": {
-    "type": "url",
-    "url": "https://downloads.example.com/demo-v1.2.3.zip",
-    "sha256": "optional expected SHA-256"
+    "defaultUser": "r1r"
   }
 }
 ```
 
-Plain HTTP is rejected unless `security.allowHttp` is enabled. Metadata checks use `HEAD` with a range-request fallback where necessary, so `--check` does not normally download the full artifact.
+Unknown fields in supported config/manifest sections are removed, current schema versions are written, and safely repairable wrong values are normalized. Every changed existing file receives a timestamped backup before replacement. After repair, the normal strict config and manifest parsers are run again; `fix` only succeeds when the repaired project is valid. Malformed JSON/YAML syntax that cannot be corrected without guessing user content remains an explicit error.
 
-### Mode `pull`: Git repository
-
-Use `mode: pull` when the managed project should be acquired directly from GitHub or another Git server rather than from a versioned ZIP archive.
-
-The preferred project-controlled configuration is now the top-level `update` block in `update-cli.yaml`:
-
-```yaml
-update:
-  mode: pull
-  source:
-    type: repository
-    repository: https://github.com/acme/demo-app.git
-    ref: main
-```
-
-The same source can still be stored in `.updater-cli/config.json` for machine-local configuration. Effective precedence is **CLI override → `update-cli.yaml` → `.updater-cli/config.json`**.
-
-#### Prerequisites
-
-The target system must provide Git:
+Structured output is available with:
 
 ```bash
-git --version
+update-cli fix --json
 ```
 
-For public repositories, an HTTPS URL normally needs no additional setup. Private repositories use the authentication already configured for the system Git client, for example SSH keys, a credential helper, or another Git-supported credential mechanism.
+The public CLI is command-first in 2.9.0. Primary actions no longer require a leading `--`:
 
-Typical repository URLs:
+```bash
+update-cli upgrade
+update-cli unlock
+update-cli howto
+update-cli version
+update-cli check --no-ask
+update-cli update --archive myapp-v1.2.3.zip --backup --setup
+update-cli backup
+update-cli rollback --version 1.2.2 --setup
+update-cli restore --snapshot latest
+update-cli status --json
+update-cli releases --list --json
+update-cli verify --archive myapp-v1.2.3.zip
+```
+
+Options always use `--`, for example `--json`, `--debug`, `--setup`, `--root`, and `--no-ui`. Command-style aliases with a leading `--` and bare secondary subcommands are rejected.
+The project `justfile` uses the same command-first syntax; its release inventory recipe is now `just releases` (with `legacy-list` retained only for compatibility testing).
+
+## What changed in 2.8.0
+
+- add the runtime policy `setup.keepRsyncOnError` to `.update-cli/config.json`. The default is `false`, preserving the previous transactional rollback behavior.
+- when `setup.keepRsyncOnError=true` and the update reaches the setup phase, a setup failure no longer restores the previous `current/` tree. The verified rsync result remains installed for inspection, repair, or a later standalone `update-cli setup`.
+- the matching staged release is promoted into the versioned `release/<version>/` directory before the failed update returns, keeping `release/` and `current/` consistent.
+- the setup command still returns an error and history records the update with status `failed` and phase `setup`; the option changes file-state recovery only.
+- Preserve rules remain active: existing `.env`, `data/`, `uploads/`, `storage/`, and other configured `sync.preserve` paths keep their local content even when the failed setup's rsync result is retained.
+- failures before setup or after setup (rsync, verification, service restart, healthcheck, release activation, metadata) continue to use normal transactional recovery.
+- runtime config schemaVersion is now **9**. Global and local config layers support the new setting; an explicit local `false` overrides a global `true`.
+
+## What changed in 2.7.0
+
+- `update-cli doctor` now validates the project manifest directly in the current project folder and no longer requires `.update-cli/config.json`.
+- the canonical file checked by doctor is `update-cli.yaml`; a legacy `setup.yaml` is still recognized and reported.
+- add `update-cli doctor --migrate` to upgrade an older manifest to the newest supported manifest schema.
+- migrating an existing `update-cli.yaml` creates a timestamped backup before replacement.
+- when only legacy `setup.yaml` exists, `doctor --migrate` keeps it untouched and creates the canonical `update-cli.yaml` using the newest supported schema.
+- `doctor --migrate` is distinct from `config --migrate`: doctor migrates the project manifest, while config migration continues to migrate runtime configuration only.
+- doctor reports the detected manifest path, current schema version, latest supported schema version, project name, and declared required commands.
+- add CLI discovery/help metadata and regression coverage for doctor validation, migration, canonicalization, and flag compatibility.
+
+## What changed in 2.6.2
+
+- add `update-cli schema --version` to print the canonical `update-cli.yaml` manifest schema version.
+
+- keep standalone `update-cli version` unchanged; it continues to print the Update CLI application version.
+- expose the schema version option through CLI discovery/help metadata and cover the parsing semantics with regression tests.
+- synchronize release metadata and packaging checks to 2.6.2.
+
+## What changed in 2.6.1
+
+- patch release of the verified 2.6.x implementation with release metadata synchronized to 2.6.1.
+- no functional behavior changes from 2.6.0; all formatting, vet, unit, integration, race, init, debug, schema, and setup-fallback checks are rerun before packaging.
+- release packaging verifies that the ZIP filename, `VERSION`, README current release, and top `RELEASE_NOTES.md` heading all resolve to 2.6.1.
+
+## What changed in 2.6.0
+
+- `--debug` is now a global option for every command. It switches to direct detailed output, works with the configured no-parameter action (`update-cli --debug`), and reports the resolved project root, global/local config and template paths, merge order, effective source, release/current paths, preserve rules, and rsync deployment semantics.
+- accept both `source.defaultUser` and the historical top-level `defaultUser` in `config.json`; migration normalizes the latter to `source.defaultUser`.
+- keep both repository bootstrap spellings fully supported and regression-tested:
+  - `update-cli init --project PROJECT --from-repository URL`
+  - `update-cli init --project PROJECT --from-repository REPOSITORY`
+- keep download bootstrap as `update-cli init --project PROJECT`; it uses the configured/default download folder and selects the newest matching `PROJECT-v<MAJOR>.<MINOR>.<PATCH>.zip` or `PROJECT-<MAJOR>.<MINOR>.<PATCH>.zip`.
+- repository and download bootstrap continue to use the current working directory as the project root unless `--root` is supplied.
+- setup-manifest parsing is forward-compatible for unknown top-level extension/transition fields (including historical metadata such as `update:` in older layouts), while known sections and executable step fields remain strictly validated.
+- release version markers are synchronized to 2.6.0 and checked before packaging.
+
+## What changed in 2.5.0
+
+- added installation-wide updater defaults at `INSTALLFOLDER/../etc/update-cli/`; an executable at `/usr/local/bin/update-cli` therefore uses `/usr/local/etc/update-cli/`.
+- `config.json` is now loaded in two layers: global `config.json` first, then the project-local `.update-cli/config.json` as an override. Nested JSON objects are merged recursively.
+- `sync.preserve` is cumulative: global preserve/exclude defaults form the minimum policy and local project entries are appended without duplicates. New projects can therefore inherit the centrally maintained rsync exclude list.
+- `templates.json` is also layered global -> local. A project-local template with the same name replaces the global template; additional local templates are appended.
+- `update-cli config --list` now shows both global and local `config.json`/`templates.json` paths plus the local `history.jsonl`.
+- `just install` creates global `config.json` and `templates.json` defaults when missing, but never overwrites existing global administrator files.
+- added regression tests for installation-path resolution, global/local config merging, cumulative preserve rules, template overlays, and `config --list`.
+
+## What changed in 2.4.3
+
+- fixed release creation so `.env`, `.env.example`, and other `.env.*` files contained in the source artifact are copied into `release/` instead of being dropped unconditionally.
+- fixed `sync.preserve` semantics for first installation: a protected file or directory that does not yet exist in `current/` is seeded once from the release; an existing local copy remains protected from overwrite and deletion.
+- this means a project ZIP containing `.env` and `.env.example` now installs both files on an empty `current/`, while subsequent updates continue to honor the configured preserve rules.
+- backup snapshots continue to exclude `.env` secrets; the change applies to release/current deployment, not ordinary backup export.
+- added regression coverage for release dotfiles, missing protected files/directories, dry-run reporting, and the supplied GrapesJS artifact flow.
+
+## What changed in 2.4.2
+
+- fixed release metadata consistency so `VERSION`, README current release, and the release-notes heading are checked together.
+- added a regression test that fails the build when those release version markers diverge.
+- release packaging now verifies that the ZIP filename version equals the packaged `VERSION` value before delivery.
+
+## What changed in 2.4.1
+
+- added regression coverage for the two supported local bootstrap commands exactly as users invoke them.
+- `update-cli init --project <project>` is end-to-end tested against the configured/default download folder and selects the newest matching `<project>-v<MAJOR>.<MINOR>.<PATCH>.zip` or `<project>-<MAJOR>.<MINOR>.<PATCH>.zip`.
+- `update-cli init --project <project> --from-repository <repository>` is end-to-end tested without requiring the legacy `--repository` option.
+- the repository argument continues to accept a full GitHub HTTPS URL, `USER/REPO`, or `REPO`; the one-part form uses `source.defaultUser`.
+- both bootstrap forms install into the current working directory unless `--root` is explicitly provided.
+
+## What changed in 2.4.0
+
+- `--from-repository` now takes the repository directly: `--from-repository REPOSITORY`.
+- accepted forms are a full GitHub URL (`https://github.com/r14r/git-cli`), `USER/REPO` (`r14r/ollama-cli`), or only `REPO` (`ollama-cli`).
+- one-part repository names use `source.defaultUser` from `.update-cli/config.json`; the default is `r1r`.
+- repository shorthand values are normalized to canonical HTTPS GitHub clone URLs ending in `.git`.
+- `.update-cli/config.json` schemaVersion is now **8** and persists `source.defaultUser`.
+- the previous `--from-repository --repository URL` spelling remains accepted as a compatibility alias, but is no longer the documented form.
+- README and tests were updated for all three repository forms.
+
+## What changed in 2.3.1
+
+- `update-cli init --project <project>` now always uses the **current working directory** as the project root when `--root` is not supplied.
+- the project argument only defines the project name used in `.update-cli/config.json` and release matching; it no longer creates a nested `<project>/` directory.
+- `--root <path>` remains the explicit override when a different project root is required.
+- both download and repository bootstrap integration tests now verify initialization directly in the current directory.
+
+## What changed in 2.3.0
+
+- added `update-cli schema --view` to print the canonical JSON Schema for `update-cli.yaml` schemaVersion 2 to stdout.
+- added `update-cli schema --save <file.json>` to save exactly the same schema to a JSON file; missing parent directories are created automatically.
+- the exported schema describes project automation plus the project-versioned `update:` settings. Host/user policy such as `security.*` and `source.defaultUser` remains in `.update-cli/config.json`.
+- `schema --view`, `schema --save`, and `schema --version` are mutually exclusive and the `schema` command requires exactly one of them.
+- CLI discovery/help now exposes the new `schema` command.
+- Go **1.26.5** remains the release toolchain.
+
+The local bootstrap behavior remains unchanged: `--init <project>` uses the newest matching download ZIP, while `--init <project> --from-repository <repository>` bootstraps from GitHub.
+
+## Debug output
+
+`--debug` may be added to every command, before or after the command name. It disables the fullscreen TUI path and prints detailed execution/progress steps directly.
+
+```bash
+update-cli help --debug
+update-cli update --debug
+update-cli config --list --debug
+update-cli config --list --debug
+update-cli init --project demo-app --debug
+```
+
+When `--debug` is used without an explicit command, Update CLI executes the configured no-parameter action (for example `check`) with debug output.
+
+## Project layout
 
 ```text
-https://github.com/acme/demo-app.git
-git@github.com:acme/demo-app.git
+/usr/local/etc/update-cli/             # for /usr/local/bin/update-cli
+├── config.json                        # global updater defaults
+└── templates.json                     # global templates
+
+project/
+├── .update-cli/
+│   ├── config.json        # project overrides/source configuration
+│   ├── history.jsonl      # project-local runtime history
+│   ├── templates.json     # optional local template overrides/additions
+│   └── repository/        # persistent Git checkout for pull mode
+├── update-cli.yaml        # preferred setup/run automation
+├── setup.yaml             # optional legacy setup manifest
+├── release/
+├── current/
+└── backup/
 ```
 
-#### Initialize a new pull-based project
+Older projects may still use an earlier schema inside `.update-cli/config.json`. `update-cli config --migrate` upgrades that file in place and keeps its timestamped backup in the same `.update-cli/` directory.
+
+## INSTALL
+
+### Prerequisites
+
+For a source installation you need Go, `just`, `rsync`, `zip` and `unzip`. The release source keeps its intended Go toolchain in `go.mod`; use that version for production builds.
+
+### Build and install from source
+
+The canonical installation workflow is deliberately short:
 
 ```bash
-mkdir demo-app
-cd demo-app
-
-update-cli init demo-app \
-  --mode pull \
-  --repository https://github.com/acme/demo-app.git
+just build
+just install
 ```
 
-This creates `.updater-cli/config.json`. The source section is equivalent to:
+`just build` runs formatting checks, `go vet`, the complete Go test suite and race tests before producing `dist/update-cli`. `just install` depends on that build and then installs the binary plus the global Update CLI support files.
 
-```json
-{
-  "mode": "pull",
-  "source": {
-    "type": "repository",
-    "repository": "https://github.com/acme/demo-app.git"
-  }
-}
-```
-
-Display the effective configuration:
-
-```bash
-update-cli config list
-```
-
-Open the project configuration in the configured editor:
-
-```bash
-update-cli config edit
-```
-
-#### Configure the branch or ref
-
-If `source.ref` is not set, Update CLI resolves the repository's default branch. To explicitly follow `main`:
-
-```bash
-update-cli config --set source.ref=main
-```
-
-Configuration:
-
-```json
-{
-  "mode": "pull",
-  "source": {
-    "type": "repository",
-    "repository": "https://github.com/acme/demo-app.git",
-    "ref": "main"
-  }
-}
-```
-
-`source.ref` may identify a branch/ref that Git can resolve in the configured repository. When the ref is a branch, the real update path uses fast-forward-only pull behavior.
-
-#### Change the repository URL
-
-```bash
-update-cli config \
-  --set source.repository=https://github.com/acme/new-demo-app.git
-```
-
-Then verify the resulting project configuration:
-
-```bash
-update-cli config list
-update-cli doctor
-```
-
-#### Convert an existing ZIP-managed project to Git pull
-
-Apply the mode and source fields together:
-
-```bash
-update-cli config \
-  --set mode=pull \
-  --set source.type=repository \
-  --set source.repository=https://github.com/acme/demo-app.git \
-  --set source.ref=main
-```
-
-For project-controlled Git deployments, prefer changing the `update:` block in `update-cli.yaml`. The setup workflow remains independent and continues to run against `current/` after deployment.
-
-To switch back to a local ZIP release folder:
-
-```bash
-update-cli config \
-  --set mode=update \
-  --set source.type=download \
-  --set source.folder="$HOME/Downloads"
-```
-
-#### What `update-cli check` does for GitHub
-
-```bash
-update-cli check
-```
-
-`check` updates remote repository metadata and determines the target commit without deploying it. The persistent checkout is not switched to the new application state merely because a check was performed.
-
-The comparison uses both:
-
-- the semantic version read from `VERSION`; and
-- the Git commit identity stored for the deployed release.
-
-This means the following can still be detected as an available update:
+With the default build configuration:
 
 ```text
-installed: VERSION 1.4.0 @ commit aaaaaaa
-remote:    VERSION 1.4.0 @ commit bbbbbbb
+binary:       /usr/local/bin/update-cli
+global config:/usr/local/etc/update-cli/
 ```
 
-For formal releases, incrementing `VERSION` remains recommended because release directories and human-readable history are version-oriented.
-
-#### Preview the GitHub update
+Existing global `config.json` and `templates.json` are preserved. Default files are created only when no corresponding global file exists yet. Verify the installation with:
 
 ```bash
-update-cli update --plan
+update-cli version
+update-cli config --list
 ```
 
-The plan resolves the repository source and target state but does not commit the deployment. Use this before production changes when you want to inspect the selected source, version and transaction steps.
-
-For machine-readable planning:
+`update-cli install` is the CLI wrapper for the same project operation and executes exactly `just install` in the active project/source directory:
 
 ```bash
-update-cli update --plan --json
+update-cli install
 ```
 
-#### Pull and deploy
+For local development, CI fixtures and recordings, the Just recipe accepts a non-system binary directory:
 
 ```bash
-update-cli update
+UPDATE_CLI_INSTALL_BIN_DIR="$PWD/.demo-install/bin" just install
+.demo-install/bin/update-cli version
 ```
 
-The repository is cloned once into:
+The matching VHS recording is defined in [`docs/tapes/install.tape`](docs/tapes/install.tape). Render it with:
+
+```bash
+vhs docs/tapes/install.tape
+# or
+just tape-install
+```
+
+The generated recording is written to `docs/videos/install.gif`.
+
+## QUICKSTART
+
+The current working directory is always the project root during `init`. The value after `init` is the project name/slug; it never causes Update CLI to create another nested project directory.
+
+### Bootstrap from a downloaded release
+
+Place release ZIPs in the configured download directory, normally `$HOME/Downloads`. File names must use valid semantic versions:
 
 ```text
-.updater-cli/repository/
+<project>-v<MAJOR>.<MINOR>.<PATCH>.zip
+<project>-<MAJOR>.<MINOR>.<PATCH>.zip
 ```
 
-Subsequent updates reuse that checkout. The acquisition stage performs the equivalent of:
+For example:
 
 ```text
-git fetch --prune --tags
-git pull --ff-only
+demo-app-v1.2.0.zip
+demo-app-v1.3.0.zip
+demo-app-v2.0.0.zip
 ```
 
-For a branch-based pull, `--ff-only` is intentional: Update CLI does not create merge commits or silently reconcile divergent histories inside its managed repository cache. A non-fast-forward situation must be resolved deliberately in Git before deployment continues.
+Then create or enter the desired project root and initialize it:
 
-After the pull, Update CLI:
+```bash
+mkdir -p ~/projects/demo-app-DEV
+cd ~/projects/demo-app-DEV
+update-cli init --project demo-app
+```
 
-1. reads `VERSION` from the selected commit;
-2. creates a clean source snapshot with `.git` excluded;
-3. validates the snapshot using the same content/security policy as ZIP releases;
-4. prepares the immutable `release/<version>/` tree;
-5. creates transaction/backup recovery state;
-6. synchronizes the release into `current/`;
-7. optionally executes `update-cli.yaml`;
-8. restores Docker state when configured;
-9. performs the configured health check; and
-10. records the installed version and Git commit.
+When several matching archives exist, Update CLI parses their semantic versions and selects the highest valid version. The bootstrap:
 
-The deployed tree receives:
+1. creates `.update-cli/config.json`,
+2. resolves the download source,
+3. selects the newest matching release,
+4. creates the immutable version under `release/<VERSION>/`,
+5. synchronizes the release to `current/`,
+6. runs `migrate.sh` and project setup only when setup is selected/enabled.
+
+Example resulting layout:
 
 ```text
-.release-commit
+demo-app-DEV/
+├── .update-cli/
+│   ├── config.json
+│   └── history.jsonl
+├── release/
+│   └── 2.0.0/
+└── current/
+    └── VERSION
 ```
 
-The active `current/` tree therefore remains a deployment artifact and is **not** a Git checkout.
-
-#### One-time repository override
-
-You can override the configured repository for one command:
+A different download folder can be supplied explicitly:
 
 ```bash
-update-cli check \
-  --mode pull \
-  --repository https://github.com/acme/demo-app.git
+update-cli init --project demo-app --downloads /srv/releases
 ```
 
-or:
+The downloadable quickstart recording is reproducibly generated from [`docs/tapes/quickstart.tape`](docs/tapes/quickstart.tape). It creates its own local demo ZIP and project tree, so it does not depend on external services:
 
 ```bash
-update-cli update \
-  --mode pull \
-  --repository https://github.com/acme/demo-app.git
+vhs docs/tapes/quickstart.tape
+# or
+just tape-quickstart
 ```
 
-The configured repository in `.updater-cli/config.json` is not replaced merely because an invocation uses a command-line source override.
+The recording is written to `docs/videos/quickstart.gif`.
 
-#### GitHub pull with automatic project setup
+### Bootstrap from a Git repository
+
+The explicit form is:
 
 ```bash
-update-cli update --setup
+update-cli init --project git-cli \
+  --from-repository \
+  --repository https://github.com/r14r/git-cli
 ```
 
-`update-cli.yaml` is evaluated after the new source snapshot has been deployed to `current/`. To suppress setup for one update:
+The compact form remains supported:
 
 ```bash
-update-cli update --no-setup
+update-cli init --project git-cli --from-repository https://github.com/r14r/git-cli
+update-cli init --project ollama-cli --from-repository r14r/ollama-cli
+update-cli init --project ollama-cli --from-repository ollama-cli
 ```
 
-#### Typical GitHub workflow
+Repository normalization rules:
 
-After initial configuration, the normal recurring workflow is intentionally short:
+```text
+https://github.com/r14r/git-cli  -> https://github.com/r14r/git-cli.git
+r14r/ollama-cli                 -> https://github.com/r14r/ollama-cli.git
+ollama-cli                       -> https://github.com/<source.defaultUser>/ollama-cli.git
+```
+
+Absolute local Git repository paths are also accepted. Repository state is maintained below `.update-cli/repository/`; a clean snapshot is deployed to `current/`.
+
+### Normal operation after init
+
+Typical commands are:
 
 ```bash
-cd /path/to/demo-app
 update-cli check
 update-cli update --plan
 update-cli update
 update-cli status
-```
-
-If setup should always follow an accepted update:
-
-```bash
-update-cli config --set no-parameter="check,setup"
-update-cli
-```
-
-#### Troubleshooting pull mode
-
-Verify configuration first:
-
-```bash
-update-cli config list
 update-cli doctor
 ```
 
-Verify Git access independently when authentication or connectivity is suspected:
+With the default runtime setting
+
+```json
+"no parameter": ["update", "no-setup"]
+```
+
+a plain `update-cli` performs an update without opening the setup confirmation prompt.
+
+### Render all README CLI recordings
+
+Install [VHS](https://github.com/charmbracelet/vhs), then run:
 
 ```bash
-git ls-remote https://github.com/acme/demo-app.git
+just tapes
+# equivalent:
+./scripts/render-tapes.sh
 ```
 
-Useful state locations are:
+The `.tape` files are source artifacts; generated GIFs are optional documentation build output.
+
+## Source modes
+
+| `mode` | `source.type` | Required field |
+|---|---|---|
+| `update` | `download` | `source.folder` |
+| `update` | `url` | `source.url` |
+| `pull` | `repository` | `source.repository` |
+
+Explicit CLI source flags are one-shot overrides. Persistent values are written to `.update-cli/config.json`. `source.defaultUser` is used only when `--from-repository` receives a repository name without a user.
+
+Examples:
+
+```bash
+update-cli config --set mode=pull
+update-cli config --set source.type=repository
+update-cli config --set source.defaultUser=r1r
+update-cli config --set source.repository=https://github.com/acme/demo-app.git
+update-cli config --set source.ref=main
+```
+
+Switch back to Downloads:
+
+```bash
+update-cli config --set mode=update
+update-cli config --set source.type=download
+update-cli config --set source.folder="$HOME/Downloads"
+```
+
+## Global configuration layer
+
+The installation-wide file is resolved from the executable path:
 
 ```text
-.updater-cli/config.json       source/mode configuration
-.updater-cli/repository/       persistent Git checkout
-.updater-cli/history.jsonl     update history
-release/                       validated release snapshots
-current/                       active deployed application
-backup/                        persistent recovery backups
+<INSTALLFOLDER>/../etc/update-cli/config.json
 ```
 
-The repository cache should normally be managed by Update CLI rather than edited manually.
-
-## No-parameter behavior
-
-New projects created with `--init` default to:
-
-```json
-{
-  "no parameter": ["check"]
-}
-```
-
-A bare invocation therefore checks for a newer release. If an update is accepted and project setup is available, setup is offered separately; both confirmation modals select **YES** by default.
-
-To automatically run setup after an accepted update without a second setup question, configure:
-
-```json
-{
-  "no parameter": ["check", "setup"]
-}
-```
-
-This preserves the safe **check first** workflow: Update CLI still asks before installing the release, but once the update is accepted the configured project setup becomes part of the update transaction automatically.
-
-The configured list selects the primary action only for a genuinely argument-free invocation. Explicit commands such as `--upgrade`, `--doctor`, or `--version` are not combined with that default. The `setup` modifier of `["check", "setup"]` is also honored when `--check` is invoked explicitly, so an accepted checked update behaves consistently. For an explicit direct update with automatic setup, use `update-cli --update --setup`.
-
-## Transactional update model
-
-A normal update is represented as 13 explicit phases:
-
-1. resolve the release source
-2. validate target version and update policy
-3. validate archive/repository content
-4. prepare the versioned release
-5. create the transaction snapshot of `current/`
-6. optionally create a persistent user backup
-7. synchronize the release to `current/`
-8. verify the installed `current/` state
-9. run or skip project setup
-10. restore previously running Docker services
-11. run the configured health check
-12. activate the versioned release
-13. write status/history and commit the transaction
-
-A failure after the transaction begins restores the previous `current/` snapshot. If a Compose stack was running before the update, Update CLI attempts to restore that running state after recovery.
-
-If setup is accepted interactively, the step/output area is cleared before setup starts so installation phases and setup output are not mixed on one screen.
-
-## Persistent paths
-
-The default protected paths are:
+Example for `/usr/local/bin/update-cli`:
 
 ```text
-.git/
-.gitignore
-.venv/
-.env
-.env.*
-data/
-storage/
-uploads/
-media/
-logs/
-var/
+/usr/local/etc/update-cli/config.json
 ```
 
-Override them in project configuration:
+The shipped global default focuses on source defaults and the minimum rsync preserve/exclude policy:
 
 ```json
 {
+  "source": {
+    "defaultUser": "r1r"
+  },
   "sync": {
-    "preserve": [".gitignore", ".env", "data/", "storage/"]
+    "preserve": [
+      ".git/",
+      ".gitignore",
+      ".venv/",
+      ".env",
+      ".env.*",
+      "data/",
+      "storage/",
+      "uploads/",
+      "media/",
+      "logs/",
+      "var/"
+    ]
+  },
+  "setup": {
+    "keepRsyncOnError": false
   }
 }
 ```
 
-Protected paths are neither overwritten by release content nor removed by release synchronization.
+The project-local `.update-cli/config.json` is loaded second. Nested objects are merged recursively; local scalar values replace global values. `sync.preserve` is intentionally additive rather than replacing the global list, so centrally required exclusions cannot disappear merely because a project adds its own paths.
 
-## Backups and snapshots
+### Project-versioned updater settings in `update-cli.yaml`
 
-### Transaction snapshots
+After global and local JSON are merged, Update CLI reads the preferred project manifest. `./update-cli.yaml` has priority; if it is absent, `./current/update-cli.yaml` can supply the project settings. Values present under `project.slug` and `update:` override the corresponding JSON values. CLI flags such as `--repository`, `--url`, or `--folder` are applied afterwards.
 
-Created automatically for update, rollback, and restore. They are exact temporary recovery copies and are removed after a successful commit.
+Example:
 
-### Persistent user backups
+```yaml
+schemaVersion: 2
+project:
+  name: Demo App
+  slug: demo-app
 
-Create one explicitly:
-
-```bash
-update-cli --backup
-update-cli --update --backup
+update:
+  mode: update
+  source:
+    type: download
+    folder: $HOME/Downloads
+  releaseDir: release
+  currentDir: current
+  backup:
+    directory: backup
+    keep: 3
+  retention:
+    releases: 5
+  sync:
+    preserve:
+      - .env
+      - .env.*
+      - data/
+      - uploads/
+    keepOnSetupError: true
+  docker:
+    lifecycle: auto
+  healthcheck:
+    type: none
 ```
 
-Persistent backups exclude regenerable dependencies and secret-bearing `.env` files and are retained according to the configured backup policy.
+`update.sync.preserve` is the project-authoritative preserve list when present in YAML; if it is omitted, the merged global/local JSON list is used. `.gitignore` remains protected as an Update CLI invariant. `security.*` is intentionally rejected inside `update:` and must stay in `config.json`.
 
-## Health checks
+Templates use the same two-level model with `/usr/local/etc/update-cli/templates.json` and `.update-cli/templates.json`. Templates are merged by case-insensitive name: a local template replaces the global definition with the same name; otherwise it is added.
 
-HTTP health check:
+## Complete updater configuration
+
+A typical `.update-cli/config.json` is:
 
 ```json
 {
-  "healthcheck": {
-    "type": "http",
-    "url": "http://localhost:8080/health",
-    "timeoutSeconds": 30
-  }
-}
-```
-
-Command health check:
-
-```json
-{
-  "healthcheck": {
-    "type": "command",
-    "command": "./app doctor",
-    "timeoutSeconds": 30
-  }
-}
-```
-
-A failed post-update health check causes transaction recovery.
-
-## Archive and path security
-
-Project configuration schema v6 supports limits such as:
-
-```json
-{
+  "schemaVersion": 9,
+  "projectName": "demo-app",
+  "mode": "update",
+  "source": {
+    "type": "download",
+    "defaultUser": "r1r",
+    "folder": "$HOME/Downloads"
+  },
+  "releaseDir": "release",
+  "currentDir": "current",
+  "no parameter": ["update", "no-setup"],
+  "setup": {
+    "commands": [],
+    "keepRsyncOnError": false
+  },
+  "backup": {
+    "directory": "backup",
+    "keep": 3
+  },
+  "retention": {
+    "releases": 5
+  },
+  "sync": {
+    "preserve": [
+      ".git/",
+      ".gitignore",
+      ".venv/",
+      ".env",
+      ".env.*",
+      "data/",
+      "storage/",
+      "uploads/",
+      "media/",
+      "logs/",
+      "var/"
+    ]
+  },
   "security": {
     "allowHttp": false,
     "maxArchiveBytes": 2147483648,
@@ -1957,139 +1016,334 @@ Project configuration schema v6 supports limits such as:
     "maxFileBytes": 2147483648,
     "maxEntries": 100000,
     "maxCompressionRatio": 200
-  }
+  },
+  "docker": {
+    "lifecycle": "auto"
+  },
+  "healthcheck": {}
 }
 ```
 
-ZIP validation rejects:
+### `setup.keepRsyncOnError` behavior
 
-- absolute paths and traversal (`../`)
-- symbolic links
-- unsupported special files
-- excessive file/archive sizes
-- excessive entry counts
-- excessive expanded size
-- suspicious compression ratios
-- CRC/read failures
+`setup.keepRsyncOnError` controls only recovery from a failure in the update's project-setup phase. The default is `false`.
 
-Configured project/release/current/backup paths are canonicalized to prevent symlink-based containment escapes.
-
-## Locks
-
-The update lock stores PID, host, timestamp, and command metadata. A lock whose local owner PID is no longer alive is treated as stale.
-
-Explicitly remove a recoverable stale lock with:
-
-```bash
-update-cli --unlock
+```json
+"setup": {
+  "keepRsyncOnError": true
+}
 ```
 
-Active or ambiguous locks are not silently removed.
+With the option enabled, Update CLI keeps the already verified rsync deployment in `current/` and promotes the matching staged release to `release/<version>/` even though setup failed. The command still exits with an error and records a failed history entry. This is useful when the new source tree should remain available so setup can be diagnosed or rerun separately.
 
-## `update-cli.yaml` schemaVersion 2
+The option does **not** suppress recovery for failures in extraction, rsync, current verification, Docker/service restart, healthcheck, release activation, or metadata handling. Existing `sync.preserve` paths remain protected as usual.
 
-SchemaVersion 2 turns `update-cli.yaml` into a declarative project automation manifest. Reusable **tasks** contain steps; **workflows** compose tasks into entry points such as `setup`, `ci`, `build`, or `clean`.
+The setting can be changed locally in JSON with:
+
+```bash
+update-cli config --set setup.keepRsyncOnError=true
+update-cli config --set setup.keepRsyncOnError=false
+```
+
+For a project-versioned policy, use `update.sync.keepOnSetupError` in `update-cli.yaml`; that value overrides the JSON fallback. The transitional `update.setup.keepRsyncOnError` form is migrated by `update-cli fix` or `update-cli doctor --migrate`.
+
+### `sync.preserve` behavior
+
+Without a YAML override, the effective `sync.preserve` list is the union of the global list and the project-local JSON list. When `update.sync.preserve` is present in the preferred `update-cli.yaml`, that project list takes precedence. In either case, preserve means **keep the local copy when it already exists**. It is not a permanent source exclusion. During an initial install or when a protected path is missing from `current/`, Update CLI seeds that path once from the selected release. Future updates preserve the local copy.
+
+For example, with:
+
+```json
+"sync": {
+  "preserve": [".env", ".env.*", "data/"]
+}
+```
+
+a release containing `.env`, `.env.example`, and `data/` installs those paths when they are absent. If they already exist in `current/`, their local contents are retained. Note that the wildcard `.env.*` also protects `.env.example`; remove or narrow that wildcard if template files should always track the release.
+
+The release snapshot itself contains source `.env` files. Ordinary backup snapshots still omit `.env` and `.env.*` to avoid exporting secrets.
+
+## Configuration commands
+
+Show effective configuration:
+
+```bash
+update-cli config
+```
+
+List the configuration layers:
+
+```bash
+update-cli config --list
+```
+
+Typical output for `/usr/local/bin/update-cli`:
+
+```text
+Konfigurationsdateien
+───────────────────────────────────────
+  config.json:        /usr/local/etc/update-cli/config.json
+                      /path/to/project/.update-cli/config.json
+  templates.json:     /usr/local/etc/update-cli/templates.json
+                      /path/to/project/.update-cli/templates.json
+  history.jsonl       /path/to/project/.update-cli/history.jsonl
+```
+
+Other commands:
+
+```bash
+update-cli config --list
+update-cli config --edit
+update-cli config --check
+update-cli install
+update-cli config --migrate
+update-cli config --set KEY=VALUE
+```
+
+Examples:
+
+```bash
+update-cli config --set backup.keep=5
+update-cli config --set retention.releases=10
+update-cli config --set docker.lifecycle=disabled
+update-cli config --set no-parameter=update,no-setup
+```
+
+`config --set` writes transactionally: all requested changes are validated before the JSON file replaces the previous configuration.
+
+### Legacy config migration
+
+For an older project:
+
+```text
+.update-cli/config.json
+```
+
+run:
+
+```bash
+update-cli config --check
+update-cli config --migrate
+```
+
+Migration creates a timestamped backup and moves the active file to:
+
+```text
+.update-cli/config.json
+```
+
+The remaining `.update-cli/` directory is not required to be deleted automatically because it may still contain historical runtime data.
+
+## JSON Schema for `update-cli.yaml`
+
+Show the canonical schema version:
+
+```bash
+update-cli schema --version
+# 2
+```
+
+Standalone `update-cli version` reports the application release version.
+
+Show the canonical schema on stdout:
+
+```bash
+update-cli schema --view
+```
+
+Save it to a file:
+
+```bash
+update-cli schema --save update-cli.schema.json
+```
+
+Nested output paths are supported:
+
+```bash
+update-cli schema --save schemas/update-cli.schema.json
+```
+
+`--view` and `--save` produce the same JSON Schema. `--version` reports the schema version represented by that canonical schema. The schema describes the canonical `update-cli.yaml` **schemaVersion 2** automation format, including project metadata, variables, requirements, workflows, tasks, run configuration, conditions, and typed step operations.
+
+Project-dependent update source settings may be stored under `update:` in `update-cli.yaml` and override their global/local `config.json` fallback values. Host/user-only values such as `source.defaultUser` and `security.*` remain outside the project-controlled manifest.
+
+## Pre-setup migrations
+
+When a release contains `migrate.sh`, Update CLI checks its version marker immediately before any setup execution:
+
+```bash
+update-cli setup
+```
+
+For version `1.4.0`, a successful run creates:
+
+```text
+<project-root>/.update-cli/.migration.done.1.4.0
+```
+
+A subsequent `update-cli setup` sees that marker and goes directly to setup. If `migrate.sh` exits non-zero, setup is not started and the marker is not created.
+
+The migration script runs from the active release directory and can use:
+
+```text
+UPDATE_CLI_MIGRATION=1
+UPDATE_CLI_PROJECT_ROOT=<stable project root>
+UPDATE_CLI_CURRENT_DIR=<active current/source directory>
+UPDATE_CLI_VERSION=<installed semantic version>
+```
+
+The script must have a valid `VERSION` file beside it because the semantic version is part of the persistent completion marker.
+
+## Setup manifests
+
+Preferred filename:
+
+```text
+update-cli.yaml
+```
+
+Legacy fallback:
+
+```text
+setup.yaml
+```
+
+Discovery order is always:
+
+```text
+1. update-cli.yaml
+2. setup.yaml
+3. setup.sh
+4. just build + just install fallback
+```
+
+The modern schemaVersion-2 project manifest can contain project update overrides plus setup/run automation. Example:
 
 ```yaml
 schemaVersion: 2
 
 project:
-  name: Example CLI
-  type: go
-  description: Build, test and deploy Example CLI
-
-variables:
-  binary: example
-  distDir: dist
-
-defaults:
-  failFast: true
-  timeout: 10m
-
-requirements:
-  commands:
-    - go
+  name: Demo Application
+  slug: demo-app
 
 run:
-  command: ./dist/example
-  cwd: .
+  command: .venv/bin/streamlit run app/app.py
 
 workflows:
   setup:
-    tasks:
-      - deploy
-
-  ci:
-    tasks:
-      - verify
+    tasks: [deploy]
 
 tasks:
-  prepare:
-    steps:
-      - id: modules
-        name: Download Go modules
-        go:
-          action: mod-download
-        when:
-          fileExists: go.mod
-
-  check:
-    requires: [prepare]
-    steps:
-      - id: vet
-        name: Static analysis
-        go:
-          action: vet
-
-  test:
-    requires: [check]
-    steps:
-      - id: test
-        name: Tests
-        go:
-          action: test
-
   build:
-    requires: [test]
     steps:
-      - id: build
-        name: Build binary
-        shell: |
-          mkdir -p "{{ distDir }}"
-          go build -o "{{ distDir }}/{{ binary }}" .
-
-  verify:
-    requires: [build]
-    steps:
-      - id: verify-binary
-        name: Verify binary
-        assert:
-          executable: "{{ distDir }}/{{ binary }}"
+      - shell: go build ./...
 
   deploy:
-    requires: [verify]
+    requires: [build]
     steps:
-      - id: deploy
-        name: Deploy binary
-        deploy:
-          source: "{{ distDir }}/{{ binary }}"
-          target: "/usr/local/bin/{{ binary }}"
+      - deploy:
+          source: ./demo-app
+          target: /usr/local/bin/demo-app
           mode: "0755"
 ```
 
-### Application run command
+Project-specific update source settings may be placed under `update.source`; global/host defaults remain in `config.json` and are overridden by the project manifest.
 
-A schemaVersion-2 manifest may declare an application launcher independently of setup tasks. The compact form is useful for shell commands:
+### Legacy `setup.yaml`
+
+Existing projects do not have to rename immediately. `setup.yaml` is accepted by:
+
+```bash
+update-cli setup
+update-cli setup
+update-cli run
+```
+
+When `setup.yaml` has no explicit `schemaVersion`/legacy `version`, Update CLI infers:
+
+- schema 2 for structures containing `tasks`, `workflows`, `run`, `defaults`, `variables`, or `requirements`;
+- schema 1 otherwise.
+
+`update-cli.yaml` always wins if both files are present.
+
+### Just fallback
+
+If an explicit setup finds no `update-cli.yaml`, `setup.yaml`, or `setup.sh`, but finds `justfile` or `Justfile`, Update CLI executes:
+
+```bash
+just build
+just install
+```
+
+If `just` itself is missing, setup returns an explicit error instead of silently skipping the project build.
+
+## Setup commands
+
+Run the default setup workflow:
+
+```bash
+update-cli setup
+```
+
+Inspect every setup workflow, task, and step. Steps with an `id` can be addressed individually:
+
+```bash
+update-cli setup --list
+update-cli setup --list --json
+```
+
+Run exactly one step by its manifest `id`:
+
+```bash
+update-cli setup --run STEP_ID
+update-cli setup --run STEP_ID --details
+```
+
+Run a complete task or workflow:
+
+```bash
+update-cli setup --task NAME
+update-cli setup --workflow NAME
+```
+
+Command-first compatibility forms are also accepted:
+
+```bash
+update-cli setup --list
+update-cli setup --run STEP_ID
+```
+
+`setup --run` deliberately runs only the selected step. It does not execute the task's `requires` dependencies or other steps in the same task. The selected step's own condition and execution policy remain active. IDs should be unique across setup tasks; an ambiguous duplicate ID is rejected.
+
+### Detailed command help
+
+The standard help remains concise:
+
+```bash
+update-cli help
+update-cli help --command setup
+```
+
+Add `--details` to get a command-specific description, relevant options, and examples:
+
+```bash
+update-cli help --command setup --details
+update-cli help --command setup --details
+update-cli help --command update --details
+```
+
+Use `update-cli help --details` for a detailed overview of all commands.
+
+## Run application
+
+Compact form in either supported manifest filename:
 
 ```yaml
 run:
-  command: docker compose up
-  cwd: .
-  env:
-    APP_ENV: production
+  command: .venv/bin/streamlit run app/app.py
 ```
 
-For applications with an executable plus arguments, prefer structured `run.steps`:
+Structured form:
 
 ```yaml
 run:
@@ -2103,337 +1357,192 @@ run:
           - app/app.py
 ```
 
-Each structured run step uses the same schemaVersion-2 step parser as setup tasks, including typed `command` and `shell` operations, `cwd`, `env`, `timeout`, `retries`, `when` and `allowFailure`. Top-level `run.cwd` and `run.env` act as defaults for all structured steps; step-level values override them.
-
-`command` in the compact form is the shell command used by `update-cli --run`. `cwd` is relative to the active project directory and cannot escape it. Variables and environment expressions use the same `{{ ... }}` expansion rules as setup steps. Define either `run.command` or `run.steps`, not both.
-
-A run-only manifest is valid:
-
-```yaml
-schemaVersion: 2
-project:
-  name: Example
-run:
-  command: ./example
-```
-
-If workflows or tasks are defined, their behavior is unchanged and `update-cli setup` continues to execute the `setup` workflow.
-
-### Workflow and task execution
+Execute:
 
 ```bash
-update-cli --setup
-update-cli --setup-list
-update-cli --setup-workflow ci
-update-cli --setup-task test
-update-cli --setup-task build
-update-cli --setup-task clean
+update-cli run
+# compatibility alias
+update-cli run
 ```
 
-Task dependencies are topologically resolved, de-duplicated, and checked for cycles.
+## Command syntax and legacy aliases
 
-### Conditions
-
-Simple condition:
-
-```yaml
-when:
-  fileExists: go.mod
-```
-
-Compound condition:
-
-```yaml
-when:
-  all:
-    - fileExists: compose.yaml
-    - commandExists: docker
-    - not:
-        envSet: SKIP_DOCKER
-```
-
-Supported condition families include:
+Commands use a command-first syntax. Options still use `--`:
 
 ```text
-fileExists
-fileNotExists
-directoryExists
-commandExists
-envSet
-os
-arch
-compose
-all
-any
-not
+update-cli check --no-ask
+update-cli update --archive app-v1.2.3.zip --backup --setup
+update-cli releases --list --json
+update-cli doctor --migrate
+update-cli config --check
 ```
 
-### Variables
+Legacy command flags and bare secondary subcommands are rejected. Use only `update-cli <command> --<parameter> ...`.
 
-```yaml
-variables:
-  binary: app
-  deployPath: "{{ env.DEPLOY_PATH | /usr/local/bin }}"
-```
+## ZIP update mode
 
-Built-ins include project metadata, OS/architecture values, and environment-variable references.
-
-### Per-step controls
-
-SchemaVersion-2 steps can define:
-
-```yaml
-cwd: backend
-
-env:
-  APP_ENV: testing
-
-timeout: 5m
-retries: 2
-allowFailure: false
-```
-
-### Typed operations
-
-The current engine supports:
-
-| Category | Operations |
-|---|---|
-| Generic execution | `command`, `shell` |
-| Filesystem | `mkdir`, `copy`, `move`, `remove`, `chmod`, `symlink`, `touch`, `write`, `deploy` |
-| Validation | `assert` |
-| Python | `pythonVenv`, `pip` |
-| JavaScript | `npm`, `pnpm`, `yarn` |
-| PHP/Laravel | `composer`, `artisan` |
-| Go | `go` |
-| Containers | `dockerCompose` |
-| Network | `httpCheck`, `download` |
-| Archives | `extract` |
-
-`command` uses structured executable/argument handling. `shell: |` remains the escape hatch for project-specific logic that cannot safely be represented by a typed operation.
-
-The full schema is documented in [`doc/setup-schema.md`](doc/setup-schema.md).
-
-## SchemaVersion-1 and legacy setup compatibility
-
-Existing schemaVersion-1 manifests remain executable:
-
-```yaml
-schemaVersion: 1
-project:
-  name: Existing Project
-  type: go
-steps:
-  - id: test
-    name: Run tests
-    when: file:go.mod
-    run: go test ./...
-```
-
-A legacy `setup.sh` can still be run when no manifest is available. Nested legacy scripts are executed without their own hidden wait/fullscreen cycle so the parent Update CLI owns the user interface.
-
-## Setup-file lifecycle
-
-### Convert an existing YAML
-
-```bash
-update-cli --convert-yaml
-```
-
-SchemaVersion 1 is converted to schemaVersion 2. The generated result is parsed before replacing the original and a timestamped backup is retained.
-
-Preview only:
-
-```bash
-update-cli --convert-yaml --dry-run
-```
-
-### Generate YAML from project files
-
-```bash
-update-cli --create-yaml
-update-cli --create-yaml --from project
-```
-
-Project detection is additive and currently recognizes:
-
-- Go: `go.mod`
-- Python: `pyproject.toml`, `requirements.txt`, `setup.py`, `Pipfile`
-- Node: `package.json` and npm/pnpm/yarn lockfiles
-- Laravel: `artisan`, `composer.json`, `laravel/framework`
-- Docker Compose: `compose.yml`, `compose.yaml`, `docker-compose.yml`, `docker-compose.yaml`
-
-A mixed project may therefore be described as, for example, `go+node+docker` and receive tasks for all detected stacks.
-
-### Generate YAML from `setup.sh`
-
-```bash
-update-cli --create-yaml --from setup-script
-```
-
-The deterministic converter analyzes the existing shell setup and recognizes template-style setup arrays and common Go, Python, Node, Composer, Docker, deployment, and command patterns. When a safe typed mapping is not possible, the original behavior is preserved as an ordered `shell: |` step rather than guessed away.
-
-### AI-assisted setup-script conversion
-
-```bash
-update-cli --create-yaml --from setup-script --with-ai
-```
-
-The conversion pipeline is:
-
-```text
-setup.sh
-   ↓
-deterministic converter
-   ↓
-schemaVersion-2 draft
-   ↓
-AI refinement
-   ↓
-schemaVersion-2 parser validation
-   ↓
-update-cli.yaml
-```
-
-AI receives both the **original setup script** and the **deterministic draft**. The deterministic conversion is always performed first. An AI result is accepted only if Update CLI can parse it as a valid schemaVersion-2 manifest.
-
-Supported provider identifiers:
-
-```text
-ollama
-openai-compatible
-nvidia
-```
-
-Default AI configuration file:
-
-```text
-/usr/local/etc/update-cli/ai.json
-```
-
-Example:
+With:
 
 ```json
-{
-  "provider": "ollama",
-  "baseUrl": "http://localhost:11434",
-  "model": "qwen3:8b",
-  "timeout": "2m"
+"mode": "update",
+"source": {
+  "type": "download",
+  "folder": "$HOME/Downloads"
 }
 ```
 
-Environment overrides:
+Update CLI discovers versioned ZIP releases and installs them through the transactional release/current pipeline.
 
-```text
-UPDATE_CLI_AI_PROVIDER
-UPDATE_CLI_AI_BASE_URL
-UPDATE_CLI_AI_MODEL
-UPDATE_CLI_AI_API_KEY
-UPDATE_CLI_AI_API_KEY_ENV
-UPDATE_CLI_AI_CONFIG
-UPDATE_CLI_AI_PROMPT
-OPENAI_API_KEY
+## Git pull mode
+
+With:
+
+```json
+"mode": "pull",
+"source": {
+  "type": "repository",
+  "repository": "https://github.com/acme/demo-app.git",
+  "ref": "main"
+}
 ```
 
-The conversion prompt is shipped in the repository at:
+Update CLI maintains a persistent checkout below the active configuration directory:
 
 ```text
-prompts/setup-script-to-yaml.txt
+.update-cli/repository/
 ```
 
-and installed by the Update CLI setup workflow to:
+The deployed `current/` tree is never the Git working tree. A `.release-commit` marker records the deployed commit so new commits can be detected even if `VERSION` is unchanged.
 
-```text
-/usr/local/etc/update-cli/prompts/setup-script-to-yaml.txt
-```
+## Project repair
 
-### Generate the setup wrapper
+When `config --check`, `upgrade`, update operations or setup commands fail because project metadata contains legacy/unknown fields, repair the project first:
 
 ```bash
-update-cli --create-setup-script
+update-cli fix
 ```
 
-This creates a generic executable `setup.sh` that resolves a compatible local/platform Update CLI binary and delegates manifest execution to the CLI setup engine.
+`fix` is intentionally more tolerant than the normal loaders. It parses legacy structure, removes unsupported fields, migrates known values to the current schema, writes backups, then verifies the result with the regular strict loaders. Use `--root <folder>` for another project directory and `--json` for machine-readable repair details.
 
-Generation commands protect existing files unless `--force` is specified. Use `--dry-run` to inspect generated output without writing files.
+Typical recovery for the historical `defaultUser` error is simply:
 
-## Global setup template
+```bash
+cd /path/to/project
+update-cli fix
+update-cli upgrade
+```
 
-The standard installation includes:
+## Project manifest doctor
+
+Run doctor from the project root that contains `update-cli.yaml`:
+
+```bash
+cd /path/to/project
+update-cli doctor
+```
+
+`doctor` determines the project layout and checks all relevant configuration files. From the project root it checks:
 
 ```text
-/usr/local/etc/update-cli/setup-template.sh
+./.update-cli/config.json
+./update-cli.yaml
+./current/update-cli.yaml
 ```
 
-It can be copied into a project or executed from a project/current directory. For schemaVersion 2 it deliberately avoids handing the manifest to an incompatible old CLI; it prefers matching local/platform binaries and can bootstrap from the Go source tree when necessary.
+If the command is started inside `current/`, the parent is recognized as the project root and `../.update-cli/config.json` is used. A runtime config is optional for a pure source project, but when present it is schema-checked together with both manifests. Doctor also compares the root/current `update:` sections and reports which manifest supplies the effective project overrides.
 
-Wrapper examples:
+To migrate an older manifest to the newest supported schema:
 
 ```bash
-./setup.sh
-./setup.sh --list
-./setup.sh --task build
-./setup.sh --workflow ci
-./setup.sh --details
-./setup.sh --no-ui
-./setup.sh --no-wait
+update-cli doctor --migrate
 ```
 
-## Rollback and cleanup are local-only
+For an existing `update-cli.yaml`, migration creates a timestamped backup before replacing the file. If a checked location only contains legacy `setup.yaml`, it remains untouched and a new canonical `update-cli.yaml` is created. `doctor --migrate` checks/migrates the project runtime config plus both root/current manifest locations when they exist. Structural errors that cannot be safely migrated are reported with a recommendation to run `update-cli fix`.
 
-Rollback and cleanup use local release/backup inventory only. They do not need the configured URL or repository source, so recovery remains available during source-server or network outages.
+`update-cli config --migrate` remains available when only the runtime JSON should be migrated.
 
-## Development and validation
+`--root <folder>` can be used to check another project folder explicitly. `--json` returns the same doctor result as structured JSON.
 
-Recommended local gate:
+## Recovery and safety
+
+Useful commands:
 
 ```bash
+update-cli backup
+update-cli rollback --version VERSION
+update-cli restore --snapshot latest
+update-cli status
+update-cli history
+update-cli doctor
+update-cli doctor --migrate
+update-cli clean
+update-cli cleanup
+```
+
+Mutating operations prepare transactional recovery. A valid previous `release/<VERSION>/` is used as the fast rollback basis; an exact `current/` snapshot is created only as fallback when no usable previous release exists. Activation/setup/health failures restore the previous release while preserving configured persistent paths.
+
+Docker lifecycle values in JSON config:
+
+```text
+auto
+disabled
+required
+```
+
+## macOS path compatibility
+
+macOS can expose the same temporary directory as both:
+
+```text
+/var/folders/...
+/private/var/folders/...
+```
+
+Root-discovery and install-command tests canonicalize symlinks before comparison so this alias does not produce false failures.
+
+The integration suite deliberately executes setup/update/migration workflows multiple times with different fixtures. These are separate test cases, not repeated execution of one production update. On a passing package, standard `go test` output does not print those scenario logs.
+
+## Development
+
+Required release toolchain:
+
+```text
+Go 1.26.5
+```
+
+Checks:
+
+```bash
+just fmt-check
+just vet
+just test
+just test-race
 just check
 ```
 
-Build native binary:
+Build/install:
 
 ```bash
 just build
+just install
 ```
 
-Build supported release targets:
+Cross-builds:
 
 ```bash
 just build-all
 ```
 
-Install the native binary and global support files:
+## CLI discovery
 
 ```bash
-just install
+update-cli help
+update-cli howto
+update-cli help --json
 ```
 
-The project test gate includes:
+## Repository
 
-```bash
-gofmt
-go vet ./...
-go test ./...
-go test -race ./...
-```
+Source: https://github.com/r14r/update-cli
 
-CI also exercises fullscreen PTY flows and builds:
-
-- macOS amd64
-- macOS arm64
-- Linux amd64
-
-## Release packaging
-
-Release ZIP names follow:
-
-```text
-update-cli-v<MAJOR>.<MINOR>.<PATCH>.zip
-```
-
-Example:
-
-```text
-update-cli-v3.3.1.zip
-```
+GitHub Pages: https://r14r.github.io/update-cli/

@@ -12,7 +12,7 @@ import (
 	"github.com/r14r/update-cli/lib/ui"
 )
 
-// RunApplication executes the application run definition declared in update-cli.yaml.
+// RunApplication executes the application run definition declared in update-cli.yaml or legacy setup.yaml.
 // The run definition always runs from the active project release (current/) unless a
 // contained relative cwd is configured in the manifest or on an individual step.
 func RunApplication(ctx context.Context, c config.Config, console *ui.Console) error {
@@ -20,7 +20,7 @@ func RunApplication(ctx context.Context, c config.Config, console *ui.Console) e
 }
 
 // RunApplicationInDirectory is the standalone variant used when no Update CLI
-// project configuration exists yet and update-cli.yaml is in the current root.
+// project configuration exists yet and a setup manifest is in the current root.
 func RunApplicationInDirectory(ctx context.Context, root string, console *ui.Console) error {
 	info, err := os.Stat(root)
 	if err != nil || !info.IsDir() {
@@ -31,17 +31,17 @@ func RunApplicationInDirectory(ctx context.Context, root string, console *ui.Con
 		return err
 	}
 	if !ok {
-		return fmt.Errorf("kein update-cli.yaml in %s", root)
+		return fmt.Errorf("kein update-cli.yaml/setup.yaml in %s", root)
 	}
-	manifest, err := ParseManifest(manifestPath)
+	manifest, err := ParseManifestForUse(manifestPath)
 	if err != nil {
 		return err
 	}
 	if manifest.Version != 2 {
-		return errors.New("--run benötigt update-cli.yaml schemaVersion 2")
+		return errors.New("--run benötigt ein Setup-Manifest mit schemaVersion 2")
 	}
 	if strings.TrimSpace(manifest.Run.Command) == "" && len(manifest.Run.Steps) == 0 {
-		return errors.New("update-cli.yaml enthält keine run-Konfiguration")
+		return errors.New("Setup-Manifest enthält keine run-Konfiguration")
 	}
 
 	vars := resolveVariables(root, manifest)

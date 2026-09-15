@@ -15,7 +15,7 @@ func TestFindReleaseIsLocalOnly(t *testing.T) {
 	_ = os.MkdirAll(filepath.Join(relRoot, "1.0.0"), 0o755)
 	_ = os.MkdirAll(filepath.Join(relRoot, "2.0.0"), 0o755)
 	_ = os.MkdirAll(current, 0o755)
-	for _, x := range []struct{ p, v string }{{filepath.Join(current, ".release-version"), "2.0.0"}, {filepath.Join(relRoot, "1.0.0", ".release-version"), "1.0.0"}, {filepath.Join(relRoot, "1.0.0", ".release-project"), "demo"}, {filepath.Join(relRoot, "2.0.0", ".release-version"), "2.0.0"}, {filepath.Join(relRoot, "2.0.0", ".release-project"), "demo"}} {
+	for _, x := range []struct{ p, v string }{{filepath.Join(current, "VERSION"), "2.0.0"}, {filepath.Join(relRoot, "1.0.0", "VERSION"), "1.0.0"}, {filepath.Join(relRoot, "1.0.0", ".release-project"), "demo"}, {filepath.Join(relRoot, "2.0.0", "VERSION"), "2.0.0"}, {filepath.Join(relRoot, "2.0.0", ".release-project"), "demo"}} {
 		_ = os.WriteFile(x.p, []byte(x.v+"\n"), 0o644)
 	}
 	c := config.Config{ProjectName: "demo", ReleaseRoot: relRoot, CurrentDir: current, BackupRoot: backup, Source: config.SourceConfig{Type: "url", URL: "https://invalid.invalid/demo-v9.9.9.zip"}}

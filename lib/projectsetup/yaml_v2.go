@@ -72,11 +72,13 @@ func parseManifestV2(path string, data []byte) (Manifest, error) {
 	}
 	allowedTop := map[string]bool{
 		"schemaVersion": true, "version": true, "project": true, "defaults": true, "variables": true,
-		"requirements": true, "workflows": true, "tasks": true, "run": true, "update": true,
+		"requirements": true, "workflows": true, "tasks": true, "run": true, "update": true, "cli": true, "legacySetup": true,
 	}
-	for key, node := range root.m {
+	for key := range root.m {
 		if !allowedTop[key] {
-			return Manifest{}, fmt.Errorf("update-cli.yaml Zeile %d: unbekanntes Top-Level-Feld %q", node.line, key)
+			// Top-level extension fields are intentionally forward-compatible.
+			// Supported sections are still parsed and validated strictly.
+			continue
 		}
 	}
 	version, err := nodeInt(root.m["schemaVersion"])
@@ -153,91 +155,9 @@ func parseManifestV2(path string, data []byte) (Manifest, error) {
 		}
 	}
 	if n := root.m["update"]; n != nil {
-		if n.kind != yamlMap {
-			return m, lineError(n, "update muss eine Map sein")
-		}
-		m.Update.Configured = true
-		for k, v := range n.m {
-			switch k {
-			case "mode":
-				m.Update.Mode, err = nodeString(v)
-				m.Update.Mode = strings.ToLower(strings.TrimSpace(m.Update.Mode))
-			case "source":
-				if v.kind != yamlMap {
-					return m, lineError(v, "update.source muss eine Map sein")
-				}
-				for sk, sv := range v.m {
-					var value string
-					value, err = nodeString(sv)
-					if err != nil {
-						return m, lineError(sv, fmt.Sprintf("update.source.%s muss skalar sein", sk))
-					}
-					value = strings.TrimSpace(value)
-					switch sk {
-					case "type":
-						m.Update.Source.Type = strings.ToLower(value)
-					case "folder":
-						m.Update.Source.Folder = value
-					case "url":
-						m.Update.Source.URL = value
-					case "repository":
-						m.Update.Source.Repository = value
-					case "ref":
-						m.Update.Source.Ref = value
-					case "commit":
-						m.Update.Source.Commit = value
-					case "version":
-						m.Update.Source.Version = value
-					case "sha256":
-						m.Update.Source.SHA256 = value
-					default:
-						return m, lineError(sv, fmt.Sprintf("unbekanntes update.source-Feld %q", sk))
-					}
-				}
-			default:
-				return m, lineError(v, fmt.Sprintf("unbekanntes update-Feld %q", k))
-			}
-			if err != nil {
-				return m, lineError(v, err.Error())
-			}
-		}
-		if m.Update.Source.Type == "" {
-			return m, lineError(n, "update.source.type fehlt")
-		}
-		if m.Update.Mode == "" {
-			if m.Update.Source.Type == "repository" {
-				m.Update.Mode = "pull"
-			} else {
-				m.Update.Mode = "update"
-			}
-		}
-		switch m.Update.Mode {
-		case "update":
-			if m.Update.Source.Type != "download" && m.Update.Source.Type != "url" {
-				return m, lineError(n, "update.mode update benötigt update.source.type download oder url")
-			}
-		case "pull":
-			if m.Update.Source.Type != "repository" {
-				return m, lineError(n, "update.mode pull benötigt update.source.type repository")
-			}
-		default:
-			return m, lineError(n, "update.mode unterstützt nur update oder pull")
-		}
-		switch m.Update.Source.Type {
-		case "download":
-			if m.Update.Source.Folder == "" {
-				return m, lineError(n, "update.source.folder fehlt für download")
-			}
-		case "url":
-			if m.Update.Source.URL == "" {
-				return m, lineError(n, "update.source.url fehlt für url")
-			}
-		case "repository":
-			if m.Update.Source.Repository == "" {
-				return m, lineError(n, "update.source.repository fehlt für repository")
-			}
-		default:
-			return m, lineError(n, "update.source.type unterstützt nur download, url oder repository")
+		m.Update, err = parseUpdateConfigV2(n)
+		if err != nil {
+			return m, err
 		}
 	}
 	if n := root.m["run"]; n != nil {
@@ -356,8 +276,8 @@ func parseManifestV2(path string, data []byte) (Manifest, error) {
 			m.Tasks[name] = task
 		}
 	}
-	if len(m.Tasks) == 0 && strings.TrimSpace(m.Run.Command) == "" && len(m.Run.Steps) == 0 {
-		return m, fmt.Errorf("update-cli.yaml benötigt mindestens tasks oder run")
+	if len(m.Tasks) == 0 && strings.TrimSpace(m.Run.Command) == "" && len(m.Run.Steps) == 0 && !m.Update.Configured {
+		return m, fmt.Errorf("update-cli.yaml benötigt mindestens tasks, run oder update")
 	}
 	for name, w := range m.Workflows {
 		for _, task := range w.Tasks {
@@ -374,6 +294,239 @@ func parseManifestV2(path string, data []byte) (Manifest, error) {
 		}
 	}
 	return m, nil
+}
+
+func parseUpdateConfigV2(n *simpleYAMLNode) (UpdateConfig, error) {
+	var out UpdateConfig
+	if n.kind != yamlMap {
+		return out, lineError(n, "update muss eine Map sein")
+	}
+	out.Configured = true
+	for key, value := range n.m {
+		switch key {
+		case "mode":
+			v, err := nodeString(value)
+			if err != nil {
+				return out, lineError(value, "update.mode muss skalar sein")
+			}
+			v = strings.ToLower(strings.TrimSpace(v))
+			if v != "update" && v != "pull" {
+				return out, lineError(value, "update.mode unterstützt nur update oder pull")
+			}
+			out.Mode = v
+		case "source":
+			if value.kind != yamlMap {
+				return out, lineError(value, "update.source muss eine Map sein")
+			}
+			out.SourceConfigured = true
+			for sourceKey, sourceValue := range value.m {
+				v, err := nodeString(sourceValue)
+				if err != nil {
+					return out, lineError(sourceValue, fmt.Sprintf("update.source.%s muss skalar sein", sourceKey))
+				}
+				v = strings.TrimSpace(v)
+				switch sourceKey {
+				case "type":
+					out.Source.Type = strings.ToLower(v)
+				case "folder":
+					out.Source.Folder = v
+				case "url":
+					out.Source.URL = v
+				case "repository":
+					out.Source.Repository = v
+				case "ref":
+					out.Source.Ref = v
+				case "commit":
+					out.Source.Commit = v
+				case "version":
+					out.Source.Version = v
+				case "sha256":
+					out.Source.SHA256 = v
+				default:
+					return out, lineError(sourceValue, fmt.Sprintf("unbekanntes update.source-Feld %q", sourceKey))
+				}
+			}
+		case "releaseDir":
+			v, err := nodeString(value)
+			if err != nil || strings.TrimSpace(v) == "" {
+				return out, lineError(value, "update.releaseDir muss ein nicht-leerer String sein")
+			}
+			out.ReleaseDir = strings.TrimSpace(v)
+		case "currentDir":
+			v, err := nodeString(value)
+			if err != nil || strings.TrimSpace(v) == "" {
+				return out, lineError(value, "update.currentDir muss ein nicht-leerer String sein")
+			}
+			out.CurrentDir = strings.TrimSpace(v)
+		case "backup":
+			if value.kind != yamlMap {
+				return out, lineError(value, "update.backup muss eine Map sein")
+			}
+			out.Backup.Configured = true
+			for k, v := range value.m {
+				switch k {
+				case "directory":
+					dir, err := nodeString(v)
+					if err != nil || strings.TrimSpace(dir) == "" {
+						return out, lineError(v, "update.backup.directory muss ein nicht-leerer String sein")
+					}
+					out.Backup.Directory = strings.TrimSpace(dir)
+				case "keep":
+					count, err := nodeInt(v)
+					if err != nil || count < 0 {
+						return out, lineError(v, "update.backup.keep muss eine Ganzzahl >= 0 sein")
+					}
+					out.Backup.Keep = &count
+				default:
+					return out, lineError(v, fmt.Sprintf("unbekanntes update.backup-Feld %q", k))
+				}
+			}
+		case "retention":
+			if value.kind != yamlMap {
+				return out, lineError(value, "update.retention muss eine Map sein")
+			}
+			out.Retention.Configured = true
+			for k, v := range value.m {
+				if k != "releases" {
+					return out, lineError(v, fmt.Sprintf("unbekanntes update.retention-Feld %q", k))
+				}
+				count, err := nodeInt(v)
+				if err != nil || count < 0 {
+					return out, lineError(v, "update.retention.releases muss eine Ganzzahl >= 0 sein")
+				}
+				out.Retention.Releases = &count
+			}
+		case "sync":
+			if value.kind != yamlMap {
+				return out, lineError(value, "update.sync muss eine Map sein")
+			}
+			out.Sync.Configured = true
+			for k, v := range value.m {
+				switch k {
+				case "preserve":
+					preserve, err := nodeStringList(v)
+					if err != nil {
+						return out, lineError(v, "update.sync.preserve muss eine Liste von Strings sein")
+					}
+					out.Sync.Preserve = preserve
+				case "keepOnSetupError":
+					flag, err := nodeBool(v)
+					if err != nil {
+						return out, lineError(v, "update.sync.keepOnSetupError muss boolean sein")
+					}
+					out.Sync.KeepOnSetupError = &flag
+				default:
+					return out, lineError(v, fmt.Sprintf("unbekanntes update.sync-Feld %q", k))
+				}
+			}
+		case "setup":
+			if value.kind != yamlMap {
+				return out, lineError(value, "update.setup muss eine Map sein")
+			}
+			out.Setup.Configured = true
+			for k, v := range value.m {
+				if k != "keepRsyncOnError" {
+					return out, lineError(v, fmt.Sprintf("unbekanntes update.setup-Feld %q", k))
+				}
+				flag, err := nodeBool(v)
+				if err != nil {
+					return out, lineError(v, "update.setup.keepRsyncOnError muss boolean sein")
+				}
+				out.Setup.KeepRsyncOnError = &flag
+			}
+		case "docker":
+			if value.kind != yamlMap {
+				return out, lineError(value, "update.docker muss eine Map sein")
+			}
+			out.Docker.Configured = true
+			for k, v := range value.m {
+				if k != "lifecycle" {
+					return out, lineError(v, fmt.Sprintf("unbekanntes update.docker-Feld %q", k))
+				}
+				lifecycle, err := nodeString(v)
+				if err != nil {
+					return out, lineError(v, "update.docker.lifecycle muss skalar sein")
+				}
+				lifecycle = strings.ToLower(strings.TrimSpace(lifecycle))
+				switch lifecycle {
+				case "auto", "disabled", "required":
+					out.Docker.Lifecycle = lifecycle
+				default:
+					return out, lineError(v, "update.docker.lifecycle unterstützt auto, disabled oder required")
+				}
+			}
+		case "healthcheck":
+			if value.kind != yamlMap {
+				return out, lineError(value, "update.healthcheck muss eine Map sein")
+			}
+			out.Healthcheck.Configured = true
+			for k, v := range value.m {
+				switch k {
+				case "type":
+					typ, err := nodeString(v)
+					if err != nil {
+						return out, lineError(v, "update.healthcheck.type muss skalar sein")
+					}
+					typ = strings.ToLower(strings.TrimSpace(typ))
+					switch typ {
+					case "", "none", "http", "command":
+						out.Healthcheck.Type = &typ
+					default:
+						return out, lineError(v, "update.healthcheck.type unterstützt none, http oder command")
+					}
+				case "url":
+					text, err := nodeString(v)
+					if err != nil {
+						return out, lineError(v, "update.healthcheck.url muss skalar sein")
+					}
+					text = strings.TrimSpace(text)
+					out.Healthcheck.URL = &text
+				case "command":
+					text, err := nodeString(v)
+					if err != nil {
+						return out, lineError(v, "update.healthcheck.command muss skalar sein")
+					}
+					text = strings.TrimSpace(text)
+					out.Healthcheck.Command = &text
+				case "timeoutSeconds":
+					seconds, err := nodeInt(v)
+					if err != nil || seconds < 0 {
+						return out, lineError(v, "update.healthcheck.timeoutSeconds muss eine Ganzzahl >= 0 sein")
+					}
+					out.Healthcheck.TimeoutSeconds = &seconds
+				default:
+					return out, lineError(v, fmt.Sprintf("unbekanntes update.healthcheck-Feld %q", k))
+				}
+			}
+		case "security":
+			return out, lineError(value, "update.security gehört aus Sicherheitsgründen in .update-cli/config.json und darf nicht vom Projektmanifest überschrieben werden")
+		default:
+			return out, lineError(value, fmt.Sprintf("unbekanntes update-Feld %q", key))
+		}
+	}
+	if out.SourceConfigured {
+		if out.Source.Type == "" {
+			switch {
+			case out.Source.Repository != "":
+				out.Source.Type = "repository"
+			case out.Source.URL != "":
+				out.Source.Type = "url"
+			case out.Source.Folder != "":
+				out.Source.Type = "download"
+			}
+		}
+		if out.Source.Type != "" && out.Source.Type != "download" && out.Source.Type != "url" && out.Source.Type != "repository" {
+			return out, lineError(n, "update.source.type unterstützt nur download, url oder repository")
+		}
+		if out.Mode == "" && out.Source.Type != "" {
+			if out.Source.Type == "repository" {
+				out.Mode = "pull"
+			} else {
+				out.Mode = "update"
+			}
+		}
+	}
+	return out, nil
 }
 
 func parseV2Task(name string, n *simpleYAMLNode) (Task, error) {

@@ -25,7 +25,7 @@ type SetChange struct {
 	Value any    `json:"value"`
 }
 
-// Set updates one or more values in .updater-cli/config.json. Assignments use
+// Set updates one or more values in .update-cli/config.json. Assignments use
 // dotted JSON paths, for example "retention.releases=7". Path matching is
 // tolerant of camelCase, kebab-case, snake_case and spaces, so
 // "no-parameter=check,setup" addresses the JSON key "no parameter".
@@ -41,7 +41,7 @@ func Set(root string, assignments []string) (SetResult, error) {
 	if err != nil {
 		return SetResult{}, err
 	}
-	path := filepath.Join(root, ConfigDirName, ConfigFileName)
+	path, _ := configFilePath(root)
 	original, err := os.ReadFile(path)
 	if err != nil {
 		return SetResult{}, err

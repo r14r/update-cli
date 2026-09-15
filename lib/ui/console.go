@@ -49,6 +49,7 @@ type Console struct {
 	title               string
 	project             string
 	projectVersion      string
+	migrationRequired   bool
 	footer              string
 	footerKind          string
 	finishFooter        string
@@ -224,6 +225,18 @@ func (c *Console) SetProjectVersion(version string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.projectVersion = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(version), "v"))
+	if c.fullscreen {
+		c.renderFullscreenLocked()
+	}
+}
+
+// SetMigrationRequired controls the warning badge rendered at the far right
+// of the fullscreen header. It is intentionally independent from the footer so
+// the warning remains visible while update/setup phases change.
+func (c *Console) SetMigrationRequired(required bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.migrationRequired = required
 	if c.fullscreen {
 		c.renderFullscreenLocked()
 	}
@@ -1337,7 +1350,7 @@ func (c *Console) renderFullscreenLockedWithSize(width, height int) {
 	// Header
 	b.WriteString(boxTop(width))
 	b.WriteByte('\n')
-	b.WriteString(headerBoxLine(c.title, projectHeaderSegment(c.project, c.projectVersion), inner, c.color))
+	b.WriteString(headerBoxLine(c.title, projectHeaderSegment(c.project, c.projectVersion), inner, c.color, c.migrationRequired))
 	b.WriteByte('\n')
 	b.WriteString(boxBottom(width))
 	b.WriteByte('\n')
@@ -1396,13 +1409,28 @@ func coloredBoxLine(text string, inner int, style string) string {
 	return "│" + style + visible + reset + "│"
 }
 
-func headerBoxLine(title, project string, inner int, color bool) string {
-	header := headerDisplayText(title, project, inner)
-	if color {
-		return coloredBoxLine(header, inner, blueBackground+brightWhite+bold)
+func headerBoxLine(title, project string, inner int, color bool, migrationRequired bool) string {
+	if !migrationRequired {
+		header := headerDisplayText(title, project, inner)
+		if color {
+			return coloredBoxLine(header, inner, blueBackground+brightWhite+bold)
+		}
+		visible := padDisplay(truncateDisplay(" "+header, inner), inner)
+		return "│" + visible + "│"
 	}
-	visible := padDisplay(truncateDisplay(" "+header, inner), inner)
-	return "│" + visible + "│"
+
+	badge := " Migration required "
+	if displayWidth(badge) > inner {
+		badge = truncateDisplay(badge, inner)
+	}
+	badgeWidth := displayWidth(badge)
+	leftWidth := maxInt(0, inner-badgeWidth)
+	header := headerDisplayText(title, project, leftWidth)
+	left := padDisplay(truncateDisplay(" "+header, leftWidth), leftWidth)
+	if color {
+		return "│" + blueBackground + brightWhite + bold + left + reset + redBackground + brightWhite + bold + badge + reset + "│"
+	}
+	return "│" + left + badge + "│"
 }
 
 // headerDisplayText renders the header as three clearly readable segments:

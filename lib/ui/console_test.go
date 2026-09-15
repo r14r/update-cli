@@ -174,7 +174,7 @@ func TestClearContentPreservesFullscreenFrameState(t *testing.T) {
 }
 
 func TestHeaderRendersVersionProjectAndPhaseSegments(t *testing.T) {
-	line := headerBoxLine("Update CLI Version 0.8.10 — Versionsprüfung", "x-cli", 78, true)
+	line := headerBoxLine("Update CLI Version 0.8.10 — Versionsprüfung", "x-cli", 78, true, false)
 	want := blueBackground + brightWhite + bold + " Update CLI Version 0.8.10   |   x-cli   |   Versionsprüfung"
 	if !strings.Contains(line, want) {
 		t.Fatalf("header does not render version/project/phase segments: %q", line)
@@ -530,5 +530,23 @@ func TestProjectVersionSurvivesFullscreenTitleChange(t *testing.T) {
 	header := headerDisplayText(c.title, projectHeaderSegment(c.project, c.projectVersion), 100)
 	if !strings.Contains(header, "life-os v0.1.1") {
 		t.Fatalf("header does not contain project version after phase change: %q", header)
+	}
+}
+
+func TestHeaderMigrationRequiredBadgeIsRightAlignedAndRed(t *testing.T) {
+	line := headerBoxLine("Update CLI Version 2.14.5 — Update", "demo v1.0.0", 96, true, true)
+	if !strings.Contains(line, redBackground+brightWhite+bold+" Migration required "+reset) {
+		t.Fatalf("migration badge styling missing: %q", line)
+	}
+	plain := stripANSIForTest(line)
+	if !strings.HasSuffix(plain, " Migration required │") {
+		t.Fatalf("migration badge is not right aligned: %q", plain)
+	}
+}
+
+func TestHeaderWithoutMigrationRequiredKeepsNormalLayout(t *testing.T) {
+	line := headerBoxLine("Update CLI Version 2.14.5 — Update", "demo v1.0.0", 96, true, false)
+	if strings.Contains(line, "Migration required") || strings.Contains(line, redBackground) {
+		t.Fatalf("unexpected migration badge: %q", line)
 	}
 }

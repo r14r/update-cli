@@ -14,7 +14,7 @@ func writeRelease(t *testing.T, root, project, version string) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, ".release-version"), []byte(version+"\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "VERSION"), []byte(version+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, ".release-project"), []byte(project+"\n"), 0o644); err != nil {

@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "templates": [
+    {
+      "name": "Go",
+      "description": "Go project with setup prompt",
+      "noParameter": ["check"]
+    },
+    {
+      "name": "FastAPI",
+      "description": "Python/FastAPI project",
+      "noParameter": ["check"],
+      "preserve": [".git/", ".gitignore", ".venv/", ".env", ".env.*", "data/", "storage/", "uploads/", "media/", "logs/", "var/"]
+    },
+    {
+      "name": "Laravel",
+      "description": "Laravel project",
+      "noParameter": ["check"],
+      "preserve": [".git/", ".gitignore", ".env", ".env.*", "storage/", "uploads/", "media/", "logs/"]
+    },
+    {
+      "name": "Docker",
+      "description": "Docker Compose project",
+      "noParameter": ["check"],
+      "preserve": [".git/", ".gitignore", ".env", ".env.*", "data/", "storage/", "uploads/", "media/", "logs/", "var/"]
+    }
+  ]
+}

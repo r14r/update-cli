@@ -1,177 +1,85 @@
-# Update CLI 1.5.0 migration
+# 2.5.0: global + project-local configuration
 
-No `.updater-cli/config.json` schema migration is required. Projects may optionally move reusable acquisition defaults into `update-cli.yaml`. Machine-local policy remains in config.json.
+Existing `.update-cli/config.json` files remain valid. After installing 2.5.0, Update CLI additionally reads `INSTALLFOLDER/../etc/update-cli/config.json` first and overlays the project configuration. For the default installation this is `/usr/local/etc/update-cli/config.json`. Existing project `sync.preserve` entries are combined with the global preserve list. No mandatory project-file migration is required.
+
+`templates.json` follows the same global/local precedence; same-name local templates override global definitions.
+
+# Update CLI 2.1.0 migration
+
+Version 2.1 restores JSON as the persistent updater configuration and keeps YAML focused on setup/run automation.
+
+## Active files
+
+```text
+.update-cli/config.json   active update source and update policy
+update-cli.yaml           preferred setup/run/tasks/workflows
+setup.yaml                legacy setup-manifest fallback
+```
+
+## From 2.0.x YAML-only configuration
+
+2.0.x allowed updater settings under top-level `update:` and `cli:` in `update-cli.yaml`. In 2.1.0 those blocks are no longer required and should be moved to `.update-cli/config.json`.
+
+Example old YAML:
 
 ```yaml
 update:
   mode: pull
   source:
     type: repository
-    repository: https://github.com/r14r/update-cli.git
+    repository: https://github.com/acme/demo.git
     ref: main
+
+cli:
+  noParameter: [check]
 ```
 
----
-
-# Update CLI 1.1.0 migration
-
-Project configuration schema increases from **6 to 7** to add an explicit acquisition `mode`. Running `update-cli upgrade` writes the migrated configuration and keeps a timestamped backup. Loading an older schema remains supported in memory.
-
-Migration is deterministic:
-
-- `source.type=download` or `source.type=url` → `mode=update`
-- `source.type=repository` → `mode=pull`
-
-Examples:
-
-```json
-{
-  "schemaVersion": 7,
-  "projectName": "demo",
-  "mode": "update",
-  "source": {"type": "download", "folder": "$HOME/Downloads"}
-}
-```
+Equivalent JSON:
 
 ```json
 {
   "schemaVersion": 7,
   "projectName": "demo",
   "mode": "pull",
-  "source": {"type": "repository", "repository": "https://github.com/acme/demo.git", "ref": "main"}
+  "source": {
+    "type": "repository",
+    "repository": "https://github.com/acme/demo.git",
+    "ref": "main"
+  },
+  "no parameter": ["check"]
 }
 ```
 
-`pull` mode creates/uses `.updater-cli/repository` as an internal checkout. `check` fetches remote refs; a real update uses `git pull --ff-only`. The deployed `current/` tree remains free of `.git` and receives `.release-commit` metadata.
+The YAML setup parser remains tolerant of transitional `update:`/`cli:` blocks so existing 2.0 manifests can still be read by Update CLI 2.1, but the values are not the canonical persistent source configuration.
 
----
+## Runtime config migration
 
-# Update CLI 1.0.0 migration
+Older projects can use earlier schema versions in `.update-cli/config.json`.
 
-No project configuration migration is required when moving from 0.8.x to 1.0.0. Existing schemaVersion-6 `config.json` and setup manifests remain supported.
-
-For the `update-cli` project itself, the version comparison policy recognizes 1.0.0 as the stable successor to the 0.8.x reset line and as newer than the historical 2.x/3.x development releases. Other projects are unaffected and continue to use strict SemVer.
-
-Incomplete lock directories older than one minute can now be recovered automatically when lock metadata is missing/invalid. `restore latest` now intentionally skips unvalidated backup directories; use an explicit valid backup identifier when a specific restore is required.
-
----
-
-# Migration to Update CLI 3.x
-
-Update CLI 3.0 changes the project configuration schema from version 5 to version 6 and introduces transactional deployment semantics.
-
-## Upgrade the project configuration
-
-Run:
+2.1.0 continues to load that file. To move it to the canonical location:
 
 ```bash
-update-cli --upgrade
+update-cli config --check
+update-cli config --migrate
 ```
 
-The command creates a timestamped backup of the existing `.updater-cli/config.json`, migrates it to schema 6 and validates the result before activation.
+Migration creates a timestamped backup, writes:
 
-## New configuration sections
-
-Schema 6 adds:
-
-- `sync.preserve` for project-local mutable paths that must survive release synchronization.
-- `security.allowHttp` and `security.maxDownloadBytes` for remote-source policy.
-- `healthcheck` for post-deployment verification.
-- optional repository `ref`, `commit` and `version` constraints.
-- optional source `sha256` verification.
-
-Default preserved paths include `.git/`, `.gitignore`, `.venv/`, `.env`, `.env.*`, `data/`, `storage/`, `uploads/`, `media/`, `logs/` and `var/`. `.gitignore` is also enforced as a mandatory rsync-protected path for older/custom preserve lists.
-
-## Setup compatibility
-
-Update CLI 3.0.7 restores and extends compatibility with the established 2.14 `update-cli.yaml` contract. Existing manifests that start with `schemaVersion: 1` and use `project.name`, `project.description`, optional `project.type`, and step fields `id`, `when`, `run`, `cwd`, and `allowFailure` can remain unchanged. `project.type` is descriptive metadata and does not select a setup handler.
-
-The typed `version: 1` handler syntax introduced in 3.x remains available as an extension. Both formats are documented in `doc/setup-schema.md`. Legacy `setup.sh` and `config.setup.commands` are still supported as fallbacks.
-
-The interactive fullscreen TUI is also restored for check, update, and setup. Use `--no-ui` for direct stdout/stderr without TUI rendering, `UPDATE_CLI_TUI=plain` for the older plain renderer, or `--no-color` for uncolored output. `--no-wait` skips the default fullscreen Enter-at-completion wait.
-
-## Update behavior
-
-Every mutating update, rollback and restore now creates an exact temporary transaction snapshot. If synchronization, setup, Docker startup or the health check fails, Update CLI restores the previous `current` tree and the previous Docker Compose running state.
-
-Persistent `--backup` snapshots remain separate from transaction snapshots. Logical backups omit `.env` and `.env.*` as well as regenerated dependency directories.
-
-## Docker Compose
-
-If a Compose project is running before a transaction, Update CLI stops it before activation and starts it again after successful setup. On failure the prior files and prior running state are restored.
-
-## Source behavior
-
-`--check`, `--status` and `--list` perform metadata discovery rather than downloading the complete release when possible. `--rollback` and `--cleanup` are local-only operations and no longer require the configured remote source to be reachable.
-
-HTTP release URLs are rejected by default. Set `security.allowHttp` only for explicitly trusted local/test environments.
-
-## Setup schema 2 (Update CLI 3.1)
-
-No migration is required for existing schema-1 setup manifests. Update CLI 3.1 adds schemaVersion 2 for projects that want reusable project automation rather than a single linear setup list.
-
-Typical migration:
-
-```yaml
-schemaVersion: 2
-workflows:
-  setup:
-    tasks: [deploy]
-  ci:
-    tasks: [verify]
-tasks:
-  check:
-    steps:
-      - go:
-          action: test
-  build:
-    requires: [check]
-    steps:
-      - shell: go build ./...
-  verify:
-    requires: [build]
-    steps:
-      - assert:
-          fileExists: dist/app
-  deploy:
-    requires: [verify]
-    steps:
-      - deploy:
-          source: dist/app
-          target: /usr/local/bin/app
+```text
+.update-cli/config.json
 ```
 
-New CLI entry points:
+and upgrades `.update-cli/config.json` in place. The timestamped backup remains in `.update-cli/`.
 
-```bash
-update-cli --setup-list
-update-cli --setup-task build
-update-cli --setup-workflow ci
+## `setup.yaml`
+
+`setup.yaml` is again recognized as a compatibility filename. Discovery order:
+
+```text
+update-cli.yaml
+setup.yaml
+setup.sh
+just build + just install
 ```
 
-The existing `update-cli --setup` command executes the `setup` workflow. See `doc/setup-schema.md` for the complete schema.
-
-## Recovery when the globally installed CLI is still 3.0.x
-
-If `update-cli --version` still reports 3.0.x after the newer release has been copied into `current/`, run from the new `current/` directory:
-
-```bash
-./setup-template.sh --no-ui
-```
-
-The template detects `schemaVersion: 2` and will not pass it to an incompatible global binary. It prefers the matching packaged `dist/update-cli-<os>-<arch>` binary and can bootstrap from the Go source tree as a final fallback.
-
-## update-cli.yaml automatisch auf schemaVersion 2 migrieren
-
-Ab 3.2.0 kann ein vorhandenes schemaVersion-1-Manifest automatisch migriert werden:
-
-```bash
-update-cli --convert-yaml
-```
-
-Vor dem Ersetzen wird ein timestamped `update-cli.yaml.schema1-YYYYMMDD-HHMMSS.bak` angelegt. Mit `--dry-run` kann das Ergebnis vorher geprüft werden. Für Projekte ohne Manifest kann `update-cli --create-yaml` ein schemaVersion-2-Beispiel aus den vorhandenen Projektdateien erzeugen.
-
-
-## Structured schemaVersion 1 manifests
-
-Update CLI 0.8.5 restores compatibility with the older generated schemaVersion-1 format that uses sections such as `version`, `build`, `runtime`, `go`, `setup`, and `commands`. These manifests can be executed directly and can then be migrated with `update-cli --convert-yaml` to the current schemaVersion-2 task/workflow model.
+If a legacy `setup.yaml` has no schema declaration, Update CLI infers schema 2 for task/workflow/run-style manifests and schema 1 for older step-oriented structures.

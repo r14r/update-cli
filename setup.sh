@@ -4,6 +4,7 @@ set -Eeuo pipefail
 PROJECT_NAME="Update CLI"
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd -P)"
 MANIFEST="${ROOT_DIR}/update-cli.yaml"
+[[ -f "${MANIFEST}" ]] || MANIFEST="${ROOT_DIR}/setup.yaml"
 FORWARD_ARGS=()
 
 usage() {
@@ -19,17 +20,17 @@ while (($# > 0)); do
             shift
             ;;
         --list)
-            FORWARD_ARGS+=("--setup-list")
+            FORWARD_ARGS+=("--list")
             shift
             ;;
         --task)
             (($# >= 2)) || { printf 'ERROR --task benötigt einen Namen\n' >&2; exit 2; }
-            FORWARD_ARGS+=("--setup-task" "$2")
+            FORWARD_ARGS+=("--task" "$2")
             shift 2
             ;;
         --workflow)
             (($# >= 2)) || { printf 'ERROR --workflow benötigt einen Namen\n' >&2; exit 2; }
-            FORWARD_ARGS+=("--setup-workflow" "$2")
+            FORWARD_ARGS+=("--workflow" "$2")
             shift 2
             ;;
         --no-ui|--noui|---no-ui)
@@ -109,7 +110,7 @@ success(){ printf '%sOK%s  %s\n' "${GREEN}${BOLD}" "${RESET}" "$*"; }
 warn(){ printf '%sWARN%s %s\n' "${YELLOW}${BOLD}" "${RESET}" "$*" >&2; }
 fail(){ printf '%sERROR%s %s\n' "${RED}${BOLD}" "${RESET}" "$*" >&2; exit 1; }
 
-[[ -f "${MANIFEST}" ]] || fail "update-cli.yaml fehlt: ${MANIFEST}"
+[[ -f "${MANIFEST}" ]] || fail "update-cli.yaml/setup.yaml fehlt im Projektordner: ${ROOT_DIR}"
 MANIFEST_SCHEMA="$(manifest_schema "${MANIFEST}")"
 [[ "${MANIFEST_SCHEMA}" =~ ^[0-9]+$ ]] || MANIFEST_SCHEMA=1
 
@@ -121,7 +122,7 @@ if [[ "${UPDATE_CLI_TUI:-auto}" == "plain" || ! -t 1 ]]; then
     printf '%-18s %s\n\n' "Manifest" "${MANIFEST}"
 fi
 
-# Return success only when the candidate advertises update-cli.yaml support.
+# Return success only when the candidate advertises setup-manifest support.
 # If a compatible handler starts and the setup itself fails, set -e propagates
 # that failure instead of silently trying another implementation.
 run_manifest_if_supported() {
@@ -130,18 +131,18 @@ run_manifest_if_supported() {
     local candidate_help
 
     [[ -x "${candidate}" ]] || return 1
-    candidate_help="$("${candidate}" --help 2>&1 || true)"
-    grep -q -- '--setup-manifest' <<<"${candidate_help}" || return 1
+    candidate_help="$("${candidate}" help --command setup --details 2>&1 || true)"
+    grep -q -- '--manifest' <<<"${candidate_help}" || return 1
     if (( MANIFEST_SCHEMA >= 2 )); then
-        grep -q -- '--setup-list' <<<"${candidate_help}" || return 1
-        grep -q -- '--setup-task' <<<"${candidate_help}" || return 1
-        grep -q -- '--setup-workflow' <<<"${candidate_help}" || return 1
+        grep -q -- '--list' <<<"${candidate_help}" || return 1
+        grep -q -- '--task' <<<"${candidate_help}" || return 1
+        grep -q -- '--workflow' <<<"${candidate_help}" || return 1
     fi
 
     if [[ "${UPDATE_CLI_TUI:-auto}" == "plain" || ! -t 1 ]]; then
-        info "update-cli.yaml mit ${label} ausführen"
+        info "Setup-Manifest mit ${label} ausführen"
     fi
-    if ! "${candidate}" --setup-manifest "${MANIFEST}" "${FORWARD_ARGS[@]}"; then
+    if ! "${candidate}" setup --manifest "${MANIFEST}" "${FORWARD_ARGS[@]}"; then
         fail "Setup mit ${label} fehlgeschlagen"
     fi
     if [[ "${UPDATE_CLI_TUI:-auto}" == "plain" || ! -t 1 ]]; then
@@ -164,7 +165,7 @@ if [[ -n "${installed_cli}" ]]; then
         exit 0
     fi
     if [[ "${UPDATE_CLI_TUI:-auto}" == "plain" || ! -t 1 ]]; then
-        info "Installiertes update-cli unterstützt update-cli.yaml Schema ${MANIFEST_SCHEMA} nicht; Bootstrap über Go"
+        info "Installiertes update-cli unterstützt Setup-Manifest Schema ${MANIFEST_SCHEMA} nicht; Bootstrap über Go"
     fi
 fi
 
@@ -173,7 +174,7 @@ cd -- "${ROOT_DIR}"
 if [[ "${UPDATE_CLI_TUI:-auto}" == "plain" || ! -t 1 ]]; then
     info "Update CLI aus dem Quellcode für den Setup-Handler starten"
 fi
-go run . --setup-manifest "${MANIFEST}" "${FORWARD_ARGS[@]}"
+go run . setup --manifest "${MANIFEST}" "${FORWARD_ARGS[@]}"
 if [[ "${UPDATE_CLI_TUI:-auto}" == "plain" || ! -t 1 ]]; then
     success "Setup abgeschlossen"
 fi

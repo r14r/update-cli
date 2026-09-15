@@ -1,10 +1,484 @@
+# 2.16.3
+
+## Fixed
+
+- Accept release archives named both `<project>-v<MAJOR>.<MINOR>.<PATCH>.zip` and `<project>-<MAJOR>.<MINOR>.<PATCH>.zip`.
+- Keep the historical `v`-prefixed archive convention fully backward compatible while allowing the shorter form in download-folder discovery, explicit archive validation, and URL filename version parsing.
+- Bound Docker Compose availability/status calls so a stalled Docker Desktop or Docker Engine cannot block an update indefinitely.
+- Bound Docker Compose `up`/`down` lifecycle actions and report timeout/cancellation context explicitly.
+
+## Tests
+
+- Add regression coverage for archive discovery and version parsing with and without the `v` prefix.
+- Add regression coverage proving stalled `docker compose version` and `docker compose ... ps -q` calls are terminated by their configured timeout.
+
+# 2.16.2
+
+## Added
+
+- Add `update-cli doctor --fix` as an interactive repair mode.
+- Print every deterministic config/manifest change before repair and ask `Geplante Reparaturen durchführen? [y/N]`; only explicit yes applies changes.
+- Re-run Doctor after a successful fix so remaining errors/warnings and the `Migration required` state are immediately visible.
+
+## Changed
+
+- Treat root `update-cli.yaml` and `current/update-cli.yaml` as alternative valid manifest locations in Doctor. A missing root manifest is no longer a warning when the installed current manifest exists.
+- Make the `Projektkonfiguration` warning conditional and concrete: it now lists only project-dependent local `config.json` values that do not already have an active YAML override.
+- Clarify that the project-configuration placement warning is an architecture/reproducibility recommendation, not a schema-migration error.
+
+## Safety
+
+- `doctor --fix` uses the existing timestamped-backup repair paths and never mutates files before confirmation.
+- `doctor --fix` and `--migrate` are mutually exclusive; interactive `--fix` cannot be combined with `--json`.
+
+## Tests
+
+- Add regression coverage that a managed project with only `current/update-cli.yaml` does not emit `WARN Manifest root`.
+- Add end-to-end coverage for `doctor --fix` confirming and repairing a structurally invalid current manifest.
+
+# 2.16.1
+
+## Added
+
+- Extend `update-cli doctor` with the exact migration state used by the fullscreen `Migration required` header badge.
+- Print `Migration required: JA` plus one or more concrete migration reasons and affected file paths when a migration/repair is pending.
+- Print `Migration required: nein` when the shared UI/Doctor migration inspection finds no pending migration.
+- Expose `migrationRequired` and structured `migrationReasons` in Doctor JSON output.
+
+## Fixed
+
+- Use a single shared migration-requirement inspection for both the fullscreen UI header and Doctor diagnostics, preventing the two surfaces from making different migration decisions.
+
+## Tests
+
+- Add coverage for a current `current/update-cli.yaml` with a repairable unknown field and verify Doctor reports that exact file/field as the badge reason.
+- Add coverage proving a schema-9 runtime config plus a valid schema-2 manifest reports no migration requirement.
+
+# 2.16.0
+
+- Standardize the entire public CLI on `update-cli <command> --<parameter> --<parameter>`.
+- Remove public command aliases with a `--` prefix such as `--help`, `--version`, `--setup`, and `--update`.
+- Reject bare secondary subcommands such as `schema version`, `config migrate`, and `setup run`; use `schema --version`, `config --migrate`, and `setup --run`.
+- Replace positional command values with named parameters (`update --archive`, `rollback --version`, `init --project`, `verify --archive`, `restore --snapshot`).
+- Add `help --command COMMAND --details` for detailed command help.
+- Update README, help/discovery text, setup bootstrap scripts, and regression coverage to the canonical grammar.
+
+# 2.15.0
+
+## Added
+
+- Add command-specific detailed help with `--details`.
+- Use `update-cli help --command COMMAND --details` for command-specific detailed help.
+- Add `update-cli setup --list` as a first-class standalone setup inspection command.
+- Extend setup listing with every setup step including its manifest `id`, task, name, operation, and index; JSON output exposes the same `steps` collection.
+- Add `update-cli setup --run STEP_ID` and the canonical form `update-cli setup --run STEP_ID` to execute exactly one setup step.
+- Advertise setup-step discovery and execution through the JSON CLI discovery contract.
+
+## Fixed
+
+- Remove the contradictory parsing of `setup --list` as both setup mode and global `--list` mode.
+- Return an explicit standalone-command error when `setup --list`, setup task/workflow selection, or setup step execution is combined with update/rollback/restore.
+- Reject duplicate matching step IDs as ambiguous instead of executing an arbitrary step.
+
+## Tests
+
+- Add parser regression coverage for `setup --list`, `setup --run STEP_ID`, and both detailed-help syntaxes.
+- Add an integration test proving `setup --run STEP_ID` executes only the selected step and leaves neighboring setup steps untouched.
+- Add help-output coverage for command-specific `--details` output.
+
+# 2.14.6
+
+## Fixed
+
+- Fix the fullscreen `Migration required` badge remaining visible after `config migrate` reports the runtime config is already at the current schema.
+- Do not classify a valid current-schema `update-cli.yaml` as repairable merely because the canonical YAML renderer would change whitespace, quoting, key order, or other formatting.
+- Keep the badge active for genuine schema changes, strict-parser failures, legacy manifest canonicalization, unknown fields, and deterministic value/structure repairs.
+
+## Tests
+
+- Add manifest-inspection regression coverage proving formatting-only differences do not require migration.
+- Add updater coverage proving a current schema-9 config plus a valid schema-2 manifest does not set project migration state.
+
+# 2.14.5
+
+## Fixed
+
+- Use `.update-cli/` as the only project runtime-state directory throughout production code, tests, packaging, help/discovery text, and documentation.
+- Fix `config migrate` / `config --migrate` backup placement so the timestamped backup is created beside `.update-cli/config.json` instead of any obsolete runtime directory.
+- Remove obsolete runtime-directory fallback/discovery logic so project root resolution and config repair no longer diverge between two directory names.
+
+## UI
+
+- Add a right-aligned `Migration required` badge to the fullscreen header.
+- Render the badge with a red background and white bold text.
+- Detect required runtime-config and root/current manifest migrations before normal setup/update/check work and keep the warning visible across phase changes.
+
+## Tests
+
+- Add regression coverage that config migration backups remain inside `.update-cli/`.
+- Add UI coverage for the red right-aligned migration badge.
+- Add updater coverage for detecting outdated runtime configs and legacy project manifests.
+
+# 2.14.4
+
+## Fixed
+
+- Fix macOS-only false failures caused by `/var/folders/...` and `/private/var/folders/...` referring to the same filesystem location.
+- Canonicalize the expected/actual paths in `TestResolveRootFromCurrentPrefersParentOverNestedRuntimeState`, `TestRunJustInstallPrefersCurrent`, and `TestInstallCommandRunsWithoutRuntimeConfig`.
+- Keep the production root/install behavior unchanged; this is a test portability correction, not a path rewrite in normal project configuration.
+
+## Tests
+
+- Document why the integration suite intentionally executes multiple setup/migration/update scenarios.
+- Clarify that standard `go test` only dumps those scenario logs when a package fails; after the false path failures are fixed, normal `just test` output remains compact.
+
+# 2.14.3
+
+## Fixed
+
+- Treat `no-param`, `no-parameter`, and `noParameter` in `config.json` as compatibility aliases for the canonical `no parameter` setting.
+- Preserve a configured parameterless `update` action instead of silently falling back to `check`, which could display `Update jetzt installieren?`.
+- Accept both scalar (`"update"`) and list forms for the aliases.
+- Make config repair/migration normalize alias spellings back to the canonical `no parameter` key.
+
+## Tests
+
+- Add strict-loader coverage for `"no-param": "update"`.
+- Add an integration test proving that parameterless execution installs an available ZIP directly when the alias selects `update`.
+
+# 2.14.2
+
+## Fixed
+
+- Make command-first syntax (`update-cli version`, `update`, `setup`, `doctor`, `schema version`, `config check`, `releases list`, etc.) a tested first-class interface while retaining historical `--...` action aliases.
+- Add a resilient runtime-config bootstrap loader: strict parse first, then backup + safe repair + strict retry when an existing local/global config uses legacy/transition fields or schema metadata.
+- Prevent parameterless `update-cli` from being permanently blocked by historical top-level `defaultUser`, `keepRsyncOnError` aliases, obsolete fields, or safely normalizable runtime-schema mismatches.
+- Preserve strict validation after automatic repair; malformed JSON or structures that cannot be safely repaired still fail with a clear error.
+- Keep `VERSION` as the only release-version source.
+
+## Tests
+
+- Add regression coverage for automatic repair of a future/legacy runtime config and for parameterless execution after repair.
+- Retain full command-vs-legacy flag equivalence coverage, including `version`, nested schema/config/doctor/setup/release commands, and update plan.
+
+# 2.14.1
+
+## Changed
+
+- Make `VERSION` the single and only release-version source for update-cli.
+- Remove the parallel `RELEASE_VERSION` file and the old `scripts/sync-release-version.sh` synchronization mechanism.
+- Build and `go run` no longer inject a version through `-ldflags`; the binary reports the `VERSION` file embedded at compile time.
+- Make source packaging derive the directory name and ZIP filename exclusively from `VERSION`.
+- Make installed `current/VERSION` authoritative for project version detection and release validation.
+- Stop writing new `.release-version` markers. Existing `.release-version` is read only as a compatibility fallback when `current/VERSION` is absent, and is then migrated into `VERSION`.
+- Add regression coverage that rejects parallel version-source files and verifies that build/package metadata uses only `VERSION`.
+
+# 2.14.0
+
+## Added
+
+- All public CLI actions can be used as command-first syntax without a `--` prefix. This includes `version`, `update`, `upgrade`, `setup`, `doctor`, `fix`, `install`, `run`, `schema`, `config`, `templates`, `releases`, and their command-like sub-actions such as `doctor migrate`, `schema version`, `schema view`, `schema save`, `config check`, `config migrate`, `config set`, `releases list`, and `update plan`.
+
+## Fixed
+
+- Self-versioning no longer trusts a potentially corrupted `VERSION`, `.release-version`, or linker `-X main.version` value. `RELEASE_VERSION` is packaged as immutable source-release metadata and is preferred by the binary.
+- `scripts/sync-release-version.sh` repairs `VERSION` before build/install and repairs managed update-cli `.release-version` markers when applicable.
+- Source packaging now fails if `VERSION` and `RELEASE_VERSION` differ.
+- `u version` is covered as a first-class command alias and no longer falls through to positional-argument handling in the current release.
+
+# 2.13.3
+
+- Normalize known historical `keepRsyncOnError` / `keepOnSetupError` runtime-config placements before strict `config.json` decoding, so normal commands no longer fail before `fix` can be invoked.
+- Keep canonical runtime JSON at `setup.keepRsyncOnError`; accept top-level, `sync.keepRsyncOnError`, `sync.keepOnSetupError`, and `setup.keepOnSetupError` compatibility aliases in memory.
+- Extend `update-cli fix` so those compatibility aliases are persisted back to canonical `setup.keepRsyncOnError` with the normal backup behavior.
+- Make the embedded source-release `VERSION` authoritative for `update-cli version`; stale or corrupted build-time `-ldflags` values can no longer override the embedded release version.
+- Remove the Update CLI project's setup-time mutation that rewrote Source `VERSION` from `.release-version` before building.
+- Add regression coverage for runtime-config aliases, persisted repair, canonical-value precedence, and embedded-version precedence over a deliberately wrong `12.2.0` linker value.
+
+# 2.13.2
+
+- Make the Update CLI project's own `setup` workflow use the same canonical `just install` pipeline as manual installation instead of maintaining a second duplicated Go vet/test/race/build/deploy path.
+- Remove the internal `UPDATE_CLI_SETUP_RUNNING` marker before the nested `just install` process so setup-driven builds/tests run with the same relevant environment as direct `just build` / `just install`.
+- Document that updater recovery warnings printed during tests are expected simulated failure-path output and are not themselves test failures.
+- Add `docs/tapes/install.tape` and `docs/tapes/quickstart.tape` plus `scripts/render-tapes.sh` and deterministic demo-release fixture generation.
+- Add `just tape-install`, `just tape-quickstart`, and `just tapes` recipes.
+- Run the Justfile test and race-test recipes with `-count=1` so manual validation cannot report a stale cached pass after setup-driven tests have failed.
+- Allow `just install` to use `UPDATE_CLI_INSTALL_BIN_DIR` for safe project-local demo/CI installations while retaining `/usr/local/bin` as the default.
+- Rewrite and expand the README INSTALL and QUICKSTART sections around the canonical source install, download bootstrap, repository bootstrap, normal post-init commands, and VHS demo generation.
+- Add regression checks for the canonical setup workflow, README tape files and release metadata.
+
+# 2.13.1
+
+- Add `no-setup` as a supported modifier in the runtime `"no parameter"` action list.
+- Support the canonical parameterless configuration `"no parameter": ["update", "no-setup"]`.
+- Ensure parameterless update with `no-setup` never asks whether project setup should run and never executes project setup.
+- Reject invalid no-parameter combinations such as standalone `no-setup` or `setup` together with `no-setup`; `fix` normalizes safely repairable legacy/invalid combinations.
+- Change newly initialized project defaults and the shipped default config to parameterless `update + no-setup`.
+- Add regression coverage for parsing, persisted defaults, repair normalization, and parameterless update execution without setup.
+
+# 2.13.0
+
+- Replace the normal full `current/` transaction snapshot with release-based rollback preparation when the installed version has a matching valid `release/<VERSION>/`. This avoids copying large generated trees before every update.
+- Keep the historical exact `current/` snapshot as an automatic fallback when the previous versioned release is unavailable or invalid.
+- Restore failed transactions from the immutable previous release using the configured `sync.preserve` policy, so persistent files/directories remain protected.
+- Rename the visible update step from `Transaktions-Snapshot von current erstellen` to `Transaktions-Rollback vorbereiten`.
+- Add non-mutating `update-cli.yaml` inspection that reports multiple unknown/removable fields and safely normalizable values instead of exposing only the first parser error.
+- Enrich setup/run/effective-config manifest errors with direct `update-cli fix` / `doctor --migrate` guidance.
+- Extend `doctor` so tolerated legacy/transition fields are reported even when the strict executable subset can still be parsed; `doctor --migrate` now falls back to deterministic structural repair when schema migration alone is insufficient.
+- Extend `fix` to repair both `./update-cli.yaml` and `./current/update-cli.yaml` when both exist.
+- Add regression coverage for fast release-based rollback, fallback exact snapshots, preserve behavior, multi-error manifest inspection, doctor structural migration, and dual-manifest repair.
+
+# 2.12.3
+
+- Fix project-root detection when commands are invoked from `current/`: a parent `.update-cli/config.json` now takes precedence over an accidentally copied `current/.update-cli/config.json`, preventing `current/current/update-cli.yaml`.
+- Treat `.update-cli/` as reserved project-root runtime state. They are excluded from release creation and current synchronization.
+- Remove stale nested runtime-state directories from `current/` during synchronization so projects affected by 2.12.2 self-heal on the next update.
+- Restore the accidentally omitted `lib/backup` package in the source release.
+- Add reproducible source packaging/verification scripts that require core source files, reject runtime/build state, and verify the embedded VERSION after ZIP creation.
+- Keep installed `VERSION` aligned with the authoritative `.release-version` marker once setup runs in the corrected current directory.
+- Re-run gofmt, vet, all tests, required race tests, direct `current/` root-resolution regression tests, rsync runtime-state tests, and final ZIP validation.
+
+# 2.12.2
+
+- Replace the bootstrap-breaking project YAML layout `update.setup.keepRsyncOnError` with canonical `update.sync.keepOnSetupError`.
+- Keep read compatibility for the 2.11.x/2.12.0-2.12.1 transitional layout and migrate it automatically via `fix` and `doctor --migrate`.
+- Preserve `.update-cli/config.json` compatibility with `setup.keepRsyncOnError`; the canonical project YAML value still has higher effective-config priority.
+- Make `.release-version` authoritative for managed installations and repair mismatching `current/VERSION` plus project-root `VERSION` before/after standalone setup.
+- Add an early Update CLI `version-sync` setup step so older installed binaries can bootstrap a corrected release even when `current/VERSION` was stale or malformed by a previous workflow.
+- Add regression coverage for canonical and transitional YAML parsing, structural migration, effective-config priority, and the reported `12.2.0` versus release-marker mismatch.
+- Re-run gofmt, vet, full tests, required race tests, old-parser bootstrap compatibility and final ZIP consistency checks.
+
+# 2.12.1
+
+- Historical: added compatibility around the transitional `update.setup.keepRsyncOnError` layout; superseded by `update.sync.keepOnSetupError` in 2.12.2.
+- Synchronize `<project-root>/VERSION` with the active `current/VERSION` after successful update, rollback and restore operations.
+- Synchronize the root `VERSION` after a successful standalone managed setup and when an update discovers that the target version is already installed.
+- Keep root `VERSION` aligned with a deliberately retained new `current/` when `setup.keepRsyncOnError=true` suppresses rollback after setup failure.
+- Add root-version consistency tests and update README/release metadata.
+- Re-run formatting, vet, full tests, required race tests, functional setup/update checks and final ZIP consistency validation.
+
+# 2.12.0
+
+- Add an automatic pre-setup migration workflow based on a project-provided `migrate.sh` in the active release/source directory.
+- Execute migration after the new release has been synchronized and verified, but before any project setup task/script/Justfile fallback is started.
+- Track successful migrations persistently per semantic release version with `<project-root>/.update-cli/.migration.done.<VERSION>`, keeping migration state outside replaceable `current/`.
+- Run each release migration at most once during normal Update CLI operation; a different installed version gets a separate marker and therefore its own migration run.
+- Make standalone `update-cli setup` check the migration marker first and execute a pending `migrate.sh` before setup, including calls started from a managed `current/` directory.
+- Invoke `migrate.sh` through `bash` and provide `UPDATE_CLI_MIGRATION`, `UPDATE_CLI_PROJECT_ROOT`, `UPDATE_CLI_CURRENT_DIR`, and `UPDATE_CLI_VERSION` environment variables.
+- Create the done marker only after successful migration; migration errors prevent setup and leave the migration pending for a later retry.
+- Keep `--no-setup` and an interactively declined setup migration-free until setup is explicitly run later.
+- Add migration once-per-version, failure/no-marker, version-validation, update-before-setup, and standalone-setup regression coverage.
+- Update README/release metadata and rerun formatting, vet, full tests, required race tests, integration tests, and final ZIP consistency checks.
+
+# 2.11.0
+
+- Add project-versioned runtime update settings to `update-cli.yaml` with priority `global config.json < local .update-cli/config.json < update-cli.yaml < explicit CLI source options`.
+- Support `project.slug`, `update.mode/source`, release/current paths, backup/retention, `sync.preserve`, `setup.keepRsyncOnError`, Docker lifecycle and healthcheck as YAML overrides.
+- Keep host/user controls such as `security.*`, `source.defaultUser`, no-parameter behavior and templates outside the project-controlled YAML; reject `update.security` in the manifest.
+- Make the root `update-cli.yaml` the preferred runtime manifest and fall back to `current/update-cli.yaml` only when the root manifest is absent.
+- Expand the canonical schemaVersion-2 JSON Schema with the project `update:` settings while preserving backward compatibility with existing schema-2 manifests.
+- Extend `update-cli doctor` to inspect `.update-cli/config.json`, root `update-cli.yaml`, and `current/update-cli.yaml`, including execution from inside `current/` using the parent runtime config.
+- Report root/current manifest differences, effective override provenance, current schema versions and concrete migrate/fix suggestions; extend `doctor --migrate` to cover runtime config and both manifest locations.
+- Add regression tests for YAML-over-JSON priority, root-vs-current manifest priority, current-directory doctor resolution and dual-manifest diagnostics.
+- Update README, sample project manifest and release metadata, then rerun formatting, vet, full tests, required race tests and final ZIP consistency checks.
+
+# 2.10.0
+
+- Add canonical `update-cli install` command to execute exactly `just install` for the project.
+- Prefer the active `current/` directory when it contains `justfile`/`Justfile`; otherwise execute from the project root.
+- Return explicit errors when `just` or a project justfile is unavailable and propagate the recipe exit code on failure.
+- Keep `--install` as a compatibility alias while advertising command-first `install` in help and machine-readable CLI discovery.
+- Add parser, project-directory selection, command-execution, and discovery regression coverage.
+- Update README and release metadata, then re-run formatting, vet, full tests, required race tests, and ZIP consistency checks.
+
+# 2.9.1
+
+- Fix interactive update behavior when the user answers `n` to the project-setup confirmation.
+- Keep `Projekt-Setup ausführen` skipped and also defer the subsequent Docker restart and healthcheck activation steps for that interactive decision.
+- Prevent a Docker restart failure from rolling the verified rsync update back after the user explicitly declined setup.
+- Leave a previously running Compose stack stopped when setup is declined so manual setup/start can safely complete the deployment.
+- Continue activating the versioned release and committing update metadata after the intentionally deferred activation steps.
+- Keep explicit `--no-setup` automation semantics unchanged; the fix is scoped to the interactive decline path.
+- Add regression coverage proving that Docker restart, healthcheck, and recovery are not entered after interactive setup rejection.
+- Re-run formatting, vet, full tests, required race tests and final ZIP/version consistency checks before packaging.
+
+# 2.9.0
+
+- Add `update-cli fix` as a project-wide repair command for runtime configuration and project manifests.
+- Run the repair path before strict runtime-config loading so broken/legacy `config.json` files can be repaired even when normal commands fail to start.
+- Repair both project-local `.update-cli/config.json` and the installation-wide `config.json` when present.
+- Migrate legacy top-level `defaultUser` to canonical `source.defaultUser`, including the configuration shape that previously caused `json: unknown field "defaultUser"`.
+- Remove unknown runtime-config fields at supported top-level and nested sections and normalize safe legacy/wrong values to current schema 9 structure.
+- Normalize source/mode combinations, booleans, numeric security limits, Docker lifecycle, healthcheck values, no-parameter actions, rsync preserve entries and legacy runtime paths without enabling unsafe HTTP sources implicitly.
+- Create a current local runtime config when it is missing and preserve every modified config file with a timestamped backup.
+- Repair `update-cli.yaml` to manifest schema 2, remove unknown fields from supported project/default/requirements/workflow/task/run/step sections, normalize safe values, prune invalid task references and validate the generated manifest before replacement.
+- Keep malformed JSON/YAML syntax as an explicit error when automatic repair would require guessing user data.
+- Add JSON output and CLI discovery/help coverage for `fix`, plus regression tests for strict post-repair loading and the historical `defaultUser` failure.
+- Make command-first syntax the canonical CLI surface: `update-cli upgrade`, `unlock`, `howto`, `version`, `check`, `update`, `backup`, `rollback`, `restore`, `status`, `verify`, `setup`, `run`, `init`, `clean`, `cleanup`, and `history` work without a command-level `--` prefix.
+- Rename the public release-list command from `update-cli list` to `update-cli releases --list`; retain `list`/`--list` only as compatibility aliases.
+- Update help output and machine-readable CLI discovery so completion/tooling advertises `releases`, `howto`, and `version` as commands and uses `releases --list --json` as the release/backups value source.
+- Keep regular options such as `--json`, `--debug`, `--setup`, `--root`, and `--no-ui` unchanged.
+- Update the project `justfile` to exercise the canonical command-first forms and rename its release inventory recipe to `releases`.
+- Re-run formatting, vet, full tests, required race tests and final ZIP/version consistency checks before packaging.
+
+# 2.8.0
+
+- Add runtime configuration `setup.keepRsyncOnError` with a default of `false`.
+- Keep the verified rsync deployment in `current/` when project setup fails and `setup.keepRsyncOnError=true`, while still returning an error and recording a failed setup-phase history entry.
+- Promote the corresponding staged release into `release/<version>/` when the failed setup deployment is intentionally retained, keeping release/current file state consistent.
+- Continue normal transactional recovery for every non-setup failure phase.
+- Keep `sync.preserve` semantics unchanged so persistent local files remain protected in the retained deployment.
+- Support global inheritance and explicit local true/false override for the new setup recovery policy.
+- Bump `.update-cli/config.json` runtime schemaVersion to 9 and update shipped defaults/documentation.
+- Add config merge/set regression tests and an end-to-end failed-setup retention test.
+- Re-run formatting, vet, full tests, required race tests, and release ZIP consistency checks before packaging.
+- Synchronize the ZIP filename, `VERSION`, README current release, and release-notes heading to 2.8.0.
+
+# 2.7.0
+
+- Make `update-cli doctor` a project-folder manifest validator that works without `.update-cli/config.json`.
+- Validate canonical `update-cli.yaml` directly from the working project folder and recognize legacy `setup.yaml` as a migration source.
+- Add `update-cli doctor --migrate` to upgrade older project manifests to the latest supported schema.
+- Preserve an existing `update-cli.yaml` with a timestamped backup before schema migration.
+- Canonicalize legacy `setup.yaml` by leaving the legacy file untouched and creating a new latest-schema `update-cli.yaml`.
+- Keep project-manifest migration separate from `config --migrate`, including compatibility for the flag-style `--config --migrate` form.
+- Extend doctor output, JSON data, CLI discovery, help text, and regression tests for the new behavior.
+- Re-run formatting, vet, full tests, required race tests, functional doctor/migration checks, and release ZIP consistency checks before packaging.
+- Synchronize the ZIP filename, `VERSION`, README current release, and release-notes heading to 2.7.0.
+
+# 2.6.2
+
+- Add `update-cli schema --version` to print the canonical `update-cli.yaml` manifest schema version.
+- Support the equivalent compatibility form `update-cli schema --version`.
+- Preserve standalone `update-cli version` as the application-version command.
+- Add schema-version CLI discovery metadata and regression coverage for alias and mutual-exclusion behavior.
+- Re-run formatting, vet, full tests, and required race tests before packaging.
+- Synchronize the ZIP filename, `VERSION`, README current release, and release-notes heading to 2.6.2.
+
+# 2.6.1
+
+- Publish the verified 2.6.x implementation as patch release 2.6.1.
+- Keep runtime behavior unchanged from 2.6.0.
+- Re-run the complete formatting, vet, test, race-test, init, debug, schema, and setup-fallback validation suite.
+- Synchronize the ZIP filename, `VERSION`, README current release, and release-notes heading to 2.6.1.
+
+# 2.6.0
+
+- Add global `--debug` support to every command and to the configured no-parameter invocation.
+- In debug mode, use direct detailed output instead of the fullscreen TUI path and show resolved config/template paths, merge semantics, source, release/current directories, preserve rules, and rsync flow.
+- Accept historical top-level `defaultUser` in `config.json` and normalize it to canonical `source.defaultUser`.
+- Keep `update-cli --init PROJECT --from-repository --repository URL` fully supported and cover it end-to-end.
+- Keep compact `--from-repository REPOSITORY` syntax and the download bootstrap `update-cli --init PROJECT`.
+- Verify download bootstrap selects only the newest exact `PROJECT-v<MAJOR>.<MINOR>.<PATCH>.zip` from the configured/default download folder.
+- Make setup-manifest parsing tolerant of unknown top-level transition/extension fields while preserving strict validation for supported sections and executable steps.
+- Synchronize release metadata to 2.6.0.
+
+# 2.5.0
+
+- Add installation-wide configuration resolved as `INSTALLFOLDER/../etc/update-cli/config.json`; `/usr/local/bin/update-cli` maps to `/usr/local/etc/update-cli/config.json`.
+- Load global `config.json` first and recursively merge project-local `.update-cli/config.json` over it.
+- Make `sync.preserve` cumulative across global and local config so central rsync preserve/exclude defaults remain active while projects add their own paths.
+- Load global `templates.json` first and merge project-local templates by name; local definitions replace same-name global templates.
+- Extend `config --list` to display both global and local config/template paths and the project-local history file.
+- Install default global `config.json` and `templates.json` with `just install` only when they do not already exist.
+- Add tests for path resolution, config merge semantics, preserve union, templates merge, and config listing.
+
+# 2.4.3
+
+- Fix release synchronization so source `.env`, `.env.example`, and other `.env.*` files are retained in `release/`.
+- Change `sync.preserve` from "always exclude" to "preserve if present, otherwise seed once from release".
+- Keep existing local protected files/directories unchanged on subsequent updates.
+- Report seeded protected paths in dry-run plans without creating them.
+- Keep ordinary backup snapshot secret exclusions unchanged.
+- Add regression tests for release dotfiles and first-install preserve behavior, plus verification against the supplied GrapesJS release artifact.
+
+# 2.4.2
+
+- Fix release metadata consistency.
+- Add a regression test that requires `VERSION`, README current release, and the top release-notes version to match.
+- Verify ZIP filename/version against the packaged `VERSION` before delivery.
+
+# 2.4.1
+
+- Hardened local bootstrap regression coverage.
+- Verified `update-cli --init <project>` installs the newest matching `<project>-v<semver>.zip` from the configured/default download folder.
+- Verified `update-cli --init <project> --from-repository <repository>` works as the canonical repository bootstrap syntax without a separate `--repository` flag.
+- Both init paths continue to use the current working directory as the project root by default.
+
+# 2.4.0
+
+- Change repository bootstrap syntax to `--init PROJECT --from-repository REPOSITORY`.
+- Accept `https://github.com/USER/REPO`, `USER/REPO`, and `REPO` repository specifications.
+- Expand `REPO` using `source.defaultUser` from `.update-cli/config.json`; default value is `r1r`.
+- Bump updater config schema to 8 and persist `source.defaultUser` in the source section.
+- Normalize shorthand repository specifications to canonical HTTPS GitHub clone URLs.
+- Keep the previous `--from-repository --repository URL` form as a compatibility alias.
+- Update README/help and add parser/config normalization tests.
+
+# 2.3.1
+
+- Fix `--init <project>` so the current working directory is always the project root unless `--root` is explicitly provided.
+- Stop creating an implicit nested `<cwd>/<project>` directory during init.
+- Keep the project argument as the logical project name used by updater configuration and release matching.
+- Update download and repository bootstrap integration tests for current-directory initialization.
+- Update README/help text to document the corrected init semantics.
+
+# 2.3.0
+
+- Add `update-cli schema --view` to print the canonical `update-cli.yaml` schemaVersion-2 JSON Schema.
+- Add `update-cli schema --save <file.json>` to save the same schema and create missing parent directories.
+- Keep updater source/update policy outside the manifest schema in `.update-cli/config.json`.
+- Expose the schema command in help and CLI discovery.
+
+# 2.2.0
+
+- `--init <project>` now performs a full local bootstrap instead of only creating updater config.
+- default init source is the configured download folder and automatically selects the newest exact `<project>-v<MAJOR>.<MINOR>.<PATCH>.zip`.
+- added `--from-repository --repository <url>` shortcut for repository bootstrap.
+- init creates/uses `<cwd>/<project>` when no explicit `--root` is provided, unless the current directory already has the project name.
+- initial bootstrap deploys transactionally to `current/` and automatically runs available setup automation.
+- existing matching init configuration can be reused; source changes require `--force`.
+- fixed Update CLI's project-specific release ordering so current 2.x releases are newer than 1.x releases.
+- README updated for both bootstrap workflows.
+
+# Update CLI 2.1.0
+
+- Restore `.update-cli/config.json` as the canonical persistent updater configuration.
+- Move `mode` and `source` back out of `update-cli.yaml`; setup YAML is again dedicated to setup/run/tasks/workflows.
+- Migrate older `.update-cli/config.json` schemas in place with `config --migrate`.
+- Discover legacy `setup.yaml` after `update-cli.yaml`; prefer `update-cli.yaml` when both exist.
+- Infer a missing legacy `setup.yaml` schema from its structure.
+- Add explicit setup fallback `just build` followed by `just install` when no manifest or `setup.sh` is available but a Justfile exists.
+- Keep schemaVersion-2 parsing tolerant of transitional `update:` and `cli:` blocks from the short-lived YAML-only model.
+- Preserve the macOS `/var` vs `/private/var` root canonicalization fix from 2.0.1.
+- Update README and setup documentation to the hybrid JSON + YAML compatibility model.
+
+# Update CLI 2.0.1
+
+- Fix macOS root-resolution test failures caused by `/var/...` and `/private/var/...` referring to the same temporary directory.
+- Canonicalize the expected temporary root with `filepath.EvalSymlinks` before comparison.
+- Update the root-discovery comment for the YAML-only 2.x configuration model.
+
+# Update CLI 2.0.0
+
+- Redesign project configuration so `update-cli.yaml` is the single source of project settings.
+- Keep project runtime state and cache exclusively below `.update-cli/`.
+- Move project identity to `project.slug`, source/mode/directories/backup/retention/sync/security/Docker/healthcheck to `update`, and no-parameter behavior to `cli.noParameter`.
+- `config`, `config edit`, `config --check` and `config --set` now operate on `update-cli.yaml`.
+- `config --migrate` imports legacy schema-1..7 `config.json`, creates a timestamped backup, merges settings into YAML, validates the result, and removes the active JSON file.
+- Preserve existing setup/run/tasks/workflows when writing or migrating project configuration.
+- Keep historical config key aliases for CLI compatibility while documenting YAML-native dotted paths.
+- Pin GitHub Actions to Go 1.26.5 to avoid macOS `dyld: missing LC_UUID load command` failures from older Go toolchains.
+
+---
+
 # 1.5.0
 
 - allow schemaVersion-2 `update-cli.yaml` to declare a top-level `update` source block
 - support `update.mode` plus `update.source.type`, `folder`, `url`, `repository`, `ref`, `commit`, `version`, and `sha256`
-- use source precedence `CLI override > update-cli.yaml > .updater-cli/config.json`
+- use source precedence `CLI override > update-cli.yaml > .update-cli/config.json`
 - configure the update-cli project itself to pull from `https://github.com/r14r/update-cli.git` on `main`
-- keep `.updater-cli/config.json` for local updater state and machine-specific policy
+- keep `.update-cli/config.json` for local updater state and machine-specific policy
 - stop producing ZIP artifacts for normal project changes; GitHub commits are the release source
 
 # 1.4.0
@@ -15,11 +489,11 @@
 
 # 1.3.0
 
-- extend `update-cli --run` / `update-cli run` to accept structured `run.steps` in schemaVersion-2 `update-cli.yaml`
+- extend `update-cli run` / `update-cli run` to accept structured `run.steps` in schemaVersion-2 `update-cli.yaml`
 - support `run.description` and reuse typed setup-step syntax such as `command.exec`, `command.args`, `cwd`, `env`, `timeout`, `retries`, `when` and `allowFailure`
 - keep the compact `run.command` form fully compatible; reject ambiguous manifests that define both `command` and `steps`
-- add `update-cli config --check` / `update-cli config check` for read-only config validation and migration-needed reporting
-- add `update-cli config --migrate` / `update-cli config migrate` as the config-scoped migration command with backup semantics
+- add `update-cli config --check` / `update-cli config --check` for read-only config validation and migration-needed reporting
+- add `update-cli config --migrate` / `update-cli config --migrate` as the config-scoped migration command with backup semantics
 - expose the new config commands through `--help --json` and update README documentation
 
 # 1.2.1
@@ -30,7 +504,7 @@
 
 # 1.2.0
 
-- add `update-cli --run` and `update-cli run` to launch the active application
+- add `update-cli run` and `update-cli run` to launch the active application
 - read the launch command from top-level `run.command` in `update-cli.yaml`
 - support optional `run.cwd` and `run.env`
 - execute run commands from the active `current/` release and preserve interactive stdin/stdout/stderr
@@ -64,7 +538,7 @@ Minor release adding explicit ZIP update and Git pull acquisition modes.
 
 - Add project configuration `mode` with values `update` and `pull`; config schema is now version 7.
 - `mode=update` uses the established transactional ZIP workflow with `download` or `url` sources.
-- `mode=pull` requires a `repository` source, keeps a persistent checkout in `.updater-cli/repository`, and updates it with `git pull --ff-only`.
+- `mode=pull` requires a `repository` source, keeps a persistent checkout in `.update-cli/repository`, and updates it with `git pull --ff-only`.
 - Git content is snapshotted without `.git`, validated, versioned under `release/`, and synchronized to `current/` through the existing transaction/recovery pipeline.
 - Persist the deployed commit as `.release-commit` and expose installed/available commit changes during `check`.
 - Treat a changed repository commit as an available pull update even when `VERSION` is unchanged.
@@ -202,7 +676,7 @@ See `CODE_REVIEW.md` and `IMPLEMENTATION_REPORT.md` for details and validation r
 
 ## 0.8.15
 
-- Add machine-readable CLI discovery through `update-cli --help --json` and `update-cli help --json` using command-ui schemaVersion 1.
+- Add machine-readable CLI discovery through `update-cli help --json` and `update-cli help --json` using command-ui schemaVersion 1.
 - Add non-breaking command-token aliases (`check`, `update`, `rollback`, `restore`, `status`, `list`, `doctor`, `init`, and others) that normalize into the existing flag-based execution path.
 - Add the `setup list/task/workflow/manifest` command hierarchy while retaining all legacy setup flags.
 - Add command aliases for YAML lifecycle, configuration, and template operations supported by the current implementation.
@@ -231,7 +705,7 @@ See `CODE_REVIEW.md` and `IMPLEMENTATION_REPORT.md` for details and validation r
 
 ## 0.8.12
 
-- Added `update-cli config --set KEY=VALUE` for generic CLI-based editing of `.updater-cli/config.json`.
+- Added `update-cli config --set KEY=VALUE` for generic CLI-based editing of `.update-cli/config.json`.
 - Added `config` as the preferred subcommand spelling while retaining `--config` compatibility.
 - Added dotted-path updates for nested fields such as `backup.keep`, `security.allowHttp`, and `source.url`.
 - Added tolerant key matching, so `no-parameter`, `no_parameter`, and the JSON key `no parameter` resolve to the same setting.
@@ -395,14 +869,14 @@ See `CODE_REVIEW.md` and `IMPLEMENTATION_REPORT.md` for details and validation r
 - Make `setup-template.sh` schema-aware and prevent schemaVersion 2 from being executed by an incompatible 3.0.x global binary.
 - Prefer platform-specific packaged binaries for setup bootstrap.
 - Add source bootstrap via `go run` when the current checkout contains a newer schema-2-capable Update CLI but the globally installed binary is still old.
-- Keep upward `.updater-cli/config.json` discovery for commands executed from `current/` or nested project directories.
+- Keep upward `.update-cli/config.json` discovery for commands executed from `current/` or nested project directories.
 
 ## 3.1.0
 
 - introduced `update-cli.yaml` schemaVersion 2 as a declarative project automation model
 - added named workflows and reusable tasks with dependency resolution, de-duplication, and cycle detection
 - added `--setup-list`, `--setup-task NAME`, and `--setup-workflow NAME`
-- explicit manifests can combine `--setup-manifest` with task/workflow selection
+- explicit manifests can combine `setup --manifest` with task/workflow selection
 - added task variables and built-ins including `{{ env.NAME | fallback }}`
 - added required and optional command requirements
 - added structured `when` conditions with `all`, `any`, and `not`
@@ -476,8 +950,8 @@ Fullscreen TUI layout and compact step-status release.
 
 Standalone setup and global setup-template release.
 
-- `update-cli --setup` can execute `update-cli.yaml` directly when invoked inside a deployed `current/` directory without a project config
-- `/usr/local/etc/update-cli/setup-template.sh` delegates to the native `--setup-manifest` fullscreen runner
+- `update-cli setup` can execute `update-cli.yaml` directly when invoked inside a deployed `current/` directory without a project config
+- `/usr/local/etc/update-cli/setup-template.sh` delegates to the native `setup --manifest` fullscreen runner
 - the global template supports `--details`, wait/fullscreen controls, and alternate manifest paths
 - project setup and `just deploy` install the global setup TUI template
 
@@ -555,7 +1029,7 @@ Build/bootstrap correctness release.
 - fixed `just fmt-check`: shell variables now use normal `$` syntax instead of `$$`, which Bash interpreted as its PID (for example `65232files`)
 - fixed the same shell-variable escaping defect in `just deploy`
 - simplified `fmt-check` to use recursive `gofmt -l .` without unsafe filename word splitting
-- `setup.sh` now probes `update-cli --help` for `--setup-manifest` before invoking the installed binary, so older installations no longer emit an unknown-flag usage dump
+- `setup.sh` now probes `update-cli help` for `setup --manifest` before invoking the installed binary, so older installations no longer emit an unknown-flag usage dump
 - failures from a compatible installed setup handler are now propagated instead of being silently retried through the source bootstrap
 - template help now reports the actual embedded build version rather than a hard-coded `3.0.0`
 
@@ -609,7 +1083,7 @@ Major safety and setup-architecture release.
 - introduced strict `update-cli.yaml` schema
 - reusable `setup.sh` bootstrap template
 - typed setup handlers for Go, Python, Node, Laravel, Docker Compose, copy, deploy, and shell commands
-- direct `--setup-manifest` execution mode
+- direct `setup --manifest` execution mode
 - interactive post-update setup prompt
 - legacy `setup.sh` and `config.setup.commands` remain supported as migration fallbacks
 

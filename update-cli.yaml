@@ -1,16 +1,41 @@
 schemaVersion: 2
 
 project:
+  slug: update-cli
   name: Update CLI
   type: go
   description: Update CLI prüfen, testen, bauen und deployen
 
 update:
-  mode: pull
+  mode: update
   source:
-    type: repository
-    repository: https://github.com/r14r/update-cli.git
-    ref: main
+    type: download
+    folder: $HOME/Downloads
+  releaseDir: release
+  currentDir: current
+  backup:
+    directory: backup
+    keep: 3
+  retention:
+    releases: 5
+  sync:
+    preserve:
+      - .git/
+      - .gitignore
+      - .venv/
+      - .env
+      - .env.*
+      - data/
+      - storage/
+      - uploads/
+      - media/
+      - logs/
+      - var/
+    keepOnSetupError: false
+  docker:
+    lifecycle: auto
+  healthcheck:
+    type: none
 
 defaults:
   timeout: 15m
@@ -40,9 +65,9 @@ run:
 
 workflows:
   setup:
-    description: Vollständiges Setup mit Prüfung, Build und Deployment
+    description: Vollständiges Setup über den kanonischen Just-Installationspfad
     tasks:
-      - deploy
+      - install
   ci:
     description: Prüfen, testen, bauen und verifizieren
     tasks:
@@ -104,10 +129,10 @@ tasks:
       - id: build
         name: Update CLI bauen
         shell: |
-          VERSION="$(tr -d '[:space:]' < VERSION)"
+          ./scripts/validate-version.sh . >/dev/null
           mkdir -p "{{ distDir }}"
           go build -trimpath \
-            -ldflags "-s -w -X main.version=${VERSION}" \
+            -ldflags "-s -w" \
             -o "{{ distDir }}/{{ binary }}" \
             .
 
@@ -125,7 +150,7 @@ tasks:
         name: Binary-Version prüfen
         shell: |
           VERSION="$(tr -d '[:space:]' < VERSION)"
-          OUTPUT="$(./{{ distDir }}/{{ binary }} --version)"
+          OUTPUT="$(./{{ distDir }}/{{ binary }} version)"
           printf '%s\n' "$OUTPUT"
           printf '%s\n' "$OUTPUT" | grep -F "$VERSION" >/dev/null
 
@@ -179,6 +204,20 @@ tasks:
           mode: "0755"
         when:
           fileExists: "{{ distDir }}/{{ binary }}"
+
+  install:
+    description: Kanonischen Build- und Installationspfad ausführen
+    requires:
+      - prepare
+    steps:
+      - id: just-install
+        name: just install ausführen
+        shell: |
+          command -v just >/dev/null 2>&1 || { echo "just ist für das Update-CLI-Setup erforderlich" >&2; exit 1; }
+          # UPDATE_CLI_SETUP_RUNNING ist ein interner Marker des Setup-Runners.
+          # Er darf die verschachtelte Build-/Test-Pipeline nicht beeinflussen.
+          unset UPDATE_CLI_SETUP_RUNNING
+          exec just install
 
   clean:
     description: Build-Artefakte entfernen

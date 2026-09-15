@@ -1,62 +1,84 @@
-# Update CLI 1.5.0 implementation
+# 2.6.2 implementation
 
-- `update-cli.yaml` schemaVersion 2 accepts a top-level `update` block.
-- Source precedence is CLI override > `update-cli.yaml` > `.updater-cli/config.json`.
-- Repository metadata (`ref`, `commit`, `version`, `sha256`) can travel with the project manifest.
-- The update-cli project defaults to `https://github.com/r14r/update-cli.git`, ref `main`, in pull mode.
+- Adds schema-version reporting with `update-cli schema --version` and `update-cli schema --version`.
+- Uses the exported canonical `projectsetup.SchemaVersion` constant for both JSON Schema generation and CLI output.
+- Keeps standalone `update-cli version` behavior unchanged.
+- Extends CLI discovery metadata and parser regression tests for the new schema action.
 
----
+# 2.6.1 implementation
 
-# 1.1.0 implementation update
+> 2.6.1 is a metadata-only patch release of the verified 2.6.0 implementation; runtime behavior is unchanged.
 
-The acquisition layer now has two explicit modes: transactional ZIP `update` and persistent Git `pull`. Config schema 7 carries `mode`; older repository configurations migrate to pull mode automatically. Pull uses `.updater-cli/repository`, `git fetch` for discovery, `git pull --ff-only` for mutation, commit-aware update detection, and the existing release/current transaction pipeline for deployment and recovery.
+- Global `--debug` parser support with direct/detailed UI execution for all commands, including resolved root/config/template/source/release/current/preserve/rsync diagnostics.
+- Debug-only invocation forwards into the configured no-parameter action.
+- Backward-compatible `defaultUser` decoding and canonical migration to `source.defaultUser`.
+- End-to-end coverage for the explicit repository bootstrap command `--from-repository --repository <url/path>`.
+- Existing end-to-end coverage for download bootstrap remains in place and enforces exact SemVer ZIP naming.
+- Setup manifests ignore unknown top-level transition/extension metadata while keeping supported nested fields strict.
 
----
+# 2.5.0 global configuration layering
 
-# Implementation Report — Update CLI 1.0.0
+- Global configuration is derived from the invoked executable location: `<binary-dir>/../etc/update-cli`.
+- Runtime configuration uses a recursive JSON merge: global first, then project-local. The local project file remains the mutation/edit target.
+- `sync.preserve` has special additive semantics so installation-wide exclusions form a minimum baseline.
+- Template loading now composes global and local files by template name.
+- `config --list` exposes both layers explicitly.
+- `just install` seeds global defaults non-destructively.
+- Missing global files remain valid: built-in configuration/template defaults provide fallback behavior for development or portable use.
 
-## Scope
+# 2.4.3 release/current synchronization fix
 
-Full pre-1.0 code review and hardening of the 0.8.23 codebase. The stable release intentionally preserves the public CLI/config/setup contracts and concentrates changes on correctness, recovery safety, security and I/O efficiency.
+- Release staging no longer hard-excludes `.env` or `.env.*`; files present in the selected ZIP/repository snapshot are part of the immutable release.
+- `sync.preserve` now has conditional semantics: existing destinations are protected, missing protected paths are seeded from the release before the normal rsync pass.
+- Wildcard preserve entries such as `.env.*` are expanded relative to the release root without interpreting wildcard characters in the absolute project path.
+- Dry runs report missing protected paths as creations without modifying them.
+- Restore uses the same missing-protected-path seeding behavior for consistency.
+- Ordinary backup snapshots still exclude `.env`/`.env.*`; transaction snapshots remain exact for rollback safety.
 
-## Implemented improvements
+# 2.4.2 release metadata consistency
 
-1. **Stable version transition** — Update CLI-specific release epochs now order legacy 2.x/3.x < transitional 0.8.x+ < stable 1.x. Tests cover 0.8.23 -> 1.0.0 and 3.3.4 -> 1.0.0. Other projects still use strict SemVer.
-2. **Crash-safe locks** — atomic lock metadata; incomplete metadata gains a one-minute grace period and then becomes stale/recoverable.
-3. **Unique transaction/release staging** — transaction snapshots and release stages use `MkdirTemp`; directory swaps never delete pre-existing `.old-*` recovery directories.
-4. **Safer restore** — `latest` skips invalid backups; explicit backup paths are canonicalized and final symlinks are rejected.
-5. **Correct post-commit semantics** — history append failures after a successful committed action are warnings, not false operation failures.
-6. **ZIP processing optimization** — metadata preflight + one extraction/checksum pass for update/verify, with duplicate normalized path rejection.
-7. **rsync optimization** — `--checksum` is retained for existing-tree comparison but omitted for guaranteed-new staging/snapshot destinations.
-8. **History crash tolerance** — an unterminated malformed final JSONL record is treated as interrupted append residue; committed malformed lines remain fatal.
-9. **Code cleanup** — removed unreachable duplicate return and added focused regression coverage around new safety behavior.
+- `VERSION`, README current release, and the top `RELEASE_NOTES.md` heading are now guarded by an automated project-file test.
+- Packaging is verified against the semantic version encoded in the ZIP filename before delivery.
 
-## Compatibility
+# 2.4.1 bootstrap verification
 
-Unchanged: legacy flag-based commands, command-token aliases, config schemaVersion 6, setup schemaVersion 1 compatibility and schemaVersion 2 execution, machine-readable discovery schemaVersion 1, Docker lifecycle modes, fullscreen TUI, `--no-ui`/`--noui`, protected rsync paths and release naming.
+The local bootstrap contract is now protected by exact end-to-end regression tests for both supported command forms: download bootstrap with `--init <project>` and repository bootstrap with `--init <project> --from-repository <repository>`. The repository integration test no longer relies on the legacy separate `--repository` option.
 
-## Review record
+# Update CLI 2.4.0 implementation
 
-See `CODE_REVIEW.md` for findings, severity and rationale.
+## Configuration split
+
+- `.update-cli/config.json` is again the canonical persistent updater configuration.
+- `mode`, `source`, directories, backup/retention, preserve rules, security, Docker, healthcheck and no-parameter policy are JSON configuration.
+- `update-cli.yaml` is reserved for setup/run/tasks/workflows and project display metadata.
+- `config migrate` upgrades `.update-cli/config.json` in place and writes the backup beside it.
+
+## Setup compatibility
+
+- Manifest discovery prefers `update-cli.yaml` and falls back to `setup.yaml`.
+- Legacy `setup.yaml` without an explicit schema is inferred from structure.
+- `setup.yaml` schema-1/simple step structures and schema-2 task/workflow structures remain supported.
+- Transitional schema-2 top-level `update:`/`cli:` fields are tolerated by the setup parser, but are not active persistent source configuration.
+- When no manifest/setup.sh exists and a Justfile is present, explicit setup runs `just build` followed by `just install`.
+
+## Robustness
+
+- Root discovery recognizes `.update-cli/config.json` as the single project runtime-state location.
+- macOS temporary path tests canonicalize `/var` and `/private/var` aliases.
+- setup bootstrap scripts recognize both YAML filenames.
+- config mutations remain transactional and validate the complete JSON configuration before replacement.
 
 ## Validation
 
-Completed successfully:
+- Go release directive remains 1.26.5.
+- Full unit/integration suite passes under the available local Go 1.23.2 compatibility runner.
+- `go vet ./...` passes under the available local toolchain.
+- Race tests pass for the modified `config`, `projectsetup`, and `updater` packages.
 
-- `gofmt` clean
-- `bash -n setup.sh`
-- `bash -n setup-template.sh`
-- build-config validation
-- `go vet ./...`
-- `go test ./...`
-- `go test -race ./...`
-- fullscreen PTY smoke suite
-- machine-readable `--help --json` parse/contract smoke
-- `setup list --json` binary smoke
-- native Linux build
-- macOS amd64 cross-build
-- macOS arm64 cross-build
-- Linux amd64 cross-build
-- end-to-end Update CLI transition `0.8.23 -> 1.0.0` without downgrade override
+## Bootstrap and repository shorthand
 
-`command-ui` is not installed in the build environment, so the external `command-ui validate/inspect` commands were not run. The discovery contract remains covered by the repository's automated tests and executable JSON smoke test.
+- `--init <project>` now creates/uses a local project directory and performs the initial transactional installation.
+- default bootstrap discovers the newest `<project>-v<MAJOR>.<MINOR>.<PATCH>.zip` in the configured download folder.
+- `--from-repository <repository>` accepts a full GitHub URL, `USER/REPO`, or `REPO`; the one-part form uses `.update-cli/config.json` `source.defaultUser`.
+- init automatically executes available setup automation after the first deployment.
+- project-specific version ordering now treats current 2.x Update CLI releases as newer than 1.x.

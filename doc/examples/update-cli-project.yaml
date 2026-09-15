@@ -1,0 +1,22 @@
+schemaVersion: 2
+project:
+  name: Demo Application
+  slug: demo-app
+update:
+  mode: pull
+  source:
+    type: repository
+    repository: https://github.com/acme/demo-app.git
+    ref: main
+  releaseDir: release
+  currentDir: current
+  backup:
+    directory: backup
+    keep: 3
+  retention:
+    releases: 5
+  docker:
+    lifecycle: auto
+cli:
+  noParameter:
+    - check

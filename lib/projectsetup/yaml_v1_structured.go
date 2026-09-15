@@ -52,9 +52,12 @@ func parseStructuredLegacyV1(path string, data []byte) (Manifest, error) {
 		"setup":         true,
 		"commands":      true,
 	}
-	for key, node := range root.m {
+	for key := range root.m {
 		if !allowedTop[key] {
-			return Manifest{}, lineError(node, fmt.Sprintf("unbekanntes Top-Level-Feld %q", key))
+			// Ignore transition-only top-level metadata. Nested fields inside the
+			// supported schema remain strict, so setup execution semantics cannot
+			// silently change.
+			continue
 		}
 	}
 

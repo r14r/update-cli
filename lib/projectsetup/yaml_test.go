@@ -44,6 +44,52 @@ func TestParseManifestRejectsUnknownField(t *testing.T) {
 	}
 }
 
+func TestParseManifestIgnoresUnknownTopLevelTransitionField(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "update-cli.yaml")
+	data := `version: 1
+update:
+  mode: pull
+  source:
+    repository: https://github.com/example/demo.git
+steps:
+  - type: go
+    action: test
+`
+	if err := os.WriteFile(p, []byte(data), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m, err := ParseManifest(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(m.Steps) != 1 || m.Steps[0].Type != "go" {
+		t.Fatalf("unexpected manifest: %#v", m)
+	}
+}
+
+func TestParseManifestV2IgnoresUnknownTopLevelExtension(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "update-cli.yaml")
+	data := `schemaVersion: 2
+project:
+  name: demo
+extensionMetadata:
+  owner: platform-team
+tasks:
+  verify:
+    steps:
+      - shell: echo ok
+workflows:
+  setup:
+    tasks: [verify]
+`
+	if err := os.WriteFile(p, []byte(data), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ParseManifest(p); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestRunStandaloneCommand(t *testing.T) {
 	root := t.TempDir()
 	p := filepath.Join(root, "update-cli.yaml")
@@ -387,22 +433,57 @@ run:
 	}
 }
 
-func TestParseManifestV2UpdateSourceValidation(t *testing.T) {
+func TestParseManifestV2AllowsPartialProjectUpdateOverrides(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "update-cli.yaml")
 	manifest := `schemaVersion: 2
 update:
-  mode: update
-  source:
-    type: repository
-    repository: https://example.invalid/demo.git
+  sync:
+    preserve:
+      - .env
+      - data/
+    keepOnSetupError: true
+  docker:
+    lifecycle: disabled
 run:
   command: echo ok
 `
 	if err := os.WriteFile(path, []byte(manifest), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ParseManifest(path); err == nil {
-		t.Fatal("expected incompatible update mode/source error")
+	m, err := ParseManifest(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !m.Update.Configured || m.Update.SourceConfigured {
+		t.Fatalf("unexpected update flags: %#v", m.Update)
+	}
+	if !m.Update.Sync.Configured || len(m.Update.Sync.Preserve) != 2 {
+		t.Fatalf("sync override not parsed: %#v", m.Update.Sync)
+	}
+	if m.Update.Sync.KeepOnSetupError == nil || !*m.Update.Sync.KeepOnSetupError {
+		t.Fatalf("sync setup-error policy not parsed: %#v", m.Update.Sync)
+	}
+}
+
+func TestParseManifestV2AcceptsTransitionalUpdateSetupPolicy(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "update-cli.yaml")
+	manifest := `schemaVersion: 2
+update:
+  setup:
+    keepRsyncOnError: true
+run:
+  command: echo ok
+`
+	if err := os.WriteFile(path, []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m, err := ParseManifest(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Update.Setup.KeepRsyncOnError == nil || !*m.Update.Setup.KeepRsyncOnError {
+		t.Fatalf("legacy setup policy not parsed: %#v", m.Update.Setup)
 	}
 }

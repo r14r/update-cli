@@ -16,7 +16,7 @@ import (
 func TestTransactionRecoveryRestoresExactCurrent(t *testing.T) {
 	root := t.TempDir()
 	current := filepath.Join(root, "current")
-	cfgDir := filepath.Join(root, ".updater-cli")
+	cfgDir := filepath.Join(root, ".update-cli")
 	_ = os.MkdirAll(current, 0o755)
 	_ = os.MkdirAll(cfgDir, 0o755)
 	_ = os.WriteFile(filepath.Join(current, "keep.txt"), []byte("old"), 0o644)
@@ -69,7 +69,7 @@ func transactionFixture(t *testing.T, lifecycle string, compose bool) config.Con
 	t.Helper()
 	root := t.TempDir()
 	current := filepath.Join(root, "current")
-	cfgDir := filepath.Join(root, ".updater-cli")
+	cfgDir := filepath.Join(root, ".update-cli")
 	if err := os.MkdirAll(current, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -303,5 +303,96 @@ func TestBeginTransactionUsesUniqueWorkspace(t *testing.T) {
 	defer tx2.commit()
 	if tx1.snapshotRoot == tx2.snapshotRoot {
 		t.Fatalf("transaction workspaces collided: %s", tx1.snapshotRoot)
+	}
+}
+
+func TestTransactionUsesVersionedReleaseInsteadOfFullSnapshot(t *testing.T) {
+	root := t.TempDir()
+	current := filepath.Join(root, "current")
+	releases := filepath.Join(root, "release")
+	previous := filepath.Join(releases, "1.2.3")
+	cfgDir := filepath.Join(root, ".update-cli")
+	for _, dir := range []string{current, previous, cfgDir} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for path, content := range map[string]string{
+		filepath.Join(previous, "VERSION"): "1.2.3\n",
+		filepath.Join(previous, "app.txt"): "old-release\n",
+		filepath.Join(current, "VERSION"):  "1.2.3\n",
+		filepath.Join(current, "app.txt"):  "old-release\n",
+		filepath.Join(current, ".env"):     "LOCAL=1\n",
+	} {
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// A large generated tree represents the kind of content that made the old
+	// transaction snapshot expensive. It must not be copied into the transaction
+	// workspace when a versioned rollback release is available.
+	if err := os.MkdirAll(filepath.Join(current, "node_modules", "pkg"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(current, "node_modules", "pkg", "blob"), []byte(strings.Repeat("x", 1024)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Config{RootDir: root, ConfigDir: cfgDir, CurrentDir: current, ReleaseRoot: releases, Preserve: []string{".env"}, Docker: config.DockerConfig{Lifecycle: "disabled"}}
+	tx, err := beginTransaction(context.Background(), cfg, ui.New(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tx.rollbackRelease != previous || tx.rollbackVersion != "1.2.3" {
+		t.Fatalf("unexpected rollback basis: version=%q release=%q", tx.rollbackVersion, tx.rollbackRelease)
+	}
+	if _, err := os.Stat(tx.snapshotCurrent); !os.IsNotExist(err) {
+		t.Fatalf("full current snapshot must not exist when versioned release is usable: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(current, "app.txt"), []byte("new-release\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(current, ".env"), []byte("LOCAL=2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := tx.recover(errors.New("boom")); got == nil {
+		t.Fatal("expected original recovery error")
+	}
+	app, _ := os.ReadFile(filepath.Join(current, "app.txt"))
+	if string(app) != "old-release\n" {
+		t.Fatalf("release source was not restored: %q", app)
+	}
+	env, _ := os.ReadFile(filepath.Join(current, ".env"))
+	if string(env) != "LOCAL=2\n" {
+		t.Fatalf("preserved file must survive release-based rollback: %q", env)
+	}
+}
+
+func TestTransactionFallsBackToExactSnapshotWithoutPreviousRelease(t *testing.T) {
+	root := t.TempDir()
+	current := filepath.Join(root, "current")
+	cfgDir := filepath.Join(root, ".update-cli")
+	if err := os.MkdirAll(current, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(current, "VERSION"), []byte("9.9.9\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(current, "local.txt"), []byte("keep exactly\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Config{RootDir: root, ConfigDir: cfgDir, CurrentDir: current, ReleaseRoot: filepath.Join(root, "release"), Docker: config.DockerConfig{Lifecycle: "disabled"}}
+	tx, err := beginTransaction(context.Background(), cfg, ui.New(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.commit()
+	if tx.rollbackRelease != "" {
+		t.Fatalf("unexpected rollback release: %s", tx.rollbackRelease)
+	}
+	if _, err := os.Stat(filepath.Join(tx.snapshotCurrent, "local.txt")); err != nil {
+		t.Fatalf("fallback snapshot missing local file: %v", err)
 	}
 }

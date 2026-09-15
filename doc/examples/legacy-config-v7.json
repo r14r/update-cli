@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 7,
+  "projectName": "demo-app",
+  "mode": "pull",
+  "source": {
+    "type": "repository",
+    "repository": "https://github.com/acme/demo-app.git",
+    "ref": "main"
+  },
+  "releaseDir": "release",
+  "currentDir": "current",
+  "no parameter": ["check"],
+  "backup": {"directory": "backup", "keep": 3},
+  "retention": {"releases": 5}
+}

@@ -1,14 +1,18 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/r14r/update-cli/lib/projectsetup"
+	"github.com/r14r/update-cli/lib/ui"
 )
 
 func TestJustfileDoesNotUseMakeStyleDoubleDollarEscapes(t *testing.T) {
@@ -52,11 +56,11 @@ func TestSetupBootstrapUsesCompatibleLocalBinaryWithoutTouchingOldGlobalBinary(t
 	localMarker := filepath.Join(root, "local-used")
 	localCLI := `#!/usr/bin/env bash
 set -e
-if [[ "${1:-}" == "--help" ]]; then
-  echo 'update-cli --setup-manifest FILE'
+if [[ "${1:-}" == "help" ]]; then
+  echo 'update-cli setup --manifest FILE'
   exit 0
 fi
-if [[ "${1:-}" == "--setup-manifest" ]]; then
+if [[ "${1:-}" == "setup" ]]; then
   : > "` + localMarker + `"
   exit 0
 fi
@@ -115,8 +119,8 @@ func TestSetupBootstrapForwardsCompatibilityFlagsAndConfig(t *testing.T) {
 	marker := filepath.Join(root, "args.txt")
 	localCLI := `#!/usr/bin/env bash
 set -e
-if [[ "${1:-}" == "--help" ]]; then
-  echo 'update-cli --setup-manifest FILE'
+if [[ "${1:-}" == "help" ]]; then
+  echo 'update-cli setup --manifest FILE'
   exit 0
 fi
 printf '%s\n' "$@" > "` + marker + `"
@@ -142,7 +146,7 @@ printf '%s\n' "$@" > "` + marker + `"
 	if canonical, err := filepath.EvalSymlinks(wantManifest); err == nil {
 		wantManifest = canonical
 	}
-	want := []string{"--setup-manifest", wantManifest, "--details", "--no-wait"}
+	want := []string{"setup", "--manifest", wantManifest, "--details", "--no-wait"}
 	if strings.Join(args, "\x00") != strings.Join(want, "\x00") {
 		t.Fatalf("forwarded args mismatch:\n got %#v\nwant %#v", args, want)
 	}
@@ -166,8 +170,8 @@ func TestGlobalSetupTemplateUsesCurrentDirectoryManifestAndNativeTUIRunner(t *te
 	argsFile := filepath.Join(binDir, "args.txt")
 	envFile := filepath.Join(binDir, "tui.txt")
 	fakeCLI := `#!/usr/bin/env bash
-if [[ "${1:-}" == "--help" ]]; then
-  echo 'update-cli --setup-manifest FILE --setup-list --setup-task NAME --setup-workflow NAME'
+if [[ "${1:-}" == "help" ]]; then
+  echo 'update-cli setup --manifest FILE --list --task NAME --workflow NAME'
   exit 0
 fi
 printf '%s\n' "$@" > "` + argsFile + `"
@@ -198,7 +202,7 @@ printf '%s\n' "${UPDATE_CLI_TUI:-}" > "` + envFile + `"
 	if canonical, err := filepath.EvalSymlinks(manifest); err == nil {
 		manifest = canonical
 	}
-	want := []string{"--setup-manifest", manifest, "--details", "--no-wait"}
+	want := []string{"setup", "--manifest", manifest, "--details", "--no-wait"}
 	got := strings.Split(strings.TrimSpace(string(argsData)), "\n")
 	if strings.Join(got, "\x00") != strings.Join(want, "\x00") {
 		t.Fatalf("global template forwarded args mismatch:\n got %#v\nwant %#v", got, want)
@@ -263,7 +267,7 @@ func TestSetupTemplateForwardsSchemaV2SelectionFlags(t *testing.T) {
 	}
 	bin := t.TempDir()
 	argsFile := filepath.Join(bin, "args.txt")
-	fake := "#!/usr/bin/env bash\nif [[ \"${1:-}\" == \"--help\" ]]; then echo 'update-cli --setup-manifest FILE --setup-list --setup-task NAME --setup-workflow NAME'; exit 0; fi\nprintf '%s\\n' \"$@\" > \"" + argsFile + "\"\n"
+	fake := "#!/usr/bin/env bash\nif [[ \"${1:-}\" == \"help\" ]]; then echo 'update-cli setup --manifest FILE --list --task NAME --workflow NAME'; exit 0; fi\nprintf '%s\\n' \"$@\" > \"" + argsFile + "\"\n"
 	if err := os.WriteFile(filepath.Join(bin, "update-cli"), []byte(fake), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -278,7 +282,7 @@ func TestSetupTemplateForwardsSchemaV2SelectionFlags(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(got)
-	if !strings.Contains(text, "--setup-task\nbuild") || !strings.Contains(text, "--no-ui") {
+	if !strings.Contains(text, "--task\nbuild") || !strings.Contains(text, "--no-ui") {
 		t.Fatalf("selection flags were not forwarded:\n%s", text)
 	}
 }
@@ -320,11 +324,11 @@ tasks:
 
 	incompatibleMarker := filepath.Join(root, "incompatible-used")
 	incompatible := `#!/usr/bin/env bash
-if [[ "${1:-}" == "--help" ]]; then
-  echo 'update-cli --setup-manifest FILE --setup-list --setup-task NAME --setup-workflow NAME'
+if [[ "${1:-}" == "help" ]]; then
+  echo 'update-cli setup --manifest FILE --list --task NAME --workflow NAME'
   exit 0
 fi
-if [[ " $* " == *" --setup-list "* ]]; then
+if [[ " $* " == *" --list "* ]]; then
   echo 'ERROR update-cli.yaml Zeile 5: unbekanntes project-Feld "slug"' >&2
   exit 1
 fi
@@ -338,11 +342,11 @@ exit 0
 
 	compatibleMarker := filepath.Join(root, "compatible-used")
 	compatible := `#!/usr/bin/env bash
-if [[ "${1:-}" == "--help" ]]; then
-  echo 'update-cli --setup-manifest FILE --setup-list --setup-task NAME --setup-workflow NAME'
+if [[ "${1:-}" == "help" ]]; then
+  echo 'update-cli setup --manifest FILE --list --task NAME --workflow NAME'
   exit 0
 fi
-if [[ " $* " == *" --setup-list "* ]]; then
+if [[ " $* " == *" --list "* ]]; then
   exit 0
 fi
 : > "` + compatibleMarker + `"
@@ -375,7 +379,7 @@ func TestProjectSetupManifestUsesSchemaV2(t *testing.T) {
 	if manifest.Version != 2 {
 		t.Fatalf("update-cli.yaml schema = %d, want 2", manifest.Version)
 	}
-	for _, name := range []string{"prepare", "check", "build", "verify", "deploy", "clean"} {
+	for _, name := range []string{"prepare", "check", "build", "verify", "deploy", "install", "clean"} {
 		if _, ok := manifest.Tasks[name]; !ok {
 			t.Fatalf("update-cli.yaml missing task %q", name)
 		}
@@ -411,8 +415,8 @@ func TestGlobalSetupTemplatePrefersSchemaV2CapableLocalPlatformBinary(t *testing
 	}
 	localMarker := filepath.Join(root, "local-used")
 	localCLI := `#!/usr/bin/env bash
-if [[ "${1:-}" == "--help" ]]; then
-  echo 'update-cli --setup-manifest FILE --setup-list --setup-task NAME --setup-workflow NAME'
+if [[ "${1:-}" == "help" ]]; then
+  echo 'update-cli setup --manifest FILE --list --task NAME --workflow NAME'
   exit 0
 fi
 : > "` + localMarker + `"
@@ -426,8 +430,8 @@ exit 0
 	bin := t.TempDir()
 	globalMarker := filepath.Join(root, "global-used")
 	oldGlobal := `#!/usr/bin/env bash
-if [[ "${1:-}" == "--help" ]]; then
-  echo 'update-cli --setup-manifest FILE'
+if [[ "${1:-}" == "help" ]]; then
+  echo 'update-cli setup --manifest FILE'
   exit 0
 fi
 : > "` + globalMarker + `"
@@ -472,16 +476,18 @@ func TestGlobalSetupTemplateBootstrapsSchemaV2FromGoSource(t *testing.T) {
 	marker := filepath.Join(root, "go-run-used")
 	mainSource := `package main
 import (
+    _ "embed"
     "os"
     "strings"
 )
-var version = "dev"
+//go:embed VERSION
+var version string
 func main() {
-    if len(os.Args) > 1 && os.Args[1] == "--help" {
-        println("--setup-manifest --setup-list --setup-task --setup-workflow")
+    if len(os.Args) > 1 && os.Args[1] == "help" {
+        println("setup --manifest --list --task --workflow")
         return
     }
-    _ = os.WriteFile("` + marker + `", []byte(strings.Join(os.Args[1:], "\n")+"\nversion="+version), 0644)
+    _ = os.WriteFile("` + marker + `", []byte(strings.Join(os.Args[1:], "\n")+"\nversion="+strings.TrimSpace(version)), 0644)
 }
 `
 	if err := os.WriteFile(filepath.Join(root, "main.go"), []byte(mainSource), 0o644); err != nil {
@@ -490,7 +496,7 @@ func main() {
 
 	bin := t.TempDir()
 	oldGlobal := `#!/usr/bin/env bash
-if [[ "${1:-}" == "--help" ]]; then echo 'update-cli --setup-manifest FILE'; exit 0; fi
+if [[ "${1:-}" == "help" ]]; then echo 'update-cli setup --manifest FILE'; exit 0; fi
 exit 99
 `
 	if err := os.WriteFile(filepath.Join(bin, "update-cli"), []byte(oldGlobal), 0o755); err != nil {
@@ -508,7 +514,7 @@ exit 99
 		t.Fatalf("go source bootstrap was not used: %v\n%s", err, out)
 	}
 	text := string(data)
-	if !strings.Contains(text, "--setup-manifest") || !strings.Contains(text, "--no-ui") || !strings.Contains(text, "version=9.8.7") {
+	if !strings.Contains(text, "--manifest") || !strings.Contains(text, "--no-ui") || !strings.Contains(text, "version=9.8.7") {
 		t.Fatalf("unexpected source bootstrap args/version:\n%s", text)
 	}
 }
@@ -583,15 +589,204 @@ func TestJustfileRecipeNamesAreUnique(t *testing.T) {
 	}
 }
 
-func TestProjectManifestUsesRepositorySource(t *testing.T) {
+func TestProjectSettingsLiveInManifestAndHostPolicyStaysInJSON(t *testing.T) {
 	manifest, err := projectsetup.ParseManifest("update-cli.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !manifest.Update.Configured || manifest.Update.Mode != "pull" {
-		t.Fatalf("unexpected update config: %#v", manifest.Update)
+	if !manifest.Update.Configured || !manifest.Update.SourceConfigured {
+		t.Fatalf("update-cli.yaml must provide project update settings: %#v", manifest.Update)
 	}
-	if manifest.Update.Source.Type != "repository" || manifest.Update.Source.Repository != "https://github.com/r14r/update-cli.git" || manifest.Update.Source.Ref != "main" {
-		t.Fatalf("unexpected update source: %#v", manifest.Update.Source)
+	if manifest.Update.Mode != "update" || manifest.Update.Source.Type != "download" || manifest.Update.Source.Folder != "$HOME/Downloads" {
+		t.Fatalf("unexpected manifest source config: %#v", manifest.Update)
+	}
+	if !manifest.Update.Sync.Configured || len(manifest.Update.Sync.Preserve) == 0 {
+		t.Fatalf("project sync policy must be versioned in update-cli.yaml: %#v", manifest.Update.Sync)
+	}
+	b, err := os.ReadFile(filepath.Join("defaults", "config.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var raw struct {
+		Source struct {
+			DefaultUser string `json:"defaultUser"`
+		} `json:"source"`
+	}
+	if err := json.Unmarshal(b, &raw); err != nil {
+		t.Fatal(err)
+	}
+	if raw.Source.DefaultUser != "r1r" {
+		t.Fatalf("source.defaultUser must remain host/user config: %#v", raw.Source)
+	}
+	manifestBody, err := os.ReadFile("update-cli.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifestText := string(manifestBody)
+	if strings.Contains(manifestText, "defaultUser:") || strings.Contains(manifestText, "security:") {
+		t.Fatal("host/user defaults and security policy must not be versioned in update-cli.yaml")
+	}
+}
+
+func TestReleaseVersionMarkersStayInSync(t *testing.T) {
+	versionData, err := os.ReadFile("VERSION")
+	if err != nil {
+		t.Fatal(err)
+	}
+	version := strings.TrimSpace(string(versionData))
+	if version == "" {
+		t.Fatal("VERSION must not be empty")
+	}
+
+	readmeData, err := os.ReadFile("README.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	readmeMarker := "Current release: **" + version + "**"
+	if !strings.Contains(string(readmeData), readmeMarker) {
+		t.Fatalf("README.md current release must match VERSION %q", version)
+	}
+
+	notesData, err := os.ReadFile("RELEASE_NOTES.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	notes := strings.TrimSpace(string(notesData))
+	if !strings.HasPrefix(notes, "# "+version+"\n") && notes != "# "+version {
+		t.Fatalf("RELEASE_NOTES.md must start with release %q", version)
+	}
+}
+
+func TestSourcePackagingExcludesRuntimeStateAndRequiresCorePackages(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("scripts", "package-source.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(data)
+	for _, marker := range []string{
+		"--exclude='/.update-cli/'",
+		"lib/backup/backup.go",
+		"defaults/config.json",
+		"defaults/templates.json",
+	} {
+		if !strings.Contains(text, marker) {
+			t.Fatalf("source package script missing %q", marker)
+		}
+	}
+	if _, err := os.Stat(filepath.Join("lib", "backup", "backup.go")); err != nil {
+		t.Fatalf("required backup package missing from source tree: %v", err)
+	}
+}
+
+func TestReadmeCLIDemoTapesAndCanonicalSetupInstall(t *testing.T) {
+	for _, name := range []string{
+		filepath.Join("docs", "tapes", "install.tape"),
+		filepath.Join("docs", "tapes", "quickstart.tape"),
+		filepath.Join("scripts", "render-tapes.sh"),
+		filepath.Join("scripts", "tapes", "create-demo-release.sh"),
+	} {
+		if _, err := os.Stat(name); err != nil {
+			t.Fatalf("required CLI demo artifact missing: %s: %v", name, err)
+		}
+	}
+
+	manifest, err := projectsetup.ParseManifest("update-cli.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	setup, ok := manifest.Workflows["setup"]
+	if !ok || len(setup.Tasks) != 1 || setup.Tasks[0] != "install" {
+		t.Fatalf("setup workflow must use canonical install task: %#v", setup)
+	}
+	installTask, ok := manifest.Tasks["install"]
+	if !ok {
+		t.Fatal("install task missing")
+	}
+	body, err := os.ReadFile("update-cli.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(body)
+	if !strings.Contains(text, "unset UPDATE_CLI_SETUP_RUNNING") || !strings.Contains(text, "exec just install") {
+		t.Fatal("canonical setup install must sanitize the internal setup marker and exec just install")
+	}
+	_ = installTask
+
+	readme, err := os.ReadFile("README.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, marker := range []string{"## INSTALL", "## QUICKSTART", "docs/tapes/install.tape", "docs/tapes/quickstart.tape", "just tapes"} {
+		if !strings.Contains(string(readme), marker) {
+			t.Fatalf("README missing %q", marker)
+		}
+	}
+}
+
+func TestProjectSetupWorkflowDelegatesToJustInstallWithoutSetupMarker(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell-based update-cli setup manifest")
+	}
+	root := t.TempDir()
+	manifest, err := os.ReadFile("update-cli.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "update-cli.yaml"), manifest, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "VERSION"), []byte("2.13.2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	bin := filepath.Join(root, "bin")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	fakeGo := "#!/bin/sh\nexit 0\n"
+	if err := os.WriteFile(filepath.Join(bin, "go"), []byte(fakeGo), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	result := filepath.Join(root, "just-result")
+	fakeJust := "#!/bin/sh\n" +
+		"if [ -n \"${UPDATE_CLI_SETUP_RUNNING:-}\" ]; then echo marker-leaked > \"" + result + "\"; exit 88; fi\n" +
+		"printf '%s\\n' \"$*\" > \"" + result + "\"\n"
+	if err := os.WriteFile(filepath.Join(bin, "just"), []byte(fakeJust), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	_, err = projectsetup.RunStandaloneSelected(context.Background(), filepath.Join(root, "update-cli.yaml"), ui.New(true), projectsetup.Selection{Workflow: "setup"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(string(body)) != "install" {
+		t.Fatalf("setup workflow did not delegate exactly to just install: %q", body)
+	}
+}
+
+func TestVersionIsSingleReleaseSource(t *testing.T) {
+	versionData, err := os.ReadFile("VERSION")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := strings.TrimSpace(string(versionData))
+	if got == "" || !regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`).MatchString(got) {
+		t.Fatalf("VERSION=%q is not a canonical semantic version", got)
+	}
+	for _, obsolete := range []string{"RELEASE_VERSION", filepath.Join("scripts", "sync-release-version.sh")} {
+		if _, err := os.Stat(obsolete); !os.IsNotExist(err) {
+			t.Fatalf("obsolete parallel version source must not exist: %s", obsolete)
+		}
+	}
+	script, err := os.ReadFile(filepath.Join("scripts", "validate-version.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(script), "$ROOT/VERSION") || strings.Contains(string(script), "RELEASE_VERSION") {
+		t.Fatal("version validator must use VERSION as its only source")
 	}
 }

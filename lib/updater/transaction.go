@@ -21,6 +21,8 @@ type transaction struct {
 	console             *ui.Console
 	snapshotRoot        string
 	snapshotCurrent     string
+	rollbackRelease     string
+	rollbackVersion     string
 	currentExisted      bool
 	servicesWereRunning bool
 	dockerManaged       bool
@@ -84,12 +86,49 @@ func beginTransaction(ctx context.Context, cfg config.Config, console *ui.Consol
 	}
 
 	if t.currentExisted {
-		log := filepath.Join(t.snapshotRoot, "snapshot.log")
-		if _, err := rsyncutil.TransactionSnapshot(ctx, cfg.CurrentDir, t.snapshotCurrent, log); err != nil {
-			return nil, t.abortBegin(fmt.Errorf("Transaktions-Snapshot fehlgeschlagen: %w", err))
+		// Prefer the immutable versioned release as rollback basis. current/ is a
+		// replaceable working copy; paths that must survive deployments belong in
+		// sync.preserve and are therefore protected by rsync during recovery. This
+		// avoids copying large generated trees (node_modules, vendor, data, ...) on
+		// every successful update. Only installations without a usable previous
+		// release fall back to the historical exact current/ snapshot.
+		if version, release := rollbackReleaseForCurrent(cfg); release != "" {
+			t.rollbackVersion = version
+			t.rollbackRelease = release
+			if console.Details() {
+				console.Info("Transaktions-Rollback verwendet vorhandenes Release: " + release)
+			}
+		} else {
+			log := filepath.Join(t.snapshotRoot, "snapshot.log")
+			if _, err := rsyncutil.TransactionSnapshot(ctx, cfg.CurrentDir, t.snapshotCurrent, log); err != nil {
+				return nil, t.abortBegin(fmt.Errorf("Fallback-Transaktions-Snapshot fehlgeschlagen: %w", err))
+			}
+			if console.Details() {
+				console.Warn("Kein passendes vorheriges release/<version> gefunden; vollständiger current-Snapshot als Fallback erstellt")
+			}
 		}
 	}
 	return t, nil
+}
+
+func rollbackReleaseForCurrent(cfg config.Config) (string, string) {
+	if strings.TrimSpace(cfg.ReleaseRoot) == "" {
+		return "", ""
+	}
+	version := strings.TrimSpace(installedVersion(cfg.CurrentDir))
+	if version == "" || version == "-" {
+		return "", ""
+	}
+	release := filepath.Join(cfg.ReleaseRoot, version)
+	info, err := os.Stat(release)
+	if err != nil || !info.IsDir() {
+		return "", ""
+	}
+	b, err := os.ReadFile(filepath.Join(release, "VERSION"))
+	if err != nil || strings.TrimSpace(string(b)) != version {
+		return "", ""
+	}
+	return version, release
 }
 
 func (t *transaction) abortBegin(cause error) error {
@@ -154,9 +193,17 @@ func (t *transaction) recover(cause error) error {
 		}
 	}
 	if t.currentExisted {
-		if t.snapshotCurrent != "" {
-			t.console.Warn("Update fehlgeschlagen; vorherigen current-Zustand wiederherstellen")
-			log := filepath.Join(t.snapshotRoot, "restore.log")
+		log := filepath.Join(t.snapshotRoot, "restore.log")
+		switch {
+		case t.rollbackRelease != "":
+			t.console.Warn("Update fehlgeschlagen; vorheriges Release " + t.rollbackVersion + " nach current wiederherstellen")
+			if _, err := rsyncutil.Current(ctx, t.rollbackRelease, t.cfg.CurrentDir, log, false, t.cfg.Preserve); err != nil {
+				recoveryErr = fmt.Errorf("current konnte aus Release %s nicht wiederhergestellt werden: %w", t.rollbackVersion, err)
+			} else {
+				t.console.Success("Vorheriges Release " + t.rollbackVersion + " wiederhergestellt")
+			}
+		case t.snapshotCurrent != "":
+			t.console.Warn("Update fehlgeschlagen; vorherigen current-Zustand aus Fallback-Snapshot wiederherstellen")
 			if _, err := rsyncutil.RestoreExact(ctx, t.snapshotCurrent, t.cfg.CurrentDir, log); err != nil {
 				recoveryErr = fmt.Errorf("current konnte nicht wiederhergestellt werden: %w", err)
 			} else {

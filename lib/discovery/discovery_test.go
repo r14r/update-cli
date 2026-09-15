@@ -29,11 +29,29 @@ func TestContractBasics(t *testing.T) {
 	if len(cli.Commands) == 0 {
 		t.Fatal("commands is empty")
 	}
-	for _, name := range []string{"update", "check", "status", "run", "setup", "rollback", "doctor"} {
+	for _, name := range []string{"update", "check", "status", "run", "install", "schema", "setup", "rollback", "doctor"} {
 		if findCommand(cli.Commands, []string{name}) == nil {
 			t.Fatalf("missing command %q", name)
 		}
 	}
+}
+
+func TestSchemaCommandExposesVersionOption(t *testing.T) {
+	cli := Build("test")
+	command := findCommand(cli.Commands, []string{"schema"})
+	if command == nil {
+		t.Fatal("missing schema command")
+	}
+	for _, option := range command.Options {
+		if option.Name == "version" {
+			for _, flag := range option.Flags {
+				if flag == "--version" {
+					return
+				}
+			}
+		}
+	}
+	t.Fatal("schema command does not expose --version")
 }
 
 func TestAllOptionsHaveFlagsAndEnumsHaveValues(t *testing.T) {
