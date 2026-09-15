@@ -150,13 +150,26 @@ case "$*" in *"ps -q"*) exec /bin/sleep 5;; esac
 	composeStatusTimeout = 50 * time.Millisecond
 	defer func() { composeStatusTimeout = oldTimeout }()
 
-	started := time.Now()
+	oldCommand := commandContext
+	var commands []*exec.Cmd
+	commandContext = func(ctx context.Context, name string, args ...string) *exec.Cmd {
+		cmd := exec.CommandContext(ctx, name, args...)
+		commands = append(commands, cmd)
+		return cmd
+	}
+	defer func() { commandContext = oldCommand }()
+
 	_, err := Running(context.Background(), root)
 	if err == nil {
 		t.Fatal("expected compose status timeout")
 	}
-	if elapsed := time.Since(started); elapsed > 2*time.Second {
-		t.Fatalf("compose status timeout took too long: %s", elapsed)
+	if len(commands) < 2 {
+		t.Fatalf("expected compose probe and status commands, got %d", len(commands))
+	}
+	for i, cmd := range commands {
+		if cmd.WaitDelay != composeWaitDelay {
+			t.Fatalf("command %d WaitDelay = %s, want %s", i, cmd.WaitDelay, composeWaitDelay)
+		}
 	}
 	text := err.Error()
 	for _, want := range []string{"Docker Compose Status fehlgeschlagen", "Timeout:", "Zeitüberschreitung"} {
@@ -183,13 +196,23 @@ if [ "$1 $2" = "compose version" ]; then exec /bin/sleep 5; fi
 	composeProbeTimeout = 50 * time.Millisecond
 	defer func() { composeProbeTimeout = oldTimeout }()
 
-	started := time.Now()
+	oldCommand := commandContext
+	var command *exec.Cmd
+	commandContext = func(ctx context.Context, name string, args ...string) *exec.Cmd {
+		command = exec.CommandContext(ctx, name, args...)
+		return command
+	}
+	defer func() { commandContext = oldCommand }()
+
 	_, _, err := composeCommand(context.Background(), dir)
 	if err == nil {
 		t.Fatal("expected compose version timeout")
 	}
-	if elapsed := time.Since(started); elapsed > 2*time.Second {
-		t.Fatalf("compose version timeout took too long: %s", elapsed)
+	if command == nil {
+		t.Fatal("expected compose version command")
+	}
+	if command.WaitDelay != composeWaitDelay {
+		t.Fatalf("WaitDelay = %s, want %s", command.WaitDelay, composeWaitDelay)
 	}
 	if !strings.Contains(err.Error(), "Timeout:") {
 		t.Fatalf("expected timeout detail, got:\n%s", err)
