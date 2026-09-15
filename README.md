@@ -2,7 +2,7 @@
 
 **Transactional project updates from ZIP releases or Git repositories.**
 
-Current release: **2.16.4**
+Current release: **2.16.6**
 
 Update CLI separates installation defaults, local runtime state, and versioned project configuration/automation:
 
@@ -46,6 +46,24 @@ update-cli releases --list --json
 ```
 
 
+
+## What changed in 2.16.6
+
+### Build and install are separate operations
+
+`just install` no longer depends on `just build`. It installs an already-built `dist/update-cli` plus the global support files into the configured destination. If the binary is missing, the recipe stops with a clear error and asks you to run `just build` first.
+
+The project setup manifest keeps fresh-source setup functional by declaring the build task explicitly as a prerequisite of its install task. This makes the build visible in the setup workflow instead of hiding it inside `just install`.
+
+## What changed in 2.16.5
+
+### Stable Docker timeout regression tests
+
+Docker Compose timeout tests no longer use strict wall-clock upper bounds. Under a heavily loaded macOS host, process startup and scheduler latency can exceed those bounds even when the command timeout and `WaitDelay` behavior are correct.
+
+The tests now verify the actual contract directly: the command returns a timeout error and every relevant `exec.Cmd` receives the configured `WaitDelay`. This preserves regression coverage without making `just build` or `just install` dependent on machine load.
+
+The setup bootstrap scripts also use a Bash-3.2-safe expansion for optional forwarded arguments, so stock macOS `/bin/bash` no longer aborts with `FORWARD_ARGS[@]: unbound variable` when no extra setup options are supplied.
 
 ## What changed in 2.16.4
 

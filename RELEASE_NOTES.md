@@ -1,3 +1,23 @@
+# 2.16.6
+
+## Changed
+
+- Make `just install` a pure installation recipe: it no longer depends on `just build` and therefore does not run format checks, vet, tests, race tests, or compilation.
+- Require an existing executable `dist/update-cli`; when it is missing, `just install` fails with a clear instruction to run `just build` first.
+- Keep `update-cli setup` functional from a fresh source tree by making the manifest-level `install` task depend explicitly on the `build` task.
+
+# 2.16.5
+
+## Fixed
+
+- Remove strict wall-clock assertions from Docker Compose timeout regression tests; those assertions could fail on a heavily loaded macOS host even when the timeout path was correct.
+- Verify timeout behavior through the returned timeout error and direct `exec.Cmd.WaitDelay` configuration instead of scheduler-sensitive elapsed-time thresholds.
+- Fix stock macOS Bash 3.2 setup bootstrap failures caused by expanding an empty `FORWARD_ARGS` array under `set -u`; use the Bash-3.2-safe conditional array expansion in all setup wrappers/templates.
+
+## Tests
+
+- Keep coverage for stalled `docker compose version` and `docker compose ... ps -q` commands without making `just build` or `just install` depend on host scheduling latency.
+
 # 2.16.4
 
 ## Fixed
