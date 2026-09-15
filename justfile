@@ -135,7 +135,8 @@ build-linux-amd64: check
 
 build-all: build-macos-amd64 build-macos-arm64 build-linux-amd64
 
-install: build
+install:
+    test -x dist/update-cli || { echo "ERROR dist/update-cli fehlt; zuerst 'just build' ausführen" >&2; exit 1; }
     destination="${UPDATE_CLI_INSTALL_BIN_DIR:-$(go run ./cmd/buildconfig --field defaultDeploymentPath --expand)}"; \
     install_prefix="$(dirname "$destination")"; \
     config_path="$install_prefix/etc/update-cli"; \
