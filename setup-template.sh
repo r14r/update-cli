@@ -149,7 +149,7 @@ if [[ -n "${UPDATE_CLI_BIN:-}" ]]; then
         printf 'ERROR UPDATE_CLI_BIN unterstützt das Setup-Manifest Schema %s nicht: %s\n' "${SCHEMA}" "${UPDATE_CLI_BIN}" >&2
         exit 1
     fi
-    exec "${UPDATE_CLI_BIN}" setup --manifest "${MANIFEST}" "${FORWARD_ARGS[@]}"
+    exec "${UPDATE_CLI_BIN}" setup --manifest "${MANIFEST}" ${FORWARD_ARGS[@]+"${FORWARD_ARGS[@]}"}
 fi
 
 candidates=()
@@ -167,7 +167,7 @@ installed_cli="$(command -v update-cli 2>/dev/null || true)"
 for candidate in "${candidates[@]}"; do
     [[ -n "${candidate}" ]] || continue
     if candidate_supports_manifest "${candidate}" "${SCHEMA}" "${MANIFEST}"; then
-        exec "${candidate}" setup --manifest "${MANIFEST}" "${FORWARD_ARGS[@]}"
+        exec "${candidate}" setup --manifest "${MANIFEST}" ${FORWARD_ARGS[@]+"${FORWARD_ARGS[@]}"}
     fi
 done
 
@@ -182,7 +182,7 @@ if command -v go >/dev/null 2>&1 \
     # VERSION is embedded directly by main.go; do not inject a second version
     # through linker flags during bootstrap.
     cd -- "${PWD_DIR}"
-    exec go run . setup --manifest "${MANIFEST}" "${FORWARD_ARGS[@]}"
+    exec go run . setup --manifest "${MANIFEST}" ${FORWARD_ARGS[@]+"${FORWARD_ARGS[@]}"}
 fi
 
 if (( SCHEMA >= 2 )); then
