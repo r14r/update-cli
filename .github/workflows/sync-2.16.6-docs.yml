@@ -1,0 +1,84 @@
+name: Sync 2.16.6 docs
+
+on:
+  push:
+    branches:
+      - release/2.16.6-install-only
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    if: ${{ !contains(github.event.head_commit.message, '[skip release-doc-sync]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release/2.16.6-install-only
+      - name: Update release documentation
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          readme = Path('README.md')
+          text = readme.read_text()
+          text = text.replace('Current release: **2.16.4**', 'Current release: **2.16.6**', 1)
+          if '## What changed in 2.16.6' not in text:
+              marker = '## What changed in 2.16.4'
+              section = '''## What changed in 2.16.6
+
+### Build and install are separate operations
+
+`just install` no longer depends on `just build`. It installs an already-built `dist/update-cli` plus the global support files into the configured destination. If the binary is missing, the recipe stops with a clear error and asks you to run `just build` first.
+
+The project setup manifest keeps fresh-source setup functional by declaring the build task explicitly as a prerequisite of its install task. This makes the build visible in the setup workflow instead of hiding it inside `just install`.
+
+## What changed in 2.16.5
+
+### Stable Docker timeout regression tests
+
+Docker Compose timeout tests no longer use strict wall-clock upper bounds. Under a heavily loaded macOS host, process startup and scheduler latency can exceed those bounds even when the command timeout and `WaitDelay` behavior are correct.
+
+The tests now verify the actual contract directly: the command returns a timeout error and every relevant `exec.Cmd` receives the configured `WaitDelay`. This preserves regression coverage without making `just build` or `just install` dependent on machine load.
+
+The setup bootstrap scripts also use a Bash-3.2-safe expansion for optional forwarded arguments, so stock macOS `/bin/bash` no longer aborts with `FORWARD_ARGS[@]: unbound variable` when no extra setup options are supplied.
+
+'''
+              text = text.replace(marker, section + marker, 1)
+          readme.write_text(text)
+
+          notes = Path('RELEASE_NOTES.md')
+          text = notes.read_text()
+          if not text.startswith('# 2.16.6'):
+              prefix = '''# 2.16.6
+
+## Changed
+
+- Make `just install` a pure installation recipe: it no longer depends on `just build` and therefore does not run format checks, vet, tests, race tests, or compilation.
+- Require an existing executable `dist/update-cli`; when it is missing, `just install` fails with a clear instruction to run `just build` first.
+- Keep `update-cli setup` functional from a fresh source tree by making the manifest-level `install` task depend explicitly on the `build` task.
+
+# 2.16.5
+
+## Fixed
+
+- Remove strict wall-clock assertions from Docker Compose timeout regression tests; those assertions could fail on a heavily loaded macOS host even when the timeout path was correct.
+- Verify timeout behavior through the returned timeout error and direct `exec.Cmd.WaitDelay` configuration instead of scheduler-sensitive elapsed-time thresholds.
+- Fix stock macOS Bash 3.2 setup bootstrap failures caused by expanding an empty `FORWARD_ARGS` array under `set -u`; use the Bash-3.2-safe conditional array expansion in all setup wrappers/templates.
+
+## Tests
+
+- Keep coverage for stalled `docker compose version` and `docker compose ... ps -q` commands without making `just build` or `just install` depend on host scheduling latency.
+
+'''
+              text = prefix + text
+          notes.write_text(text)
+          PY
+          rm -f .github/workflows/sync-2.16.6-docs.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add README.md RELEASE_NOTES.md .github/workflows/sync-2.16.6-docs.yml
+          git commit -m 'Document 2.16.6 install-only behavior [skip release-doc-sync]'
+          git push origin HEAD:release/2.16.6-install-only
