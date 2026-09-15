@@ -1,0 +1,66 @@
+name: Sync 2.16.4 docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/sync-2.16.4-docs.yml
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Update release docs
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          readme = Path('README.md')
+          s = readme.read_text()
+          s = s.replace('Current release: **2.16.3**', 'Current release: **2.16.4**', 1)
+          marker = '## What changed in 2.16.3\n'
+          section = '''## What changed in 2.16.4
+
+          ### Docker Compose timeout reliability on macOS
+
+          Docker Compose subprocesses now set a bounded `os/exec.Cmd.WaitDelay`. After a context timeout or cancellation, update-cli no longer waits for stdout/stderr pipes that may still be held open by a child process such as the Docker Compose CLI plugin.
+
+          The timeout regression tests also allow scheduler headroom while still proving that a simulated five-second hang is terminated well before the child process would finish normally.
+
+          '''
+          if '## What changed in 2.16.4\n' not in s:
+              s = s.replace(marker, section + marker, 1)
+          readme.write_text(s)
+
+          notes = Path('RELEASE_NOTES.md')
+          s = notes.read_text()
+          section = '''# 2.16.4
+
+          ## Fixed
+
+          - Set a bounded `os/exec.Cmd.WaitDelay` on Docker Compose probe, status, start, and stop commands so a timed-out command cannot keep update-cli blocked on inherited stdout/stderr pipes.
+          - Fix macOS timeout behavior where a child process could keep `Cmd.Run()` blocked until its natural exit even after the command context expired.
+          - Make Docker Compose timeout regression tests resilient to scheduler pressure during parallel `go test ./...` runs while still proving that five-second hangs are terminated early.
+
+          ## Tests
+
+          - `lib/projectdocker` timeout tests now complete in a fraction of a second instead of waiting for the simulated five-second child process.
+          - Full Go test suite passes with the timeout hardening applied.
+
+          '''
+          if not s.startswith('# 2.16.4\n'):
+              notes.write_text(section + s)
+          PY
+          rm .github/workflows/sync-2.16.4-docs.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md RELEASE_NOTES.md .github/workflows/sync-2.16.4-docs.yml
+          git commit -m "Document release 2.16.4"
+          git push origin main
