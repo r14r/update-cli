@@ -206,16 +206,16 @@ tasks:
           fileExists: "{{ distDir }}/{{ binary }}"
 
   install:
-    description: Kanonischen Build- und Installationspfad ausführen
+    description: Vorhandenes Binary über den kanonischen Just-Installationspfad installieren
     requires:
-      - prepare
+      - build
     steps:
       - id: just-install
         name: just install ausführen
         shell: |
           command -v just >/dev/null 2>&1 || { echo "just ist für das Update-CLI-Setup erforderlich" >&2; exit 1; }
           # UPDATE_CLI_SETUP_RUNNING ist ein interner Marker des Setup-Runners.
-          # Er darf die verschachtelte Build-/Test-Pipeline nicht beeinflussen.
+          # Er darf den verschachtelten Installationsprozess nicht beeinflussen.
           unset UPDATE_CLI_SETUP_RUNNING
           exec just install
 
