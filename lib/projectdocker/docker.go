@@ -18,6 +18,7 @@ var (
 	composeProbeTimeout  = 15 * time.Second
 	composeStatusTimeout = 15 * time.Second
 	composeActionTimeout = 2 * time.Minute
+	composeWaitDelay     = 250 * time.Millisecond
 )
 
 var ComposeFiles = []string{"compose.yml", "compose.yaml", "docker-compose.yml", "docker-compose.yaml"}
@@ -76,6 +77,7 @@ func Running(ctx context.Context, current string) (bool, error) {
 	statusCtx, cancel := context.WithTimeout(ctx, composeStatusTimeout)
 	defer cancel()
 	cmd := commandContext(statusCtx, exe, args...)
+	cmd.WaitDelay = composeWaitDelay
 	cmd.Dir = current
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -152,6 +154,7 @@ func invoke(ctx context.Context, current, action string) (Result, error) {
 	actionCtx, cancel := context.WithTimeout(ctx, composeActionTimeout)
 	defer cancel()
 	cmd := commandContext(actionCtx, exe, args...)
+	cmd.WaitDelay = composeWaitDelay
 	cmd.Dir = current
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -167,6 +170,7 @@ func composeCommand(ctx context.Context, dir string) (string, []string, error) {
 	if d, err := lookPath("docker"); err == nil {
 		probeCtx, cancel := context.WithTimeout(ctx, composeProbeTimeout)
 		cmd := commandContext(probeCtx, d, "compose", "version")
+		cmd.WaitDelay = composeWaitDelay
 		cmd.Dir = dir
 		var stdout, stderr bytes.Buffer
 		cmd.Stdout = &stdout
