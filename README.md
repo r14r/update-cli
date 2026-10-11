@@ -2,7 +2,7 @@
 
 **Transactional project updates from ZIP releases or Git repositories.**
 
-Current release: **2.16.6**
+Current release: **2.16.7**
 
 Update CLI separates installation defaults, local runtime state, and versioned project configuration/automation:
 
@@ -46,6 +46,12 @@ update-cli releases --list --json
 ```
 
 
+
+## What changed in 2.16.7
+
+### Canonical CLI syntax in TUI smoke coverage
+
+The fullscreen TUI smoke suite now invokes Update CLI through the canonical public grammar (`update-cli <command> --parameter ...`) instead of removed legacy top-level flags such as `--setup-manifest`, `--setup`, `--update`, and `--check`. Update archive paths are passed explicitly with `--archive`.
 
 ## What changed in 2.16.6
 
