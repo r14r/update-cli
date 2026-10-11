@@ -19,6 +19,7 @@ def run_pty(
     args: list[str],
     expected_exit: int,
     input_data: bytes = b"",
+    responses: list[tuple[bytes, bytes]] | None = None,
     cwd: pathlib.Path | None = None,
     env_overrides: dict[str, str] | None = None,
 ) -> bytes:
@@ -41,6 +42,7 @@ def run_pty(
     os.close(slave)
     if input_data:
         os.write(master, input_data)
+    pending_responses = list(responses or [])
 
     output = bytearray()
     deadline = time.time() + 30
@@ -54,6 +56,9 @@ def run_pty(
             if not chunk:
                 break
             output.extend(chunk)
+            while pending_responses and pending_responses[0][0] in output:
+                _, response = pending_responses.pop(0)
+                os.write(master, response)
         if process.poll() is not None and not ready:
             break
     process.wait(timeout=5)
@@ -523,7 +528,10 @@ def main() -> int:
             binary,
             ["check", "--root", str(chained_root), "--no-wait"],
             0,
-            input_data=b"\r",
+            responses=[
+                ("Update jetzt installieren?".encode("utf-8"), b"\r"),
+                ("Projekt-Setup ist verfügbar. Jetzt ausführen?".encode("utf-8"), b"\r"),
+            ],
         )
         require(
             chained_output,
@@ -597,7 +605,7 @@ def main() -> int:
                 "detailed phase": "Phase: Projekt-Setup ausführen (setup)".encode("utf-8"),
                 "target version": b"Zielversion: 1.1.0",
                 "concrete cause": "Ursache: setup step".encode("utf-8"),
-                "recovery": "Vorheriger current-Zustand wiederhergestellt".encode("utf-8"),
+                "recovery": "Vorheriges Release 1.0.0 wiederhergestellt".encode("utf-8"),
             },
         )
         if (error_root / "current" / "app.txt").read_text(encoding="utf-8") != "old\n":
