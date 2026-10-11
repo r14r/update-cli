@@ -2,7 +2,7 @@
 
 **Transactional project updates from ZIP releases or Git repositories.**
 
-Current release: **2.16.7**
+Current release: **2.16.8**
 
 Update CLI separates installation defaults, local runtime state, and versioned project configuration/automation:
 
@@ -46,6 +46,14 @@ update-cli releases --list --json
 ```
 
 
+
+## What changed in 2.16.8
+
+### Git-capable `current/` after initialization
+
+Initialization now keeps Git metadata usable in the active `current/` tree. If the project root already contains a `.git/` directory, Update CLI leaves the original directory untouched and seeds a copy into `current/.git`. For repository/pull sources, `current/.git` is seeded from the persistent repository checkout.
+
+`.git/` is now a mandatory preserve path during current synchronization and restore, independent of custom YAML preserve lists. Immutable `release/<version>/` directories remain free of Git metadata. This makes it possible to run normal `git status`, `git commit`, and `git push` commands directly from `current/` without turning release snapshots into repositories.
 
 ## What changed in 2.16.7
 
