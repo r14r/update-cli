@@ -6,6 +6,7 @@
 - Replace legacy `--setup-manifest`, `--setup`, `--update`, and `--check` top-level invocations with `setup`, `update`, and `check` commands plus explicit parameters such as `--manifest` and `--archive`.
 - Restore GitHub CI fullscreen TUI smoke coverage after the public syntax validator intentionally rejected legacy top-level command flags.
 - Stop using setup help text as a capability probe in `setup.sh` and setup templates; validate compatibility by running the actual manifest catalog command instead.
+- Create the mandatory project-local `.update-cli/config.json` fixture in TUI integration projects so setup/update/check smoke scenarios reflect the current runtime configuration contract.
 
 # 2.16.6
 
