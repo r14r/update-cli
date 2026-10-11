@@ -369,17 +369,17 @@ def main() -> int:
                 "setup confirmation NO button": b"NO",
                 "setup modal cursor hint": "←/→ = auswählen".encode("utf-8"),
                 "aligned progress row": "[01/13] [".encode("utf-8"),
-                "transaction phase": b"Transaktions-Snapshot von current erstellen",
+                "transaction phase": b"Transaktions-Rollback vorbereiten",
                 "green completed-step icon": b"\x1b[32m\x1b[1m" + "✓".encode("utf-8"),
                 "final installed version": (
                     f"Update CLI Version {version} | prompt-demo | Aktualisiert auf Version: v1.0.0"
                 ).encode("utf-8"),
             },
         )
-        if b"INFO  Transaktions-Snapshot von current erstellen" in prompt_output:
-            raise SystemExit("transaction snapshot emitted a duplicate INFO row")
-        if b"OK    Transaktions-Snapshot erstellt" in prompt_output:
-            raise SystemExit("transaction snapshot emitted a duplicate OK row")
+        if b"INFO  Transaktions-Rollback vorbereiten" in prompt_output:
+            raise SystemExit("transaction rollback preparation emitted a duplicate INFO row")
+        if b"OK    Transaktions-Rollback vorbereiten" in prompt_output:
+            raise SystemExit("transaction rollback preparation emitted a duplicate OK row")
         if b"INFO  [01/13]" in prompt_output:
             raise SystemExit("update phase still contains INFO prefix")
         if b"INFO  [" in prompt_output:
@@ -481,7 +481,7 @@ def main() -> int:
         for stale in (
             b"Release-Quelle aufl",
             b"Zielversion und Update-Regeln pr",
-            b"Transaktions-Snapshot von current erstellen",
+            b"Transaktions-Rollback vorbereiten",
             b"Release nach current synchronisieren",
         ):
             if stale in final_frame:
