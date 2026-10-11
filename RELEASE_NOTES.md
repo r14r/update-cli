@@ -1,3 +1,11 @@
+# 2.16.7
+
+## Fixed
+
+- Update `tests/tui_smoke.py` to use the canonical command-first CLI grammar.
+- Replace legacy `--setup-manifest`, `--setup`, `--update`, and `--check` top-level invocations with `setup`, `update`, and `check` commands plus explicit parameters such as `--manifest` and `--archive`.
+- Restore GitHub CI fullscreen TUI smoke coverage after the public syntax validator intentionally rejected legacy top-level command flags.
+
 # 2.16.6
 
 ## Changed
