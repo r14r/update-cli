@@ -140,7 +140,7 @@ def main() -> int:
             encoding="utf-8",
         )
         success = run_pty(
-            binary, ["--setup-manifest", str(success_manifest), "--no-wait"], 0
+            binary, ["setup", "--manifest", str(success_manifest), "--no-wait"], 0
         )
         require(
             success,
@@ -170,7 +170,7 @@ def main() -> int:
         # directly and the alternate screen must never be entered.
         no_ui = run_pty(
             binary,
-            ["--setup-manifest", str(success_manifest), "--no-ui", "--no-wait"],
+            ["setup", "--manifest", str(success_manifest), "--no-ui", "--no-wait"],
             0,
         )
         require(
@@ -190,7 +190,7 @@ def main() -> int:
         # alternate-screen suppression semantics.
         noui = run_pty(
             binary,
-            ["--setup-manifest", str(success_manifest), "--noui", "--no-wait"],
+            ["setup", "--manifest", str(success_manifest), "--noui", "--no-wait"],
             0,
         )
         require(
@@ -205,7 +205,7 @@ def main() -> int:
         if b"Task:" in noui:
             raise SystemExit("--noui still renders Task headings")
 
-        # --setup must also work when invoked directly inside a deployed
+        # `setup` must also work when invoked directly inside a deployed
         # current/ directory that contains update-cli.yaml but no project config.
         standalone_current = tmpdir / "standalone-current"
         standalone_current.mkdir()
@@ -221,7 +221,7 @@ def main() -> int:
             encoding="utf-8",
         )
         standalone = run_pty(
-            binary, ["--setup", "--no-wait"], 0, cwd=standalone_current
+            binary, ["setup", "--no-wait"], 0, cwd=standalone_current
         )
         require(
             standalone,
@@ -233,7 +233,7 @@ def main() -> int:
             },
         )
         if (standalone_current / "setup-result.txt").read_text(encoding="utf-8") != "standalone-ok":
-            raise SystemExit("--setup in current/ did not execute the local update-cli.yaml")
+            raise SystemExit("setup in current/ did not execute the local update-cli.yaml")
 
         # The globally installed setup-template.sh must provide the same TUI by
         # delegating the current-directory manifest to the native CLI runner.
@@ -289,7 +289,7 @@ def main() -> int:
         )
         legacy_script.chmod(0o755)
         legacy_output = run_pty(
-            binary, ["--setup", "--root", str(legacy_root), "--no-wait"], 0
+            binary, ["setup", "--root", str(legacy_root), "--no-wait"], 0
         )
         require(
             legacy_output,
@@ -316,7 +316,7 @@ def main() -> int:
             encoding="utf-8",
         )
         failure = run_pty(
-            binary, ["--setup-manifest", str(failure_manifest), "--no-wait"], 1
+            binary, ["setup", "--manifest", str(failure_manifest), "--no-wait"], 1
         )
         require(
             failure,
@@ -354,7 +354,7 @@ def main() -> int:
         )
         prompt_output = run_pty(
             binary,
-            ["--update", str(prompt_archive), "--root", str(prompt_root), "--no-wait"],
+            ["update", "--archive", str(prompt_archive), "--root", str(prompt_root), "--no-wait"],
             0,
             input_data=b"\r",
         )
@@ -417,7 +417,7 @@ def main() -> int:
         )
         same_output = run_pty(
             binary,
-            ["--update", str(same_archive), "--root", str(same_root), "--no-setup"],
+            ["update", "--archive", str(same_archive), "--root", str(same_root), "--no-setup"],
             0,
             input_data=b"\r",
         )
@@ -464,7 +464,7 @@ def main() -> int:
         )
         clear_output = run_pty(
             binary,
-            ["--update", str(clear_archive), "--root", str(clear_root), "--no-wait"],
+            ["update", "--archive", str(clear_archive), "--root", str(clear_root), "--no-wait"],
             0,
             input_data=b"\x1b[D\r",
         )
@@ -519,7 +519,7 @@ def main() -> int:
         )
         chained_output = run_pty(
             binary,
-            ["--check", "--root", str(chained_root), "--no-wait"],
+            ["check", "--root", str(chained_root), "--no-wait"],
             0,
             input_data=b"\r",
         )
@@ -562,7 +562,7 @@ def main() -> int:
         v1 = release_zip(error_downloads, "error-demo", "1.0.0", {"app.txt": "old\n"})
         run_pty(
             binary,
-            ["--update", str(v1), "--root", str(error_root), "--no-setup", "--no-wait"],
+            ["update", "--archive", str(v1), "--root", str(error_root), "--no-setup", "--no-wait"],
             0,
         )
         v2 = release_zip(
@@ -585,7 +585,7 @@ def main() -> int:
         )
         update_failure = run_pty(
             binary,
-            ["--update", str(v2), "--root", str(error_root), "--setup", "--no-wait"],
+            ["update", "--archive", str(v2), "--root", str(error_root), "--setup", "--no-wait"],
             1,
         )
         require(
