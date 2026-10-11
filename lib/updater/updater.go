@@ -52,13 +52,13 @@ func (e *VersionAlreadyInstalledError) Error() string {
 }
 
 type state struct {
-	cfg                                                                                     config.Config
-	artifact                                                                                source.Artifact
-	version                                                                                 versionutil.Version
+	cfg                                                                                                 config.Config
+	artifact                                                                                            source.Artifact
+	version                                                                                             versionutil.Version
 	workDir, extractDir, contentDir, releaseDir, releaseStage, dryReleaseDir, dryCurrentDir, gitSeedDir string
-	releaseChanges, currentChanges                                                          int
-	currentPlan                                                                             []rsyncutil.Change
-	fromVersion                                                                             string
+	releaseChanges, currentChanges                                                                      int
+	currentPlan                                                                                         []rsyncutil.Change
+	fromVersion                                                                                         string
 }
 
 func Run(ctx context.Context, buildVersion string, args []string) (retErr error) {
