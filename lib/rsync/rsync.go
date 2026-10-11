@@ -226,10 +226,52 @@ func seedMissingPreserved(ctx context.Context, source, dest string, protected []
 	return changes, nil
 }
 
+// SeedGitMetadata makes current/ a usable Git working tree without copying .git
+// into immutable release directories. Existing current/.git is never replaced;
+// after the first seed it is protected by mandatoryPreserve on every sync.
+func SeedGitMetadata(ctx context.Context, sourceGitDir, dest string, dry bool) ([]Change, error) {
+	sourceGitDir = strings.TrimSpace(sourceGitDir)
+	if sourceGitDir == "" {
+		return nil, nil
+	}
+	info, err := os.Stat(sourceGitDir)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("Git-Metadatenquelle fehlt: %s", sourceGitDir)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("Git-Metadatenquelle kann nicht geprüft werden: %s: %w", sourceGitDir, err)
+	}
+	if !info.IsDir() {
+		return nil, fmt.Errorf("Git-Metadatenquelle ist kein .git-Verzeichnis: %s", sourceGitDir)
+	}
+	destGitDir := filepath.Join(dest, ".git")
+	if info, err := os.Stat(destGitDir); err == nil {
+		if !info.IsDir() {
+			return nil, fmt.Errorf("Git-Metadatenziel ist kein Verzeichnis: %s", destGitDir)
+		}
+		return nil, nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("Git-Metadatenziel kann nicht geprüft werden: %s: %w", destGitDir, err)
+	}
+	change := Change{Kind: ChangeCreated, Path: ".git/", Raw: "seed-git-metadata|.git/"}
+	if dry {
+		return []Change{change}, nil
+	}
+	if err := os.MkdirAll(destGitDir, 0o755); err != nil {
+		return nil, fmt.Errorf("Git-Metadatenziel kann nicht angelegt werden: %s: %w", destGitDir, err)
+	}
+	cmd := exec.CommandContext(ctx, "rsync", "-a", trailing(sourceGitDir), trailing(destGitDir))
+	if out, err := cmd.CombinedOutput(); err != nil {
+		_ = os.RemoveAll(destGitDir)
+		return nil, fmt.Errorf("Git-Metadaten können nicht nach current übernommen werden: %s", strings.TrimSpace(string(out)))
+	}
+	return []Change{change}, nil
+}
+
 func mandatoryPreserve(preserve []string) []string {
-	out := make([]string, 0, len(preserve)+1)
+	out := make([]string, 0, len(preserve)+2)
 	seen := map[string]bool{}
-	for _, p := range append([]string{".gitignore"}, preserve...) {
+	for _, p := range append([]string{".git/", ".gitignore"}, preserve...) {
 		pat := normalizePattern(p)
 		if pat == "" || seen[pat] {
 			continue
