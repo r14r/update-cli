@@ -406,7 +406,8 @@ def main() -> int:
         run_pty(
             binary,
             [
-                "--update",
+                "update",
+                "--archive",
                 str(same_archive),
                 "--root",
                 str(same_root),
