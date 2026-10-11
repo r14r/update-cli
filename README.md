@@ -53,6 +53,8 @@ update-cli releases --list --json
 
 The fullscreen TUI smoke suite now invokes Update CLI through the canonical public grammar (`update-cli <command> --parameter ...`) instead of removed legacy top-level flags such as `--setup-manifest`, `--setup`, `--update`, and `--check`. Update archive paths are passed explicitly with `--archive`.
 
+Setup bootstrap capability detection now probes the actual manifest with the public `setup --manifest ... --list` command instead of grepping help text. This prevents current binaries from being rejected merely because help wording changed.
+
 ## What changed in 2.16.6
 
 ### Build and install are separate operations
