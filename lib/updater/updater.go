@@ -55,7 +55,7 @@ type state struct {
 	cfg                                                                                     config.Config
 	artifact                                                                                source.Artifact
 	version                                                                                 versionutil.Version
-	workDir, extractDir, contentDir, releaseDir, releaseStage, dryReleaseDir, dryCurrentDir string
+	workDir, extractDir, contentDir, releaseDir, releaseStage, dryReleaseDir, dryCurrentDir, gitSeedDir string
 	releaseChanges, currentChanges                                                          int
 	currentPlan                                                                             []rsyncutil.Change
 	fromVersion                                                                             string
@@ -875,7 +875,7 @@ func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o op
 	}
 	defer lock.Release()
 
-	s := &state{cfg: cfg, fromVersion: installedVersion(cfg.CurrentDir)}
+	s := &state{cfg: cfg, fromVersion: installedVersion(cfg.CurrentDir), gitSeedDir: strings.TrimSpace(o.initialGitDir)}
 	s.workDir, err = os.MkdirTemp("", "update-cli-*")
 	if err != nil {
 		return err
@@ -1495,8 +1495,16 @@ func syncCurrent(ctx context.Context, s *state, dry bool) error {
 	if err != nil {
 		return err
 	}
-	s.currentChanges = r.Changes
-	s.currentPlan = r.Items
+	gitSeedDir := strings.TrimSpace(s.gitSeedDir)
+	if gitSeedDir == "" && s.artifact.Type == source.Repository {
+		gitSeedDir = filepath.Join(s.cfg.RepositoryCacheDir, ".git")
+	}
+	gitChanges, err := rsyncutil.SeedGitMetadata(ctx, gitSeedDir, dest, dry)
+	if err != nil {
+		return err
+	}
+	s.currentChanges = r.Changes + len(gitChanges)
+	s.currentPlan = append(append([]rsyncutil.Change(nil), r.Items...), gitChanges...)
 	return nil
 }
 func verifyCurrent(ctx context.Context, s *state) error {
@@ -1818,6 +1826,12 @@ func resolveInitRoot(explicit, _ string) (string, error) {
 func initialize(ctx context.Context, console *ui.Console, root string, o options) error {
 	var cfg config.Config
 	var err error
+	initialGitDir := ""
+	if info, statErr := os.Stat(filepath.Join(root, ".git")); statErr == nil && info.IsDir() {
+		initialGitDir = filepath.Join(root, ".git")
+	} else if statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
+		return statErr
+	}
 	configExists := false
 	if info, statErr := os.Stat(filepath.Join(root, config.ConfigDirName, config.ConfigFileName)); statErr == nil && !info.IsDir() {
 		configExists = true
@@ -1901,13 +1915,14 @@ func initialize(ctx context.Context, console *ui.Console, root string, o options
 	console.Info("Initiales Release wird installiert und vorhandenes Projekt-Setup automatisch ausgeführt")
 
 	return runUpdate(ctx, console, cfg, options{
-		update:  true,
-		setup:   true,
-		force:   o.force,
-		noUI:    o.noUI,
-		noColor: o.noColor,
-		wait:    o.wait,
-		noWait:  o.noWait,
+		update:        true,
+		setup:         true,
+		force:         o.force,
+		noUI:          o.noUI,
+		noColor:       o.noColor,
+		wait:          o.wait,
+		noWait:        o.noWait,
+		initialGitDir: initialGitDir,
 	})
 }
 
