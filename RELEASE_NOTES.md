@@ -1,3 +1,13 @@
+# 2.16.8
+
+## Changed
+
+- Preserve `.git/` as an invariant during current synchronization and restore, even when project YAML supplies a custom preserve list.
+- During `init`, copy an existing project-root `.git/` directory into `current/.git` without removing or modifying the original repository metadata.
+- For repository/pull sources, seed `current/.git` from the persistent repository checkout after the release files are synchronized.
+- Keep immutable `release/<version>/` trees free of `.git` metadata.
+- Add regression coverage proving that `current/` can create a Git commit and push it after initialization.
+
 # 2.16.7
 
 ## Fixed
