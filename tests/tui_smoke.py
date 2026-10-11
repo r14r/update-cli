@@ -81,6 +81,7 @@ def write_config(
 ) -> None:
     config_dir = root / ".update-cli"
     config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "config.json").write_text("{}\n", encoding="utf-8")
     actions = no_parameter or ["check"]
     action_lines = "\n".join(f"    - {action}" for action in actions)
     (root / "update-cli.yaml").write_text(
