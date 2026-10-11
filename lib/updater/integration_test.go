@@ -686,6 +686,121 @@ func TestInitBootstrapsRepositoryIntoCurrentDirectory(t *testing.T) {
 	if string(body) != "from repository" {
 		t.Fatalf("repository content was not installed: %q", body)
 	}
+	if _, err := os.Stat(filepath.Join(cfg.CurrentDir, ".git")); err != nil {
+		t.Fatalf("current is missing repository metadata: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(cfg.ReleaseRoot, "1.4.0", ".git")); !os.IsNotExist(err) {
+		t.Fatalf("immutable release must not contain .git: %v", err)
+	}
+	currentGit := func(args ...string) string {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", cfg.CurrentDir}, args...)...)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git current %v: %v\n%s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	if currentGit("rev-parse", "--is-inside-work-tree") != "true" {
+		t.Fatal("current is not a usable git working tree")
+	}
+	currentGit("config", "user.email", "test@example.invalid")
+	currentGit("config", "user.name", "Update CLI Test")
+	if err := os.WriteFile(filepath.Join(cfg.CurrentDir, "from-current.txt"), []byte("commit from current\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	currentGit("add", "from-current.txt")
+	currentGit("commit", "-m", "commit from current")
+	currentGit("push", "origin", "HEAD:refs/heads/current-work")
+	if pushed := strings.TrimSpace(gitTestOutputInDir(t, repository, "rev-parse", "refs/heads/current-work")); pushed != currentGit("rev-parse", "HEAD") {
+		t.Fatalf("current commit was not pushed: remote=%s local=%s", pushed, currentGit("rev-parse", "HEAD"))
+	}
+}
+
+func TestInitCopiesExistingRootGitMetadataIntoCurrentAndKeepsRootRepository(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+	originalBuildConfig := buildconfig.Current()
+	downloads := t.TempDir()
+	if err := buildconfig.Set(buildconfig.Config{SchemaVersion: 1, DefaultDownloadFolder: downloads, DefaultDeploymentPath: t.TempDir(), DefaultConfigPath: t.TempDir()}); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = buildconfig.Set(originalBuildConfig) }()
+
+	root := t.TempDir()
+	remote := filepath.Join(t.TempDir(), "remote.git")
+	if err := os.MkdirAll(remote, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	gitTestRunInDir(t, remote, "init", "--bare")
+	gitTestRunInDir(t, root, "init", "-b", "main")
+	gitTestRunInDir(t, root, "config", "user.email", "test@example.invalid")
+	gitTestRunInDir(t, root, "config", "user.name", "Update CLI Test")
+	gitTestRunInDir(t, root, "remote", "add", "origin", remote)
+	if err := os.WriteFile(filepath.Join(root, "VERSION"), []byte("1.0.0\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "app.txt"), []byte("initial\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitTestRunInDir(t, root, "add", "VERSION", "app.txt")
+	gitTestRunInDir(t, root, "commit", "-m", "initial")
+	gitTestRunInDir(t, root, "push", "-u", "origin", "main")
+	releaseZip(t, downloads, "demo", "1.0.0", map[string]string{"app.txt": "initial\n"})
+
+	oldWD, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chdir(oldWD) }()
+	if err := Run(context.Background(), "2.16.8", []string{"--init", "demo", "--no-ui"}); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load(root, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".git")); err != nil {
+		t.Fatalf("root .git must remain intact: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(cfg.CurrentDir, ".git")); err != nil {
+		t.Fatalf("current did not receive .git: %v", err)
+	}
+	gitTestRunInDir(t, cfg.CurrentDir, "config", "user.email", "test@example.invalid")
+	gitTestRunInDir(t, cfg.CurrentDir, "config", "user.name", "Update CLI Test")
+	if err := os.WriteFile(filepath.Join(cfg.CurrentDir, "current-change.txt"), []byte("from current\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitTestRunInDir(t, cfg.CurrentDir, "add", "current-change.txt")
+	gitTestRunInDir(t, cfg.CurrentDir, "commit", "-m", "current change")
+	gitTestRunInDir(t, cfg.CurrentDir, "push", "origin", "HEAD:refs/heads/current-work")
+	localHead := strings.TrimSpace(gitTestOutputInDir(t, cfg.CurrentDir, "rev-parse", "HEAD"))
+	remoteHead := strings.TrimSpace(gitTestOutputInDir(t, remote, "rev-parse", "refs/heads/current-work"))
+	if localHead != remoteHead {
+		t.Fatalf("current push mismatch: local=%s remote=%s", localHead, remoteHead)
+	}
+}
+
+func gitTestRunInDir(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v in %s: %v\n%s", args, dir, err, out)
+	}
+}
+
+func gitTestOutputInDir(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v in %s: %v\n%s", args, dir, err, out)
+	}
+	return string(out)
 }
 
 func TestFailedSetupKeepsSyncedCurrentWhenConfigured(t *testing.T) {
