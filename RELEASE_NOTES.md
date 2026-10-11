@@ -8,6 +8,8 @@
 - Stop using setup help text as a capability probe in `setup.sh` and setup templates; validate compatibility by running the actual manifest catalog command instead.
 - Create the mandatory project-local `.update-cli/config.json` fixture in TUI integration projects so setup/update/check smoke scenarios reflect the current runtime configuration contract.
 - Update the smoke expectation for the renamed transaction rollback phase (`Transaktions-Rollback vorbereiten`).
+- Drive chained fullscreen confirmations only after their prompts are visible, avoiding lost keystrokes when multiple dialogs occur in sequence.
+- Align rollback smoke output with release-based recovery (`Vorheriges Release ... wiederhergestellt`).
 
 # 2.16.6
 
