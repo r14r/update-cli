@@ -75,27 +75,15 @@ platform_suffix() {
     printf '%s-%s\n' "${os}" "${arch}"
 }
 
-candidate_help() {
-    "$1" help --command setup --details 2>&1 || true
-}
-
 candidate_supports_manifest() {
     local candidate="$1"
-    local schema="$2"
+    local _schema="$2"
     local manifest="$3"
-    local help_text
     [[ -x "${candidate}" ]] || return 1
-    help_text="$(candidate_help "${candidate}")"
-    grep -q -- '--manifest' <<<"${help_text}" || return 1
-    if (( schema >= 2 )); then
-        grep -q -- '--list' <<<"${help_text}" || return 1
-        grep -q -- '--task' <<<"${help_text}" || return 1
-        grep -q -- '--workflow' <<<"${help_text}" || return 1
-    fi
 
-    # Flag-level capability is not enough: older schema-v2 releases may know
-    # workflows/tasks but still reject newer optional manifest fields such as
-    # project.slug. Validate the actual manifest before selecting a candidate.
+    # Probe the actual public CLI contract and the actual manifest in one step.
+    # Parsing help text is intentionally avoided: help wording and presentation
+    # may evolve independently from the supported command grammar.
     "${candidate}" setup --manifest "${manifest}" --list --no-ui --no-wait >/dev/null 2>&1 || return 1
     return 0
 }
