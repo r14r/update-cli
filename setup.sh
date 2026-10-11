@@ -122,22 +122,15 @@ if [[ "${UPDATE_CLI_TUI:-auto}" == "plain" || ! -t 1 ]]; then
     printf '%-18s %s\n\n' "Manifest" "${MANIFEST}"
 fi
 
-# Return success only when the candidate advertises setup-manifest support.
-# If a compatible handler starts and the setup itself fails, set -e propagates
-# that failure instead of silently trying another implementation.
+# Return success only when the candidate can parse the actual manifest
+# through the current public setup command. This capability probe is stronger
+# and less brittle than inspecting help text.
 run_manifest_if_supported() {
     local candidate="$1"
     local label="$2"
-    local candidate_help
 
     [[ -x "${candidate}" ]] || return 1
-    candidate_help="$("${candidate}" help --command setup --details 2>&1 || true)"
-    grep -q -- '--manifest' <<<"${candidate_help}" || return 1
-    if (( MANIFEST_SCHEMA >= 2 )); then
-        grep -q -- '--list' <<<"${candidate_help}" || return 1
-        grep -q -- '--task' <<<"${candidate_help}" || return 1
-        grep -q -- '--workflow' <<<"${candidate_help}" || return 1
-    fi
+    "${candidate}" setup --manifest "${MANIFEST}" --list --no-ui --no-wait >/dev/null 2>&1 || return 1
 
     if [[ "${UPDATE_CLI_TUI:-auto}" == "plain" || ! -t 1 ]]; then
         info "Setup-Manifest mit ${label} ausführen"
