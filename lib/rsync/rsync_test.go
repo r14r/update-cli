@@ -71,17 +71,55 @@ func TestSnapshotExcludesSecrets(t *testing.T) {
 	}
 }
 
-func TestMandatoryPreserveAlwaysIncludesGitignore(t *testing.T) {
+func TestMandatoryPreserveAlwaysIncludesGitMetadataAndGitignore(t *testing.T) {
 	got := mandatoryPreserve([]string{"data/", ".env"})
-	found := false
+	want := map[string]bool{".git/": false, ".gitignore": false}
 	for _, value := range got {
-		if value == ".gitignore" {
-			found = true
-			break
+		if _, ok := want[value]; ok {
+			want[value] = true
 		}
 	}
-	if !found {
-		t.Fatalf("mandatory preserve paths do not include .gitignore: %#v", got)
+	for value, found := range want {
+		if !found {
+			t.Fatalf("mandatory preserve paths do not include %s: %#v", value, got)
+		}
+	}
+}
+
+func TestSeedGitMetadataCopiesOnceAndPreservesCurrentRepository(t *testing.T) {
+	source := filepath.Join(t.TempDir(), ".git")
+	dest := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(source, "refs", "heads"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(source, "HEAD"), []byte("ref: refs/heads/main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	changes, err := SeedGitMetadata(context.Background(), source, dest, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(changes) != 1 || changes[0].Path != ".git/" {
+		t.Fatalf("unexpected git seed changes: %#v", changes)
+	}
+	if body, err := os.ReadFile(filepath.Join(dest, ".git", "HEAD")); err != nil || string(body) != "ref: refs/heads/main\n" {
+		t.Fatalf("git metadata not copied: %q, %v", body, err)
+	}
+	if err := os.WriteFile(filepath.Join(dest, ".git", "HEAD"), []byte("local-head\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(source, "HEAD"), []byte("source-head\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	changes, err = SeedGitMetadata(context.Background(), source, dest, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(changes) != 0 {
+		t.Fatalf("existing current/.git must not be reseeded: %#v", changes)
+	}
+	if body, err := os.ReadFile(filepath.Join(dest, ".git", "HEAD")); err != nil || string(body) != "local-head\n" {
+		t.Fatalf("existing git metadata was overwritten: %q, %v", body, err)
 	}
 }
 
