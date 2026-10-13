@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestCurrentPreservesPersistentPaths(t *testing.T) {
@@ -205,6 +206,52 @@ func TestCurrentSeedsMissingPreservedPathsThenPreservesThem(t *testing.T) {
 		if string(b) != want {
 			t.Fatalf("preserved path %s was overwritten: %q", name, b)
 		}
+	}
+}
+
+func TestSeedGitMetadataBeforeCurrentLeavesVerificationClean(t *testing.T) {
+	src := t.TempDir()
+	dst := filepath.Join(t.TempDir(), "current")
+	gitSource := filepath.Join(t.TempDir(), ".git")
+	logDir := t.TempDir()
+
+	if err := os.MkdirAll(filepath.Join(gitSource, "refs", "heads"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(gitSource, "HEAD"), []byte("ref: refs/heads/main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(src, "VERSION"), []byte("1.0.0\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(src, "app.txt"), []byte("release\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Keep the release root timestamp deterministic. Creating current/.git
+	// mutates the destination root timestamp; Current must run after that seed
+	// so a subsequent verification dry-run observes no directory-time delta.
+	fixed := time.Unix(1_700_000_000, 0)
+	if err := os.Chtimes(src, fixed, fixed); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := SeedGitMetadata(context.Background(), gitSource, dst, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Current(context.Background(), src, dst, filepath.Join(logDir, "sync.log"), false, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dst, ".git", "HEAD")); err != nil {
+		t.Fatalf("current lost seeded git metadata: %v", err)
+	}
+
+	verify, err := Current(context.Background(), src, dst, filepath.Join(logDir, "verify.log"), true, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if verify.Changes != 0 {
+		t.Fatalf("verification still reports changes after git seed before rsync: %#v", verify.Items)
 	}
 }
 
