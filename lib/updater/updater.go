@@ -1491,20 +1491,23 @@ func syncCurrent(ctx context.Context, s *state, dry bool) error {
 			dest = s.dryCurrentDir
 		}
 	}
-	r, err := rsyncutil.Current(ctx, src, dest, filepath.Join(s.workDir, "rsync-current.log"), dry, s.cfg.Preserve)
-	if err != nil {
-		return err
-	}
 	gitSeedDir := strings.TrimSpace(s.gitSeedDir)
 	if gitSeedDir == "" && s.artifact.Type == source.Repository {
 		gitSeedDir = filepath.Join(s.cfg.RepositoryCacheDir, ".git")
 	}
+	// Seed Git metadata before the release sync. Creating current/.git changes
+	// the current/ directory mtime on macOS; the following rsync then restores
+	// release-consistent directory metadata while .git itself remains protected.
 	gitChanges, err := rsyncutil.SeedGitMetadata(ctx, gitSeedDir, dest, dry)
 	if err != nil {
 		return err
 	}
+	r, err := rsyncutil.Current(ctx, src, dest, filepath.Join(s.workDir, "rsync-current.log"), dry, s.cfg.Preserve)
+	if err != nil {
+		return err
+	}
 	s.currentChanges = r.Changes + len(gitChanges)
-	s.currentPlan = append(append([]rsyncutil.Change(nil), r.Items...), gitChanges...)
+	s.currentPlan = append(append([]rsyncutil.Change(nil), gitChanges...), r.Items...)
 	return nil
 }
 func verifyCurrent(ctx context.Context, s *state) error {
