@@ -12,10 +12,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/r14r/update-cli/lib/buildconfig"
 	"github.com/r14r/update-cli/lib/config"
 	"github.com/r14r/update-cli/lib/history"
+	versionutil "github.com/r14r/update-cli/lib/version"
 )
 
 func releaseZip(t *testing.T, dir, project, version string, files map[string]string) string {
@@ -46,6 +48,62 @@ func releaseZip(t *testing.T, dir, project, version string, files map[string]str
 		t.Fatal(err)
 	}
 	return p
+}
+
+func TestSyncCurrentSeedsGitBeforeRsyncRestoresReleaseRootTimestamp(t *testing.T) {
+	release := t.TempDir()
+	current := filepath.Join(t.TempDir(), "current")
+	gitSource := filepath.Join(t.TempDir(), ".git")
+	work := t.TempDir()
+
+	if err := os.MkdirAll(filepath.Join(gitSource, "refs", "heads"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(gitSource, "HEAD"), []byte("ref: refs/heads/main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(release, "VERSION"), []byte("1.0.0\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(release, "app.txt"), []byte("release\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	fixed := time.Unix(1_600_000_000, 0)
+	if err := os.Chtimes(release, fixed, fixed); err != nil {
+		t.Fatal(err)
+	}
+	v, err := versionutil.Parse("1.0.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := &state{
+		cfg:          config.Config{CurrentDir: current},
+		version:      v,
+		workDir:      work,
+		releaseStage: release,
+		gitSeedDir:   gitSource,
+	}
+	if err := syncCurrent(context.Background(), state, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(current, ".git", "HEAD")); err != nil {
+		t.Fatalf("current missing seeded git metadata: %v", err)
+	}
+	releaseInfo, err := os.Stat(release)
+	if err != nil {
+		t.Fatal(err)
+	}
+	currentInfo, err := os.Stat(current)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !currentInfo.ModTime().Equal(releaseInfo.ModTime()) {
+		t.Fatalf("current root mtime changed after sync: current=%s release=%s", currentInfo.ModTime(), releaseInfo.ModTime())
+	}
+	if err := verifyCurrent(context.Background(), state); err != nil {
+		t.Fatalf("verify-current failed after git seed before rsync: %v", err)
+	}
 }
 
 func TestFailedSetupRestoresPreviousCurrentAndPersistentData(t *testing.T) {
