@@ -1,3 +1,12 @@
+# 2.16.9
+
+## Fixed
+
+- Seed `current/.git` before the release-to-current rsync instead of afterwards.
+- Prevent creation of `current/.git` from changing the destination root timestamp after synchronization and causing a false `verify-current` failure on macOS.
+- Keep `verify-current` strict; no rsync differences are ignored.
+- Add regression coverage for release/current root timestamps and the final zero-difference verification pass.
+
 # 2.16.8
 
 ## Changed
