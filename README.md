@@ -2,7 +2,7 @@
 
 **Transactional project updates from ZIP releases or Git repositories.**
 
-Current release: **2.16.8**
+Current release: **2.16.9**
 
 Update CLI separates installation defaults, local runtime state, and versioned project configuration/automation:
 
@@ -46,6 +46,14 @@ update-cli releases --list --json
 ```
 
 
+
+## What changed in 2.16.9
+
+### Git metadata seeding no longer breaks verify-current
+
+When `current/.git` is created during initialization, Git metadata is now seeded **before** the release is synchronized into `current/`. The following rsync restores release-consistent directory metadata while `.git/` remains protected.
+
+This avoids the macOS rsync false positive where creating `current/.git` changed the root directory timestamp after synchronization and the strict verification dry-run reported one remaining change such as `.d..t......|./`. `verify-current` remains strict: any real unresolved difference still fails the transaction and triggers rollback.
 
 ## What changed in 2.16.8
 
