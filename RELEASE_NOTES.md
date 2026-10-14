@@ -1,3 +1,13 @@
+# 2.16.11
+
+## Changed
+
+- Add local runtime config field `projectType` to `.update-cli/config.json`.
+- Make the local `projectType` authoritative for setup metadata and `{{ project.type }}` template expansion.
+- Ignore repository-manifest `project.type` whenever a managed project runtime config is present.
+- Remove `project.type` from Update CLI's own versioned `update-cli.yaml`.
+- Keep historical manifest parsing compatible so older repositories do not fail solely because they still contain descriptive `project.type`.
+
 # 2.16.10
 
 ## Fixed
