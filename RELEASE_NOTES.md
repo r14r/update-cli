@@ -1,3 +1,13 @@
+# 2.16.13
+
+## Fixed
+
+- Stop `doctor` from warning when valid runtime settings exist only in local `.update-cli/config.json` without a matching YAML override.
+- Clarify configuration precedence as global config < local config < explicit supported YAML overrides < command-line options.
+- Change the clean `doctor --fix` result to `Keine automatisch reparierbaren Änderungen erforderlich`.
+- Track non-repairable Doctor warnings separately so `--fix` can state that manual review remains instead of conflating warnings with repairable errors.
+- Update Doctor help/discovery text and add regression coverage for valid local runtime configuration.
+
 # 2.16.12
 
 ## Fixed
