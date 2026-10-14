@@ -407,6 +407,44 @@ tasks:
 	}
 }
 
+func TestDoctorAcceptsLocalRuntimeConfigWithoutYAMLOverrides(t *testing.T) {
+	root := t.TempDir()
+	downloads := filepath.Join(root, "downloads")
+	if err := os.MkdirAll(downloads, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := config.Init(root, config.InitOptions{ProjectName: "demo", SourceType: "download", Folder: downloads}); err != nil {
+		t.Fatal(err)
+	}
+	current := filepath.Join(root, "current")
+	if err := os.MkdirAll(current, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	manifest := `schemaVersion: 2
+project:
+  name: Demo
+  slug: demo
+run:
+  command: echo ok
+`
+	if err := os.WriteFile(filepath.Join(current, config.ProjectFileName), []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	report := RunProject(root, false)
+	if report.ErrorCount() != 0 {
+		t.Fatalf("local runtime config should be valid: %#v", report.Checks)
+	}
+	for _, check := range report.Checks {
+		if check.Name == "Projektkonfiguration" {
+			t.Fatalf("valid local runtime values must not produce project-placement warning: %#v", check)
+		}
+		if check.Name == "Konfigurations-Priorität" && !strings.Contains(check.Detail, "lokale Runtime-Werte sind gültig") {
+			t.Fatalf("priority explanation does not document valid local runtime values: %#v", check)
+		}
+	}
+}
+
 func TestDoctorDoesNotWarnAboutMissingRootManifestWhenCurrentExists(t *testing.T) {
 	root := t.TempDir()
 	downloads := filepath.Join(root, "downloads")
