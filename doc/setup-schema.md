@@ -115,7 +115,7 @@ The runtime JSON remains the place for host/user defaults and security policy:
   "projectName": "demo",
   "source": {
     "type": "download",
-    "defaultUser": "r1r",
+    "defaultUser": "r14r",
     "folder": "$HOME/Downloads"
   },
   "security": {
