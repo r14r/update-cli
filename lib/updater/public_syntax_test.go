@@ -15,6 +15,7 @@ func TestValidatePublicSyntaxCanonicalGrammar(t *testing.T) {
 		{"releases", "--list"},
 		{"rollback", "--version", "2.15.0", "--setup"},
 		{"init", "--project", "demo", "--from-repository", "r14r/demo"},
+		{"init", "--repository", "https://github.com/r14r/demo.git"},
 		{"restore", "--snapshot", "latest"},
 	}
 	for _, args := range valid {
