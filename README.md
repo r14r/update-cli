@@ -2,7 +2,7 @@
 
 **Transactional project updates from ZIP releases or Git repositories.**
 
-Current release: **2.16.11**
+Current release: **2.16.12**
 
 Update CLI separates installation defaults, local runtime state, and versioned project configuration/automation:
 
@@ -46,6 +46,14 @@ update-cli releases --list --json
 ```
 
 
+
+## What changed in 2.16.12
+
+### Default GitHub repository user is now r14r
+
+Fresh local runtime configurations now use `source.defaultUser: "r14r"` instead of `"r1r"`. This default is used when repository shorthand contains only a repository name, for example `update-cli init --project demo --from-repository my-repo`.
+
+Explicitly configured `source.defaultUser` values remain untouched during load, repair, and migration.
 
 ## What changed in 2.16.11
 
@@ -559,7 +567,7 @@ Known legacy fields are migrated before strict parsing. In particular, the old t
 
 ```json
 {
-  "defaultUser": "r1r"
+  "defaultUser": "r14r"
 }
 ```
 
@@ -568,7 +576,7 @@ is rewritten to the canonical structure:
 ```json
 {
   "source": {
-    "defaultUser": "r1r"
+    "defaultUser": "r14r"
   }
 }
 ```
@@ -972,7 +980,7 @@ The shipped global default focuses on source defaults and the minimum rsync pres
 ```json
 {
   "source": {
-    "defaultUser": "r1r"
+    "defaultUser": "r14r"
   },
   "sync": {
     "preserve": [
@@ -1049,7 +1057,7 @@ A typical `.update-cli/config.json` is:
   "mode": "update",
   "source": {
     "type": "download",
-    "defaultUser": "r1r",
+    "defaultUser": "r14r",
     "folder": "$HOME/Downloads"
   },
   "releaseDir": "release",
