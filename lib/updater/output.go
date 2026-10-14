@@ -125,8 +125,8 @@ var commandHelpDetails = map[string]commandHelp{
 	},
 	"doctor": {
 		Usage:       []string{"update-cli doctor [--migrate] [--json]", "update-cli doctor --fix"},
-		Description: "Prüft Runtime-Konfiguration und Root-/current-Manifeste und erklärt exakt, warum der UI-Header 'Migration required' anzeigt oder warum keine Migration notwendig ist. --fix zeigt alle deterministisch reparierbaren Änderungen vorab und führt sie erst nach y/n-Bestätigung aus.",
-		Options:     []string{"--migrate  sichere Schema-Migration direkt ausführen", "--fix  Reparaturplan anzeigen, y/n bestätigen und anschließend reparieren", "--json  maschinenlesbare Diagnose; nicht mit --fix kombinierbar"},
+		Description: "Prüft Runtime-Konfiguration und Root-/current-Manifeste und erklärt exakt, warum der UI-Header 'Migration required' anzeigt oder warum keine Migration notwendig ist. Gültige lokale Runtime-Werte benötigen keinen YAML-Override. --fix zeigt deterministische Schema-/Strukturreparaturen vorab; nicht automatisch reparierbare Warnungen werden separat ausgewiesen.",
+		Options:     []string{"--migrate  sichere Schema-Migration direkt ausführen", "--fix  Schema-/Struktur-Reparaturplan anzeigen, y/n bestätigen und anschließend reparieren; manuelle Warnungen nur ausweisen", "--json  maschinenlesbare Diagnose; nicht mit --fix kombinierbar"},
 		Examples:    []string{"update-cli doctor", "update-cli doctor --fix", "update-cli doctor --migrate"},
 	},
 	"fix": {
