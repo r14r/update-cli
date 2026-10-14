@@ -2,7 +2,7 @@
 
 **Transactional project updates from ZIP releases or Git repositories.**
 
-Current release: **2.16.13**
+Current release: **2.16.14**
 
 Update CLI separates installation defaults, local runtime state, and versioned project configuration/automation:
 
@@ -46,6 +46,24 @@ update-cli releases --list --json
 ```
 
 
+
+## What changed in 2.16.14
+
+### Repository init no longer requires `--project`
+
+When `init` receives a repository source, `--project` is now optional. If it is omitted, Update CLI derives the project name from the repository basename and removes a trailing `.git`.
+
+These two commands are therefore equivalent:
+
+```bash
+update-cli init --project Boersenfuehrerschein-VideoAnalyzer \
+  --repository https://github.com/r14r/Boersenfuehrerschein-VideoAnalyzer.git
+
+update-cli init \
+  --repository https://github.com/r14r/Boersenfuehrerschein-VideoAnalyzer.git
+```
+
+An explicit `--project` always wins. Download/ZIP initialization still requires `--project`, because no repository name is available to derive it from.
 
 ## What changed in 2.16.13
 
