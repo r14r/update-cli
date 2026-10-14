@@ -680,7 +680,7 @@ func TestInitBootstrapsNewestDownloadReleaseIntoCurrentDirectory(t *testing.T) {
 	}
 }
 
-func TestInitBootstrapsRepositoryIntoCurrentDirectory(t *testing.T) {
+func TestInitDerivesProjectNameAndBootstrapsRepositoryIntoCurrentDirectory(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not installed")
 	}
@@ -725,7 +725,7 @@ func TestInitBootstrapsRepositoryIntoCurrentDirectory(t *testing.T) {
 	}
 	defer func() { _ = os.Chdir(oldWD) }()
 
-	if err := Run(context.Background(), "2.6.0", []string{"--init", "demo", "--from-repository", "--repository", repository, "--no-ui"}); err != nil {
+	if err := Run(context.Background(), "2.16.14", []string{"init", "--repository", repository, "--no-ui"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -733,6 +733,9 @@ func TestInitBootstrapsRepositoryIntoCurrentDirectory(t *testing.T) {
 	cfg, err := config.Load(root, "")
 	if err != nil {
 		t.Fatal(err)
+	}
+	if cfg.ProjectName != filepath.Base(repository) {
+		t.Fatalf("derived project name = %q, want %q", cfg.ProjectName, filepath.Base(repository))
 	}
 	if cfg.Mode != config.ModePull || cfg.Source.Type != "repository" || cfg.Source.Repository != repository {
 		t.Fatalf("unexpected repository config: mode=%s source=%#v", cfg.Mode, cfg.Source)
