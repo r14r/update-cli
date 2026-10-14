@@ -618,7 +618,7 @@ func TestProjectSettingsLiveInManifestAndHostPolicyStaysInJSON(t *testing.T) {
 	if err := json.Unmarshal(b, &raw); err != nil {
 		t.Fatal(err)
 	}
-	if raw.Source.DefaultUser != "r1r" {
+	if raw.Source.DefaultUser != "r14r" {
 		t.Fatalf("source.defaultUser must remain host/user config: %#v", raw.Source)
 	}
 	manifestBody, err := os.ReadFile("update-cli.yaml")
