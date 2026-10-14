@@ -2,7 +2,6 @@ package doctor
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/r14r/update-cli/lib/config"
@@ -154,15 +153,14 @@ func RunProject(start string, migrate bool) Report {
 			r.Config = &cfg
 			detail := "global + lokal"
 			if meta.ManifestPath != "" {
-				detail += " + " + meta.ManifestPath
+				detail += "; Manifest: " + meta.ManifestPath
 				if len(meta.Applied) > 0 {
-					detail += "; YAML überschreibt: " + strings.Join(meta.Applied, ", ")
+					detail += "; explizite YAML-Overrides: " + strings.Join(meta.Applied, ", ")
+				} else {
+					detail += "; keine Runtime-Overrides"
 				}
 			}
-			r.Add("Konfigurations-Priorität", LevelOK, "global config.json < lokale .update-cli/config.json < update-cli.yaml < Kommandozeilen-Parameter")
-			if fields := projectConfigValuesNotVersioned(projectRoot, meta.Applied); len(fields) > 0 {
-				r.Add("Projektkonfiguration", LevelWarning, "Lokale config.json enthält noch projektabhängige Werte ohne entsprechenden YAML-Override: "+strings.Join(fields, ", ")+". Das ist kein Schemafehler; für reproduzierbare Projekte diese Werte in update-cli.yaml versionieren. Host-Security, source.defaultUser und CLI-Defaults bleiben in config.json.")
-			}
+			r.Add("Konfigurations-Priorität", LevelOK, "global config.json < lokale .update-cli/config.json < explizite update-cli.yaml-Overrides < Kommandozeilen-Parameter; lokale Runtime-Werte sind gültig und müssen nicht in YAML gespiegelt werden")
 			r.Add("Effektive Konfiguration", LevelOK, detail)
 		}
 	}
@@ -179,63 +177,6 @@ func RunProject(start string, migrate bool) Report {
 		}
 	}
 	return r
-}
-
-func projectConfigValuesNotVersioned(root string, applied []string) []string {
-	path := filepath.Join(root, config.ConfigDirName, config.ConfigFileName)
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil
-	}
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil
-	}
-	covered := map[string]bool{}
-	for _, value := range applied {
-		covered[value] = true
-	}
-	out := []string{}
-	add := func(jsonField, yamlField string) {
-		if _, ok := raw[jsonField]; ok && !covered[yamlField] {
-			out = append(out, jsonField+" → "+yamlField)
-		}
-	}
-	add("projectName", "project.slug")
-	add("mode", "update.mode")
-	add("releaseDir", "update.releaseDir")
-	add("currentDir", "update.currentDir")
-	add("backup", "update.backup")
-	add("retention", "update.retention")
-	add("sync", "update.sync")
-	add("docker", "update.docker")
-
-	if value, ok := raw["source"]; ok && !covered["update.source"] {
-		var source map[string]json.RawMessage
-		if json.Unmarshal(value, &source) == nil {
-			for _, key := range []string{"type", "folder", "url", "repository", "ref", "commit", "version", "sha256"} {
-				if _, exists := source[key]; exists {
-					out = append(out, "source."+key+" → update.source")
-					break
-				}
-			}
-		}
-	}
-	if value, ok := raw["setup"]; ok && !covered["update.sync"] && !covered["update.setup"] {
-		var setup map[string]json.RawMessage
-		if json.Unmarshal(value, &setup) == nil {
-			if _, exists := setup["keepRsyncOnError"]; exists {
-				out = append(out, "setup.keepRsyncOnError → update.sync.keepOnSetupError")
-			}
-		}
-	}
-	if value, ok := raw["healthcheck"]; ok && !covered["update.healthcheck"] {
-		var health map[string]json.RawMessage
-		if json.Unmarshal(value, &health) == nil && len(health) > 0 {
-			out = append(out, "healthcheck → update.healthcheck")
-		}
-	}
-	return out
 }
 
 func resolveDoctorContext(start string) (string, string, error) {
