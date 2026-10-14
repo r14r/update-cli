@@ -247,7 +247,7 @@ type repairChanges struct {
 func sanitizeLocalConfig(root string, raw map[string]any) (FileConfig, repairChanges) {
 	changes := repairChanges{}
 	knownTop := map[string]bool{
-		"schemaVersion": true, "projectName": true, "mode": true, "downloadDir": true,
+		"schemaVersion": true, "projectName": true, "projectType": true, "mode": true, "downloadDir": true,
 		"defaultUser": true, "source": true, "releaseDir": true, "currentDir": true,
 		"keepRsyncOnError": true, "keepOnSetupError": true,
 		"no parameter": true, "no-param": true, "no-parameter": true, "noParameter": true,
@@ -581,7 +581,7 @@ func sanitizeLocalConfig(root string, raw map[string]any) (FileConfig, repairCha
 
 func sanitizeGlobalConfig(raw map[string]any) (map[string]any, repairChanges) {
 	changes := repairChanges{}
-	allowedTop := map[string]bool{"schemaVersion": true, "projectName": true, "mode": true, "downloadDir": true, "defaultUser": true, "source": true, "releaseDir": true, "currentDir": true, "no parameter": true, "no-param": true, "no-parameter": true, "noParameter": true, "setup": true, "backup": true, "retention": true, "sync": true, "security": true, "docker": true, "healthcheck": true, "keepRsyncOnError": true, "keepOnSetupError": true}
+	allowedTop := map[string]bool{"schemaVersion": true, "projectName": true, "projectType": true, "mode": true, "downloadDir": true, "defaultUser": true, "source": true, "releaseDir": true, "currentDir": true, "no parameter": true, "no-param": true, "no-parameter": true, "noParameter": true, "setup": true, "backup": true, "retention": true, "sync": true, "security": true, "docker": true, "healthcheck": true, "keepRsyncOnError": true, "keepOnSetupError": true}
 	out := map[string]any{}
 	for key, value := range raw {
 		if !allowedTop[key] {
