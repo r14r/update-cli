@@ -379,6 +379,9 @@ func TestProjectSetupManifestUsesSchemaV2(t *testing.T) {
 	if manifest.Version != 2 {
 		t.Fatalf("update-cli.yaml schema = %d, want 2", manifest.Version)
 	}
+	if manifest.ProjectType != "" {
+		t.Fatalf("update-cli.yaml must not version project.type; got %q", manifest.ProjectType)
+	}
 	for _, name := range []string{"prepare", "check", "build", "verify", "deploy", "install", "clean"} {
 		if _, ok := manifest.Tasks[name]; !ok {
 			t.Fatalf("update-cli.yaml missing task %q", name)
