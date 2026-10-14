@@ -2,7 +2,7 @@
 
 **Transactional project updates from ZIP releases or Git repositories.**
 
-Current release: **2.16.12**
+Current release: **2.16.13**
 
 Update CLI separates installation defaults, local runtime state, and versioned project configuration/automation:
 
@@ -46,6 +46,23 @@ update-cli releases --list --json
 ```
 
 
+
+## What changed in 2.16.13
+
+### Doctor accepts valid local runtime configuration
+
+`update-cli doctor` no longer warns merely because runtime values such as `mode`, `source`, release/current directories, backup/retention, sync, Docker, or healthcheck are present only in the local `.update-cli/config.json`. Those values are valid local runtime configuration and do not have to be mirrored into `update-cli.yaml`.
+
+The priority line now makes the distinction explicit: global config is merged with local config, only fields explicitly present as supported YAML overrides can override those values, and command-line options remain highest priority.
+
+`update-cli doctor --fix` also distinguishes deterministic repairs from advisory warnings. A clean project reports:
+
+```text
+Doctor Fix — geplante Änderungen
+OK    Keine automatisch reparierbaren Änderungen erforderlich
+```
+
+If Doctor still has a warning that cannot be repaired deterministically, `--fix` reports that it remains for manual review instead of claiming that no reparable "errors" were found.
 
 ## What changed in 2.16.12
 
