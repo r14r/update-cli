@@ -9,8 +9,8 @@ project:
 update:
   mode: update
   source:
-    type: download
-    folder: $HOME/Downloads
+    type: repository
+    repository: https://github.com/r14r/update-cli.git
   releaseDir: release
   currentDir: current
   backup:
