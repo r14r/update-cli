@@ -28,6 +28,7 @@ func TestCanonicalCommandFormsParse(t *testing.T) {
 		{"cleanup", "--keep", "3"},
 		{"history", "--limit", "5"},
 		{"init", "--project", "demo"},
+		{"init", "--repository", "https://github.com/r14r/demo.git"},
 		{"upgrade"},
 		{"unlock"},
 		{"howto"},
@@ -75,6 +76,41 @@ func TestModeOptionParsing(t *testing.T) {
 	}
 	if _, err := parseOptions([]string{"update", "--mode", "clone"}); err == nil {
 		t.Fatal("invalid mode unexpectedly accepted")
+	}
+}
+
+func TestInitDerivesProjectNameFromRepository(t *testing.T) {
+	cases := []struct {
+		args []string
+		want string
+	}{
+		{[]string{"init", "--repository", "https://github.com/r14r/Boersenfuehrerschein-VideoAnalyzer.git"}, "Boersenfuehrerschein-VideoAnalyzer"},
+		{[]string{"init", "--repository", "https://github.com/r14r/demo"}, "demo"},
+		{[]string{"init", "--from-repository", "r14r/ollama-cli"}, "ollama-cli"},
+	}
+	for _, tt := range cases {
+		o, err := parseOptions(tt.args)
+		if err != nil {
+			t.Fatalf("parseOptions(%v): %v", tt.args, err)
+		}
+		if o.projectName != tt.want {
+			t.Fatalf("parseOptions(%v) projectName=%q want=%q", tt.args, o.projectName, tt.want)
+		}
+		if !o.init {
+			t.Fatalf("parseOptions(%v) did not select init", tt.args)
+		}
+	}
+
+	o, err := parseOptions([]string{"init", "--project", "explicit-name", "--repository", "https://github.com/r14r/repository-name.git"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if o.projectName != "explicit-name" {
+		t.Fatalf("explicit --project must win, got %q", o.projectName)
+	}
+
+	if _, err := parseOptions([]string{"init"}); err == nil || !strings.Contains(err.Error(), "--project") {
+		t.Fatalf("init without project or repository should fail clearly, got %v", err)
 	}
 }
 
