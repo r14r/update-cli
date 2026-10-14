@@ -7,6 +7,7 @@
 - Keep an explicit `--project` authoritative when both values are supplied.
 - Continue requiring `--project` for download/ZIP initialization.
 - Add parser, public-syntax, and end-to-end repository bootstrap coverage for repository-only init.
+- Keep `--from-repository` without a repository value as an explicit error while preserving the historical `--from-repository --repository REPOSITORY` form.
 
 # 2.16.13
 
