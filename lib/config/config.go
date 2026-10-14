@@ -23,7 +23,7 @@ const (
 	SchemaVersion         = 9
 	ModeUpdate            = "update"
 	ModePull              = "pull"
-	DefaultRepositoryUser = "r1r"
+	DefaultRepositoryUser = "r14r"
 )
 
 var projectNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
