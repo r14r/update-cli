@@ -135,3 +135,38 @@ run:
 		t.Fatalf("manifest = %q", meta.ManifestPath)
 	}
 }
+
+
+func TestRepositorySourceForcesPullModeOverManifestUpdate(t *testing.T) {
+	root := t.TempDir()
+	_, err := config.Init(root, config.InitOptions{
+		ProjectName: "demo",
+		Mode: config.ModePull,
+		SourceType: "repository",
+		Repository: "https://github.com/r14r/demo.git",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	manifest := `schemaVersion: 2
+update:
+  mode: update
+run:
+  command: echo ok
+`
+	if err := os.WriteFile(filepath.Join(root, "update-cli.yaml"), []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, _, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Source.Type != "repository" {
+		t.Fatalf("source type = %q", cfg.Source.Type)
+	}
+	if cfg.Mode != config.ModePull {
+		t.Fatalf("repository source must force pull mode, got %q", cfg.Mode)
+	}
+}
