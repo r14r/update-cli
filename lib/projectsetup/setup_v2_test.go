@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/r14r/update-cli/lib/config"
 	"github.com/r14r/update-cli/lib/ui"
 )
 
@@ -16,7 +17,6 @@ func writeV2Manifest(t *testing.T, root string) string {
 project:
   name: demo
   slug: demo-cli
-  type: test
   description: Declarative setup test
 
 defaults:
@@ -116,6 +116,54 @@ func TestResolveVariablesIncludesProjectSlug(t *testing.T) {
 	}
 	if !strings.HasPrefix(vars["artifact"], "demo-cli-") {
 		t.Fatalf("artifact = %q", vars["artifact"])
+	}
+}
+
+func TestProjectTypeComesFromLocalConfigNotManifest(t *testing.T) {
+	root := t.TempDir()
+	current := filepath.Join(root, "current")
+	if err := os.MkdirAll(current, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := config.Init(root, config.InitOptions{ProjectName: "demo", SourceType: "download", Folder: t.TempDir()}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := config.Set(root, []string{"projectType=python"}); err != nil {
+		t.Fatal(err)
+	}
+	manifest := `schemaVersion: 2
+project:
+  name: Demo
+  type: go
+variables:
+  detectedType: "{{ project.type }}"
+workflows:
+  setup:
+    tasks: [write-type]
+tasks:
+  write-type:
+    steps:
+      - write:
+          path: project-type.txt
+          content: "{{ detectedType }}"
+`
+	path := filepath.Join(current, "update-cli.yaml")
+	if err := os.WriteFile(path, []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load(root, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := RunSelected(context.Background(), cfg, ui.New(true), Selection{}); err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(filepath.Join(current, "project-type.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(body) != "python" {
+		t.Fatalf("project.type = %q, want local config value python", body)
 	}
 }
 
