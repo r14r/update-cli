@@ -286,7 +286,17 @@ func parseOptions(args []string) (options, error) {
 		return o, errors.New("--verify benötigt ein Archiv")
 	}
 	if o.init && strings.TrimSpace(o.projectName) == "" {
-		return o, errors.New("--init benötigt den Projektnamen")
+		repository := firstNonEmpty(strings.TrimSpace(o.repository), strings.TrimSpace(o.fromRepository))
+		if repository != "" {
+			projectName, err := projectNameFromRepository(repository)
+			if err != nil {
+				return o, err
+			}
+			o.projectName = projectName
+		}
+	}
+	if o.init && strings.TrimSpace(o.projectName) == "" {
+		return o, errors.New("init benötigt --project, sofern kein --repository/--from-repository angegeben ist")
 	}
 	if o.force && !(o.update || o.init || setupManageMode) {
 		return o, errors.New("--force ist nur mit --update, --init oder Setup-Dateierzeugung zulässig")
@@ -334,6 +344,25 @@ func parseOptions(args []string) (options, error) {
 	}
 	return o, nil
 }
+func projectNameFromRepository(repository string) (string, error) {
+	value := strings.TrimSpace(repository)
+	if value == "" {
+		return "", errors.New("Repository für Projektnamen ist leer")
+	}
+	if i := strings.IndexAny(value, "?#"); i >= 0 {
+		value = value[:i]
+	}
+	value = strings.TrimRight(strings.ReplaceAll(value, "\\", "/"), "/")
+	if i := strings.LastIndex(value, "/"); i >= 0 {
+		value = value[i+1:]
+	}
+	value = strings.TrimSuffix(strings.TrimSpace(value), ".git")
+	if value == "" || value == "." || value == ".." {
+		return "", fmt.Errorf("aus Repository %q kann kein Projektname abgeleitet werden", repository)
+	}
+	return value, nil
+}
+
 func boolInt(v bool) int {
 	if v {
 		return 1
