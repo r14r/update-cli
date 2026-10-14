@@ -1,3 +1,13 @@
+# 2.16.14
+
+## Changed
+
+- Make `--project` optional for `init` when `--repository` or `--from-repository` is supplied.
+- Derive the project name from the repository basename and strip a trailing `.git`.
+- Keep an explicit `--project` authoritative when both values are supplied.
+- Continue requiring `--project` for download/ZIP initialization.
+- Add parser, public-syntax, and end-to-end repository bootstrap coverage for repository-only init.
+
 # 2.16.13
 
 ## Fixed
