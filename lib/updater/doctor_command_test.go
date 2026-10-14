@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/r14r/update-cli/lib/config"
+	"github.com/r14r/update-cli/lib/doctor"
 	"github.com/r14r/update-cli/lib/projectsetup"
 )
 
@@ -89,6 +90,28 @@ run:
 	defer os.Chdir(old)
 	if err := Run(context.Background(), "test", []string{"doctor", "--no-color"}); err != nil {
 		t.Fatalf("doctor from current failed: %v", err)
+	}
+}
+
+func TestDoctorFixPlanDistinguishesManualWarningsFromRepairs(t *testing.T) {
+	report := doctor.Report{Checks: []doctor.Check{{Name: "Hinweis", Level: doctor.LevelWarning, Detail: "manuell prüfen"}}}
+	plan, err := buildDoctorFixPlan(t.TempDir(), report)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.PlannedChanges) != 0 {
+		t.Fatalf("manual warning must not become an automatic repair: %#v", plan.PlannedChanges)
+	}
+	if plan.ManualWarnings != 1 {
+		t.Fatalf("manual warnings = %d, want 1", plan.ManualWarnings)
+	}
+
+	cleanPlan, err := buildDoctorFixPlan(t.TempDir(), doctor.Report{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cleanPlan.ManualWarnings != 0 || len(cleanPlan.PlannedChanges) != 0 {
+		t.Fatalf("clean doctor plan = %#v", cleanPlan)
 	}
 }
 
