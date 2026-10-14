@@ -2,7 +2,7 @@
 
 **Transactional project updates from ZIP releases or Git repositories.**
 
-Current release: **2.16.9**
+Current release: **2.16.10**
 
 Update CLI separates installation defaults, local runtime state, and versioned project configuration/automation:
 
@@ -46,6 +46,14 @@ update-cli releases --list --json
 ```
 
 
+
+## What changed in 2.16.10
+
+### Update CLI now updates itself from Git by default
+
+The repository's versioned `update-cli.yaml` now configures Update CLI itself with `mode: pull` and the canonical repository source `https://github.com/r14r/update-cli.git` on `main`. This matches repository-based initialization and means a normal `update-cli update` no longer falls back to `$HOME/Downloads` for the Update CLI project.
+
+A project-file regression test locks this self-update source configuration so it cannot silently regress to the download folder again.
 
 ## What changed in 2.16.9
 
