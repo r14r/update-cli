@@ -104,6 +104,9 @@ func parseOptions(args []string) (options, error) {
 	fs.BoolVar(&o.schemaView, "view", false, "")
 	fs.StringVar(&o.schemaSave, "save", "", "")
 	argsWithoutDebug, debugRequested := stripGlobalDebugArgument(append([]string(nil), args...))
+	if err := validateFromRepositoryArgument(argsWithoutDebug); err != nil {
+		return o, err
+	}
 	normalizedArgs := normalizeFlagArguments(normalizeCommandArguments(normalizeLegacyFromRepositoryArguments(argsWithoutDebug)))
 	if debugRequested {
 		normalizedArgs = append([]string{"--debug"}, normalizedArgs...)
@@ -595,6 +598,23 @@ func normalizeCommandArguments(args []string) []string {
 		return prepend("--templates")
 	}
 	return args
+}
+
+func validateFromRepositoryArgument(args []string) error {
+	for i, arg := range args {
+		if arg != "--from-repository" {
+			continue
+		}
+		if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+			return nil
+		}
+		// Historical form: --from-repository --repository REPOSITORY.
+		if i+2 < len(args) && args[i+1] == "--repository" && !strings.HasPrefix(args[i+2], "-") {
+			return nil
+		}
+		return errors.New("--from-repository benötigt REPOSITORY")
+	}
+	return nil
 }
 
 func normalizeLegacyFromRepositoryArguments(args []string) []string {
