@@ -1,3 +1,12 @@
+# 2.16.12
+
+## Fixed
+
+- Change the built-in `source.defaultUser` from `r1r` to `r14r`.
+- Update `defaults/config.json` so newly created project configurations inherit `r14r`.
+- Keep explicitly configured custom `source.defaultUser` values unchanged.
+- Update current documentation and project-file regression coverage for the corrected default.
+
 # 2.16.11
 
 ## Changed
