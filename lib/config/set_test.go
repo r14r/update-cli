@@ -42,6 +42,24 @@ func TestSetNoParameterViaKebabAlias(t *testing.T) {
 	}
 }
 
+func TestSetProjectTypeIsLocalRuntimeConfiguration(t *testing.T) {
+	root := t.TempDir()
+	downloads := t.TempDir()
+	if _, err := Init(root, InitOptions{ProjectName: "demo", SourceType: "download", Folder: downloads}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Set(root, []string{"projectType=python"}); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(root, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ProjectType != "python" {
+		t.Fatalf("projectType = %q, want python", cfg.ProjectType)
+	}
+}
+
 func TestSetNestedTypedValuesTransactionally(t *testing.T) {
 	root := t.TempDir()
 	downloads := t.TempDir()
