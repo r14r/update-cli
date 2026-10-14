@@ -95,6 +95,14 @@ func RunStandaloneSelected(ctx context.Context, path string, console *ui.Console
 		}
 	}
 	cfg := config.Config{RootDir: projectRoot, ConfigDir: filepath.Join(projectRoot, config.ConfigDirName), ProjectName: filepath.Base(projectRoot), CurrentDir: workDir}
+	if info, statErr := os.Stat(filepath.Join(projectRoot, config.ConfigDirName, config.ConfigFileName)); statErr == nil && !info.IsDir() {
+		loaded, loadErr := config.Load(projectRoot, "")
+		if loadErr != nil {
+			return Result{}, loadErr
+		}
+		cfg = loaded
+		cfg.CurrentDir = workDir
+	}
 	if _, err := EnsureMigration(ctx, cfg, console); err != nil {
 		return Result{}, err
 	}
@@ -118,6 +126,12 @@ func runManifestSelected(ctx context.Context, c config.Config, console *ui.Conso
 	m, err := ParseManifestForUse(path)
 	if err != nil {
 		return Result{}, err
+	}
+	// projectType is local runtime identity. A repository manifest may carry
+	// legacy descriptive project.type metadata, but it must never override the
+	// project-local .update-cli/config.json value.
+	if strings.TrimSpace(c.ConfigFile) != "" {
+		m.ProjectType = strings.TrimSpace(c.ProjectType)
 	}
 	if m.Version == 2 {
 		return runManifestV2(ctx, c.CurrentDir, m, console, path, selection)
