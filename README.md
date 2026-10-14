@@ -2,7 +2,7 @@
 
 **Transactional project updates from ZIP releases or Git repositories.**
 
-Current release: **2.16.10**
+Current release: **2.16.11**
 
 Update CLI separates installation defaults, local runtime state, and versioned project configuration/automation:
 
@@ -46,6 +46,20 @@ update-cli releases --list --json
 ```
 
 
+
+## What changed in 2.16.11
+
+### Project type is local-only configuration
+
+`project.type` is no longer versioned by Update CLI's own `update-cli.yaml`. The authoritative value is the project-local runtime configuration field `projectType` in `.update-cli/config.json`.
+
+During setup, repository manifest metadata can no longer override the local project type. Template variable `{{ project.type }}` and setup UI metadata use the local `projectType` value whenever project runtime configuration is present. Historical manifests that still contain `project.type` remain parseable for compatibility, but the value is ignored in managed projects.
+
+Set it locally with:
+
+```bash
+update-cli config --set projectType=go
+```
 
 ## What changed in 2.16.10
 
