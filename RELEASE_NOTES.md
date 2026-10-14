@@ -1,3 +1,12 @@
+# 2.16.15
+
+## Changed
+
+- Force `mode: pull` whenever the effective source type is `repository`.
+- Ignore contradictory `mode: update` values from project manifests or CLI overrides when a repository source is selected.
+- Normalize existing repository runtime configurations to pull mode during config migration/load.
+- Add regression coverage for a repository project whose `update-cli.yaml` still declares `mode: update`.
+
 # 2.16.14
 
 ## Changed
