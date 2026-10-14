@@ -91,6 +91,7 @@ func (v NoParameterConfig) MarshalJSON() ([]byte, error) { return json.Marshal([
 type FileConfig struct {
 	SchemaVersion     int                `json:"schemaVersion"`
 	ProjectName       string             `json:"projectName"`
+	ProjectType       string             `json:"projectType,omitempty"`
 	Mode              string             `json:"mode,omitempty"`
 	DownloadDir       string             `json:"downloadDir,omitempty"`
 	DefaultUser       string             `json:"defaultUser,omitempty"` // legacy top-level alias; migrate() moves this into source.defaultUser
@@ -115,6 +116,7 @@ type Config struct {
 	ConfigDir             string            `json:"configDir"`
 	ConfigFile            string            `json:"configFile"`
 	ProjectName           string            `json:"projectName"`
+	ProjectType           string            `json:"projectType,omitempty"`
 	Mode                  string            `json:"mode"`
 	Source                SourceConfig      `json:"source"`
 	SourceType            string            `json:"sourceType"`
@@ -411,7 +413,7 @@ func Load(root, downloadOverride string) (Config, error) {
 		}
 	}
 	stateDir := filepath.Dir(file)
-	return Config{RootDir: root, ConfigDir: stateDir, ConfigFile: file, ProjectName: fc.ProjectName, Mode: fc.Mode, Source: src, SourceType: src.Type, SourceFolder: src.Folder, SourceURL: src.URL, SourceRepository: src.Repository, DownloadDir: src.Folder, ReleaseRoot: rel, CurrentDir: cur, BackupRoot: back, KeepBackups: keepB, KeepReleases: keepR, KeepRsyncOnSetupError: keepRsyncOnSetupError, NoParameterActions: append([]string(nil), fc.NoParameter...), LegacySetupCommands: legacy, Preserve: pres, Security: sec, Docker: docker, Healthcheck: hc, HistoryFile: filepath.Join(stateDir, "history.jsonl"), TemplatesFile: filepath.Join(stateDir, TemplatesFileName), GlobalConfigDir: gdir, GlobalConfigFile: globalFile, GlobalTemplatesFile: filepath.Join(gdir, TemplatesFileName), RepositoryCacheDir: filepath.Join(stateDir, "repository")}, nil
+	return Config{RootDir: root, ConfigDir: stateDir, ConfigFile: file, ProjectName: fc.ProjectName, ProjectType: strings.TrimSpace(fc.ProjectType), Mode: fc.Mode, Source: src, SourceType: src.Type, SourceFolder: src.Folder, SourceURL: src.URL, SourceRepository: src.Repository, DownloadDir: src.Folder, ReleaseRoot: rel, CurrentDir: cur, BackupRoot: back, KeepBackups: keepB, KeepReleases: keepR, KeepRsyncOnSetupError: keepRsyncOnSetupError, NoParameterActions: append([]string(nil), fc.NoParameter...), LegacySetupCommands: legacy, Preserve: pres, Security: sec, Docker: docker, Healthcheck: hc, HistoryFile: filepath.Join(stateDir, "history.jsonl"), TemplatesFile: filepath.Join(stateDir, TemplatesFileName), GlobalConfigDir: gdir, GlobalConfigFile: globalFile, GlobalTemplatesFile: filepath.Join(gdir, TemplatesFileName), RepositoryCacheDir: filepath.Join(stateDir, "repository")}, nil
 }
 
 // ApplyProjectOverrides applies project-versioned update-cli.yaml settings to
