@@ -3,7 +3,6 @@ schemaVersion: 2
 project:
   slug: update-cli
   name: Update CLI
-  type: go
   description: Update CLI prüfen, testen, bauen und deployen
 
 update:
