@@ -540,6 +540,12 @@ func ApplyProjectOverrides(c Config, o ProjectOverrides) (Config, error) {
 			return c, err
 		}
 	}
+	// Repository sources are Git pull sources by definition. Normalize the mode
+	// after all project overrides so a stale or contradictory mode: update in
+	// update-cli.yaml cannot turn a repository source into ZIP update mode.
+	if c.Source.Type == "repository" {
+		c.Mode = ModePull
+	}
 	if c.Mode != ModeUpdate && c.Mode != ModePull {
 		return c, fmt.Errorf("update.mode ungültig: %s; erlaubt: update, pull", c.Mode)
 	}
@@ -611,10 +617,10 @@ func WithSourceOverrides(c Config, mode, kind, folder, u, repo string) (Config, 
 	if provided > 1 {
 		return c, errors.New("--folder, --url und --repository schließen sich gegenseitig aus")
 	}
-	if mode == "" {
-		if kind == "repository" || repo != "" {
-			mode = ModePull
-		} else if kind == "download" || kind == "url" || folder != "" || u != "" {
+	if kind == "repository" || repo != "" {
+		mode = ModePull
+	} else if mode == "" {
+		if kind == "download" || kind == "url" || folder != "" || u != "" {
 			mode = ModeUpdate
 		} else {
 			mode = c.Mode
@@ -804,12 +810,10 @@ func migrate(v FileConfig) (FileConfig, bool, error) {
 	// Canonical form is source.defaultUser. Keep reading the historical
 	// top-level alias, but never write it back after migration.
 	v.DefaultUser = ""
-	if strings.TrimSpace(v.Mode) == "" {
-		if v.Source.Type == "repository" {
-			v.Mode = ModePull
-		} else {
-			v.Mode = ModeUpdate
-		}
+	if v.Source.Type == "repository" {
+		v.Mode = ModePull
+	} else if strings.TrimSpace(v.Mode) == "" {
+		v.Mode = ModeUpdate
 	}
 	v.Mode = strings.ToLower(strings.TrimSpace(v.Mode))
 	v.DownloadDir = ""
@@ -1040,13 +1044,10 @@ func resolveProjectDirectory(root, configured, field string) (string, error) {
 func applySource(v *FileConfig, mode, kind, folder, u, repo string) error {
 	mode = strings.ToLower(strings.TrimSpace(mode))
 	kind = strings.ToLower(strings.TrimSpace(kind))
-	if mode == "" {
-		switch {
-		case kind == "repository" || repo != "":
-			mode = ModePull
-		default:
-			mode = ModeUpdate
-		}
+	if kind == "repository" || repo != "" {
+		mode = ModePull
+	} else if mode == "" {
+		mode = ModeUpdate
 	}
 	if mode != ModeUpdate && mode != ModePull {
 		return fmt.Errorf("unbekannter mode: %s; erlaubt: update, pull", mode)
