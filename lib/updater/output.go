@@ -165,9 +165,10 @@ var commandHelpDetails = map[string]commandHelp{
 		Examples:    []string{"update-cli schema --version", "update-cli schema --save update-cli.schema.json"},
 	},
 	"init": {
-		Usage:       []string{"update-cli init --project PROJECTNAME", "update-cli init --project PROJECTNAME --from-repository REPOSITORY"},
-		Description: "Initialisiert den aktuellen Ordner als verwaltetes Update-CLI-Projekt und installiert das erste Release.",
-		Examples:    []string{"update-cli init --project demo", "update-cli init --project demo --from-repository r14r/demo"},
+		Usage:       []string{"update-cli init --project PROJECTNAME", "update-cli init --repository REPOSITORY [--project PROJECTNAME]", "update-cli init --from-repository REPOSITORY [--project PROJECTNAME]"},
+		Description: "Initialisiert den aktuellen Ordner als verwaltetes Update-CLI-Projekt und installiert das erste Release. Bei einer Repository-Quelle ist --project optional; ohne Angabe wird der Repository-Name ohne .git verwendet.",
+		Options:     []string{"--project PROJECTNAME  expliziter Projektname; bei Repository-Init optional", "--repository REPOSITORY  Git-Repository; ohne --project wird daraus der Projektname abgeleitet", "--from-repository REPOSITORY  kompakte Repository-Bootstrap-Form"},
+		Examples:    []string{"update-cli init --project demo", "update-cli init --repository https://github.com/r14r/Boersenfuehrerschein-VideoAnalyzer.git", "update-cli init --project custom-name --repository https://github.com/r14r/demo.git"},
 	},
 	"releases": {
 		Usage:       []string{"update-cli releases --list [--json]"},
@@ -337,8 +338,8 @@ Safety model:
   * sync.preserve protects persistent paths from overwrite and deletion.
   * init --project PROJECT uses the current working directory as the project root, writes .update-cli/config.json there, installs the initial release and runs available setup automation.
   * init --project PROJECT uses the configured/default download folder and selects the newest matching PROJECT-v<MAJOR>.<MINOR>.<PATCH>.zip or PROJECT-<MAJOR>.<MINOR>.<PATCH>.zip archive.
-  * init --project PROJECT --from-repository URL bootstraps from an explicit repository URL.
-  * init --project PROJECT --from-repository REPOSITORY is the compact equivalent and also accepts USER/REPO or REPO (using source.defaultUser).
+  * init --repository URL bootstraps from an explicit repository URL; when --project is omitted, PROJECT is derived from the repository basename without .git.
+  * init --from-repository REPOSITORY is the compact equivalent and also accepts USER/REPO or REPO (using source.defaultUser); --project remains optional and, when present, overrides the derived name.
   * --debug is global and prints detailed execution steps directly for every command.
   * mode=update installs versioned ZIP releases from download folders or HTTPS URLs.
   * mode=pull updates a persistent internal Git checkout with git pull --ff-only and deploys it transactionally.
