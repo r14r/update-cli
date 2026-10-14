@@ -1,3 +1,11 @@
+# 2.16.10
+
+## Fixed
+
+- Configure Update CLI's own `update-cli.yaml` for repository pull mode instead of `$HOME/Downloads`.
+- Use `https://github.com/r14r/update-cli.git` with ref `main` as the versioned self-update source.
+- Update the project-file regression test so future releases keep `update-cli update` aligned with repository-based initialization.
+
 # 2.16.9
 
 ## Fixed
