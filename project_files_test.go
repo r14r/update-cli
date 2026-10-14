@@ -597,7 +597,7 @@ func TestProjectSettingsLiveInManifestAndHostPolicyStaysInJSON(t *testing.T) {
 	if !manifest.Update.Configured || !manifest.Update.SourceConfigured {
 		t.Fatalf("update-cli.yaml must provide project update settings: %#v", manifest.Update)
 	}
-	if manifest.Update.Mode != "update" || manifest.Update.Source.Type != "download" || manifest.Update.Source.Folder != "$HOME/Downloads" {
+	if manifest.Update.Mode != "pull" || manifest.Update.Source.Type != "repository" || manifest.Update.Source.Repository != "https://github.com/r14r/update-cli.git" || manifest.Update.Source.Ref != "main" {
 		t.Fatalf("unexpected manifest source config: %#v", manifest.Update)
 	}
 	if !manifest.Update.Sync.Configured || len(manifest.Update.Sync.Preserve) == 0 {
