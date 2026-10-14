@@ -18,10 +18,11 @@ type doctorFixPlan struct {
 	ConfigChanged  bool
 	ManifestDirs   []string
 	PlannedChanges []string
+	ManualWarnings int
 }
 
 func buildDoctorFixPlan(root string, report doctor.Report) (doctorFixPlan, error) {
-	plan := doctorFixPlan{}
+	plan := doctorFixPlan{ManualWarnings: report.WarningCount()}
 	runtimeNeedsRepair := report.RuntimeConfig != nil && report.RuntimeConfig.MigrationNeeded
 	for _, check := range report.Checks {
 		if check.Name == "Runtime config.json" && check.Level == doctor.LevelError {
@@ -112,7 +113,11 @@ func configRepairPlanLines(result config.RepairResult) []string {
 func printDoctorFixPlan(c *ui.Console, plan doctorFixPlan) {
 	c.Header("Doctor Fix — geplante Änderungen")
 	if len(plan.PlannedChanges) == 0 {
-		c.Success("Keine automatisch reparierbaren Fehler gefunden")
+		if plan.ManualWarnings > 0 {
+			c.Warn(fmt.Sprintf("Keine automatisch reparierbaren Änderungen; %d Warnung(en) bleiben zur manuellen Prüfung", plan.ManualWarnings))
+		} else {
+			c.Success("Keine automatisch reparierbaren Änderungen erforderlich")
+		}
 		return
 	}
 	for i, change := range plan.PlannedChanges {
