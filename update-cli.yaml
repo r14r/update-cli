@@ -7,10 +7,11 @@ project:
   description: Update CLI prüfen, testen, bauen und deployen
 
 update:
-  mode: update
+  mode: pull
   source:
-    type: download
-    folder: $HOME/Downloads
+    type: repository
+    repository: https://github.com/r14r/update-cli.git
+    ref: main
   releaseDir: release
   currentDir: current
   backup:
