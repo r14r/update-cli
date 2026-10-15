@@ -8,7 +8,7 @@ import (
 var publicCommands = map[string]struct{}{
 	"help": {}, "howto": {}, "version": {}, "check": {}, "update": {},
 	"backup": {}, "rollback": {}, "restore": {}, "history": {}, "cleanup": {},
-	"clean": {}, "init": {}, "upgrade": {}, "migrate": {}, "doctor": {}, "fix": {}, "status": {},
+	"clean": {}, "init": {}, "upgrade": {}, "migrate": {}, "whatsnew": {}, "doctor": {}, "fix": {}, "status": {},
 	"releases": {}, "verify": {}, "unlock": {}, "run": {}, "install": {},
 	"schema": {}, "setup": {}, "config": {}, "templates": {},
 	"convert-yaml": {}, "create-yaml": {}, "create-setup-script": {},
@@ -53,7 +53,7 @@ func ValidatePublicSyntax(args []string) error {
 		if command == "setup" && name == "--run" {
 			needsValue = true
 		}
-		if command == "rollback" && name == "--version" {
+		if (command == "rollback" || command == "whatsnew") && name == "--version" {
 			needsValue = true
 		}
 		if needsValue {
