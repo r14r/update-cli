@@ -21,6 +21,16 @@ func TestForVersionAcceptsVPrefix(t *testing.T) {
 	}
 }
 
+func TestForVersionFallsBackToHistoricalMarkdown(t *testing.T) {
+	text, err := ForVersion("2.16.13")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(text, "# What's new in Update CLI 2.16.13") {
+		t.Fatalf("unexpected historical whatsnew text: %q", text)
+	}
+}
+
 func TestForVersionRejectsUnknownAndUnsafeVersions(t *testing.T) {
 	for _, version := range []string{"2.16.999", "../2.16.16", "latest"} {
 		if _, err := ForVersion(version); err == nil {
