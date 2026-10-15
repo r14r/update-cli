@@ -136,7 +136,6 @@ run:
 	}
 }
 
-
 func TestRepositorySourceForcesPullModeOverManifestUpdate(t *testing.T) {
 	root := t.TempDir()
 	_, err := config.Init(root, config.InitOptions{
