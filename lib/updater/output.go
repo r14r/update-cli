@@ -210,6 +210,11 @@ var commandHelpDetails = map[string]commandHelp{
 		Description: "Aktualisiert die Projekt-Runtime-Konfiguration auf das aktuelle Schema.",
 		Examples:    []string{"update-cli upgrade"},
 	},
+	"migrate": {
+		Usage:       []string{"update-cli migrate"},
+		Description: "Migriert die Projekt-Runtime-Konfiguration auf das aktuelle Schema; identisch zu update-cli upgrade.",
+		Examples:    []string{"update-cli migrate"},
+	},
 	"unlock": {
 		Usage:       []string{"update-cli unlock"},
 		Description: "Entfernt einen als veraltet erkannten Update-Lock.",
