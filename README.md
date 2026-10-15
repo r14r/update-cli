@@ -51,7 +51,7 @@ update-cli releases --list --json
 
 ### Embedded What's-New documentation
 
-Release highlights are now stored as versioned Markdown files under `lib/whatsnew/releases/` and embedded into the binary.
+Release highlights are now stored as Markdown under `lib/whatsnew/releases/` and embedded into the binary. Current releases use dedicated version files; the complete older history is retained in `history.md`.
 
 Show the current installed version:
 
@@ -65,7 +65,7 @@ Show a specific documented version:
 update-cli whatsnew --version 2.16.16
 ```
 
-The command works offline and does not require a source checkout.
+The command works offline and does not require a source checkout. `whatsnew --version` first uses a dedicated version file and then falls back to the embedded historical Markdown archive.
 
 ## What changed in 2.16.16
 
