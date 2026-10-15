@@ -109,6 +109,7 @@ func Build(version string) CLI {
 		cmd("unlock", "Unlock", "Remove a stale update lock", nil, []Parameter{root}),
 		cmd("howto", "How-to", "Show extended Update CLI usage and safety notes", nil, []Parameter{}),
 		cmd("version", "Version", "Show the Update CLI application version", nil, []Parameter{}),
+		cmd("whatsnew", "What's new", "Show embedded Markdown release highlights for the current or selected version", nil, []Parameter{opt("version", []string{"--version"}, "Release version to show", "string"), noColor}),
 		setupCommand(root, jsonOpt, details, wait, noWait, noUI, noColor, setupTaskArg, setupWorkflowArg, setupStepArg),
 		cmd("convert-yaml", "Convert YAML", "Upgrade update-cli.yaml to the latest supported schema", nil, []Parameter{root, opt("dry-run", []string{"--dry-run", "-n"}, "Preview the converted manifest", "boolean"), opt("force", []string{"--force", "-f"}, "Force replacement where supported", "boolean"), details, noColor}),
 		cmd("create-yaml", "Create YAML", "Generate schemaVersion 2 update-cli.yaml", nil, []Parameter{root, enumOpt("from", []string{"--from"}, "Generation source", []Choice{{Value: "project"}, {Value: "setup-script"}}), opt("with-ai", []string{"--with-ai"}, "Refine setup.sh conversion with configured AI provider", "boolean"), opt("force", []string{"--force", "-f"}, "Overwrite an existing manifest", "boolean"), opt("dry-run", []string{"--dry-run", "-n"}, "Preview generated YAML", "boolean"), details, noColor}),
