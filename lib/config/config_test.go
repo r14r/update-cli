@@ -307,8 +307,12 @@ func TestModeSourceCompatibilityValidation(t *testing.T) {
 	if _, err := Init(root, InitOptions{ProjectName: "demo", Mode: ModePull, SourceType: "download", Folder: downloads}); err == nil || !strings.Contains(err.Error(), "mode pull") {
 		t.Fatalf("expected pull/download validation error, got %v", err)
 	}
-	if _, err := Init(root, InitOptions{ProjectName: "demo", Mode: ModeUpdate, SourceType: "repository", Repository: "https://example.invalid/demo.git"}); err == nil || !strings.Contains(err.Error(), "mode update") {
-		t.Fatalf("expected update/repository validation error, got %v", err)
+	cfg, err := Init(root, InitOptions{ProjectName: "demo", Mode: ModeUpdate, SourceType: "repository", Repository: "https://example.invalid/demo.git"})
+	if err != nil {
+		t.Fatalf("repository source should normalize update mode to pull: %v", err)
+	}
+	if cfg.Mode != ModePull || cfg.Source.Type != "repository" {
+		t.Fatalf("repository source must force pull mode, got mode=%q source=%#v", cfg.Mode, cfg.Source)
 	}
 }
 
