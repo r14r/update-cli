@@ -460,7 +460,7 @@ func normalizeCommandArguments(args []string) []string {
 		return prepend("--clean")
 	case "init":
 		return prepend("--init")
-	case "upgrade":
+	case "upgrade", "migrate":
 		return prepend("--upgrade")
 	case "doctor":
 		if len(rest) > 0 && strings.EqualFold(strings.TrimSpace(rest[0]), "migrate") {
