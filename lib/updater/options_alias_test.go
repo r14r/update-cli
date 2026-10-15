@@ -268,7 +268,6 @@ func TestMigrateCommandMatchesUpgrade(t *testing.T) {
 	}
 }
 
-
 func TestWhatsNewVersionParsing(t *testing.T) {
 	current, err := parseOptions([]string{"whatsnew"})
 	if err != nil {
