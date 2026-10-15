@@ -30,6 +30,7 @@ func TestCanonicalCommandFormsParse(t *testing.T) {
 		{"init", "--project", "demo"},
 		{"init", "--repository", "https://github.com/r14r/demo.git"},
 		{"upgrade"},
+		{"migrate"},
 		{"unlock"},
 		{"howto"},
 		{"version"},
@@ -248,5 +249,20 @@ func TestCommandHelpDetailsParsing(t *testing.T) {
 		if !o.showHelp || !o.details || o.helpTopic != "setup" {
 			t.Fatalf("%v: unexpected help options %#v", args, o)
 		}
+	}
+}
+
+
+func TestMigrateCommandMatchesUpgrade(t *testing.T) {
+	got, err := parseOptions([]string{"migrate"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := parseOptions([]string{"upgrade"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("migrate options differ from upgrade: %#v != %#v", got, want)
 	}
 }
