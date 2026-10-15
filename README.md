@@ -2,7 +2,7 @@
 
 **Transactional project updates from ZIP releases or Git repositories.**
 
-Current release: **2.16.16**
+Current release: **2.16.17**
 
 Update CLI separates installation defaults, local runtime state, and versioned project configuration/automation:
 
@@ -46,6 +46,26 @@ update-cli releases --list --json
 ```
 
 
+
+## What changed in 2.16.17
+
+### Embedded What's-New documentation
+
+Release highlights are now stored as versioned Markdown files under `lib/whatsnew/releases/` and embedded into the binary.
+
+Show the current installed version:
+
+```bash
+update-cli whatsnew
+```
+
+Show a specific documented version:
+
+```bash
+update-cli whatsnew --version 2.16.16
+```
+
+The command works offline and does not require a source checkout.
 
 ## What changed in 2.16.16
 
