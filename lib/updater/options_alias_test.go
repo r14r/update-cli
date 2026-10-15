@@ -252,7 +252,6 @@ func TestCommandHelpDetailsParsing(t *testing.T) {
 	}
 }
 
-
 func TestMigrateCommandMatchesUpgrade(t *testing.T) {
 	got, err := parseOptions([]string{"migrate"})
 	if err != nil {
