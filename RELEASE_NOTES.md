@@ -1,3 +1,13 @@
+# 2.16.17
+
+## Added
+
+- Add `update-cli whatsnew` to show the embedded Markdown release highlights for the installed version.
+- Add `update-cli whatsnew --version VERSION` to inspect a specific documented release.
+- Store What's-New content as one Markdown file per release under `lib/whatsnew/releases/`.
+- Embed the Markdown release files into the binary so What's-New works offline without the source checkout.
+- Add public syntax, discovery, help, parser, package, and command regression coverage.
+
 # 2.16.16
 
 ## Added
