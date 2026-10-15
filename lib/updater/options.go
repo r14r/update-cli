@@ -9,8 +9,8 @@ import (
 )
 
 type options struct {
-	archive, downloadDir, mode, sourceType, sourceFolder, sourceURL, repository, fromRepository, rootDir, projectName, setupManifest, setupTask, setupWorkflow, setupStep, helpTopic, initialGitDir                                                                                                                                                                                                                                                                                                                                string
-	dryRun, plan, allowDowngrade, jsonOutput, update, backup, rollback, history, cleanup, clean, init, upgrade, check, doctor, fix, status, list, verify, setup, noSetup, config, configList, configCheck, configMigrate, templatesMode, templatesList, setupList, convertYAML, createYAML, createSetupScript, withAI, details, debug, edit, force, noColor, noUI, noAsk, wait, noWait, showHelp, showHowTo, showVersion, unlock, run, install, schema, schemaView, schemaVersion, doctorMigrate, doctorFix, noParameterInvocation bool
+	archive, downloadDir, mode, sourceType, sourceFolder, sourceURL, repository, fromRepository, rootDir, projectName, setupManifest, setupTask, setupWorkflow, setupStep, helpTopic, initialGitDir, whatsNewVersion                                                                                                                                                                                                                                                                                                                                string
+	dryRun, plan, allowDowngrade, jsonOutput, update, backup, rollback, history, cleanup, clean, init, upgrade, check, doctor, fix, status, list, verify, setup, noSetup, config, configList, configCheck, configMigrate, templatesMode, templatesList, setupList, convertYAML, createYAML, createSetupScript, withAI, details, debug, edit, force, noColor, noUI, noAsk, wait, noWait, showHelp, showHowTo, showVersion, whatsNew, unlock, run, install, schema, schemaView, schemaVersion, doctorMigrate, doctorFix, noParameterInvocation bool
 	rollbackVersion, restore, useTemplate, templateUse, templateName, schemaSave                                                                                                                                                                                                                                                                                                                                                                                                                                                   string
 	keep, limit                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    int
 	configSet                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      []string
@@ -97,6 +97,8 @@ func parseOptions(args []string) (options, error) {
 	fs.BoolVar(&o.showHowTo, "howto", false, "")
 	fs.BoolVar(&o.showVersion, "version", false, "")
 	fs.BoolVar(&o.showVersion, "V", false, "")
+	fs.BoolVar(&o.whatsNew, "whatsnew", false, "")
+	fs.StringVar(&o.whatsNewVersion, "whatsnew-version", "", "")
 	fs.BoolVar(&o.unlock, "unlock", false, "")
 	fs.BoolVar(&o.run, "run", false, "")
 	fs.BoolVar(&o.install, "install", false, "")
@@ -155,6 +157,9 @@ func parseOptions(args []string) (options, error) {
 	if o.schema && o.showVersion {
 		o.schemaVersion = true
 		o.showVersion = false
+	}
+	if strings.TrimSpace(o.whatsNewVersion) != "" && !o.whatsNew {
+		return o, errors.New("--version ist für whatsnew nur mit dem Kommando whatsnew zulässig")
 	}
 	if (o.schemaView || strings.TrimSpace(o.schemaSave) != "" || o.schemaVersion) && !o.schema {
 		return o, errors.New("--view/--save sind nur mit schema zulässig")
@@ -221,7 +226,7 @@ func parseOptions(args []string) (options, error) {
 		return o, errors.New("setup --list/task/workflow/run sind eigenständige Befehle; update/rollback/restore entfernen")
 	}
 	primary := 0
-	for _, b := range []bool{o.update, standaloneBackup, o.rollback, o.restore != "", o.history, o.cleanup, o.clean, o.init, o.upgrade, o.check, o.doctor, o.fix, o.status, o.list, o.verify, o.config, o.templatesMode, o.showHelp, o.showHowTo, o.showVersion, o.unlock, o.run, o.install, o.schema, o.setupManifest != "", setupSelectorMode, setupManageMode} {
+	for _, b := range []bool{o.update, standaloneBackup, o.rollback, o.restore != "", o.history, o.cleanup, o.clean, o.init, o.upgrade, o.check, o.doctor, o.fix, o.status, o.list, o.verify, o.config, o.templatesMode, o.showHelp, o.showHowTo, o.showVersion, o.whatsNew, o.unlock, o.run, o.install, o.schema, o.setupManifest != "", setupSelectorMode, setupManageMode} {
 		if b {
 			primary++
 		}
@@ -439,6 +444,26 @@ func normalizeCommandArguments(args []string) []string {
 		return prepend("--howto")
 	case "version":
 		return prepend("--version")
+	case "whatsnew":
+		out := []string{"--whatsnew"}
+		for i := 0; i < len(rest); i++ {
+			arg := rest[i]
+			if arg == "--version" {
+				if i+1 < len(rest) {
+					out = append(out, "--whatsnew-version", rest[i+1])
+					i++
+					continue
+				}
+				out = append(out, "--whatsnew-version")
+				continue
+			}
+			if strings.HasPrefix(arg, "--version=") {
+				out = append(out, "--whatsnew-version="+strings.TrimPrefix(arg, "--version="))
+				continue
+			}
+			out = append(out, arg)
+		}
+		return out
 	case "check":
 		return prepend("--check")
 	case "update":
