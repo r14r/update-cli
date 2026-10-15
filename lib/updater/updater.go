@@ -30,6 +30,7 @@ import (
 	"github.com/r14r/update-cli/lib/ui"
 	"github.com/r14r/update-cli/lib/updatecheck"
 	versionutil "github.com/r14r/update-cli/lib/version"
+	"github.com/r14r/update-cli/lib/whatsnew"
 )
 
 type ExitError struct {
@@ -88,6 +89,18 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 	if o.showVersion {
 		fmt.Printf("Update CLI %s\n", buildVersion)
 		return nil
+	}
+	if o.whatsNew {
+		version := buildVersion
+		if strings.TrimSpace(o.whatsNewVersion) != "" {
+			version = strings.TrimSpace(o.whatsNewVersion)
+		}
+		text, whatsNewErr := whatsnew.ForVersion(version)
+		if whatsNewErr != nil {
+			return &ExitError{Code: 2, Err: whatsNewErr}
+		}
+		_, whatsNewErr = fmt.Print(text)
+		return whatsNewErr
 	}
 	if o.noParameterInvocation {
 		return runNoParameter(ctx, buildVersion, o.debug)
