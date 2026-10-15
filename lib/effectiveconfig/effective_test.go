@@ -140,9 +140,9 @@ func TestRepositorySourceForcesPullModeOverManifestUpdate(t *testing.T) {
 	root := t.TempDir()
 	_, err := config.Init(root, config.InitOptions{
 		ProjectName: "demo",
-		Mode: config.ModePull,
-		SourceType: "repository",
-		Repository: "https://github.com/r14r/demo.git",
+		Mode:        config.ModePull,
+		SourceType:  "repository",
+		Repository:  "https://github.com/r14r/demo.git",
 	})
 	if err != nil {
 		t.Fatal(err)
