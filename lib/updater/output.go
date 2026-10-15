@@ -332,6 +332,7 @@ func printHelpSummary() {
   update-cli unlock
   update-cli howto
   update-cli version
+  update-cli whatsnew [--version VERSION]
 
 Global options:
   --debug     show direct detailed execution steps for any command
