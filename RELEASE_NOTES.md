@@ -1,3 +1,11 @@
+# 2.16.16
+
+## Added
+
+- Add `update-cli migrate` as a first-class command with exactly the same behavior as `update-cli upgrade`.
+- Expose `migrate` through public syntax validation, command discovery, detailed help, and regression tests.
+- Keep `config --migrate` and `doctor --migrate` unchanged as separate scoped migration operations.
+
 # 2.16.15
 
 ## Changed
