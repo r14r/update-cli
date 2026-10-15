@@ -34,6 +34,8 @@ func TestCanonicalCommandFormsParse(t *testing.T) {
 		{"unlock"},
 		{"howto"},
 		{"version"},
+		{"whatsnew"},
+		{"whatsnew", "--version", "2.16.16"},
 		{"setup"},
 		{"setup", "--list", "--json"},
 		{"setup", "--task", "build", "--details"},
@@ -263,5 +265,24 @@ func TestMigrateCommandMatchesUpgrade(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("migrate options differ from upgrade: %#v != %#v", got, want)
+	}
+}
+
+
+func TestWhatsNewVersionParsing(t *testing.T) {
+	current, err := parseOptions([]string{"whatsnew"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !current.whatsNew || current.whatsNewVersion != "" || current.showVersion {
+		t.Fatalf("unexpected current whatsnew options: %#v", current)
+	}
+
+	selected, err := parseOptions([]string{"whatsnew", "--version", "2.16.16"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !selected.whatsNew || selected.whatsNewVersion != "2.16.16" || selected.showVersion {
+		t.Fatalf("unexpected versioned whatsnew options: %#v", selected)
 	}
 }
