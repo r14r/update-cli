@@ -2,7 +2,7 @@
 
 **Transactional project updates from ZIP releases or Git repositories.**
 
-Current release: **2.16.15**
+Current release: **2.16.16**
 
 Update CLI separates installation defaults, local runtime state, and versioned project configuration/automation:
 
@@ -46,6 +46,27 @@ update-cli releases --list --json
 ```
 
 
+
+## What changed in 2.16.16
+
+### New `migrate` command
+
+`update-cli migrate` is now a first-class command and performs exactly the same runtime configuration migration as:
+
+```bash
+update-cli upgrade
+```
+
+Both commands use the same implementation and support the same options such as `--root`, `--json`, and `--no-color`.
+
+This is separate from:
+
+```bash
+update-cli config --migrate
+update-cli doctor --migrate
+```
+
+which retain their existing scoped behavior.
 
 ## What changed in 2.16.15
 
