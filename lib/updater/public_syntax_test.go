@@ -5,6 +5,8 @@ import "testing"
 func TestValidatePublicSyntaxCanonicalGrammar(t *testing.T) {
 	valid := [][]string{
 		{"version"},
+		{"whatsnew"},
+		{"whatsnew", "--version", "2.16.16"},
 		{"help", "--details"},
 		{"help", "--command", "setup", "--details"},
 		{"update", "--archive", "release.zip", "--no-setup"},
