@@ -21,13 +21,23 @@ func TestForVersionAcceptsVPrefix(t *testing.T) {
 	}
 }
 
-func TestForVersionFallsBackToHistoricalMarkdown(t *testing.T) {
+func TestForVersionLoadsHistoricalVersionFile(t *testing.T) {
 	text, err := ForVersion("2.16.13")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(text, "# What's new in Update CLI 2.16.13") {
 		t.Fatalf("unexpected historical whatsnew text: %q", text)
+	}
+}
+
+func TestVersionsIncludesHistoricalReleases(t *testing.T) {
+	versions, err := Versions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(versions) < 50 {
+		t.Fatalf("expected complete release history, got %d versions", len(versions))
 	}
 }
 
