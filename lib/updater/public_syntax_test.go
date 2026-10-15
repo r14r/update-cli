@@ -11,6 +11,7 @@ func TestValidatePublicSyntaxCanonicalGrammar(t *testing.T) {
 		{"setup", "--list"},
 		{"setup", "--run", "go-vet"},
 		{"config", "--migrate"},
+		{"migrate"},
 		{"schema", "--version"},
 		{"releases", "--list"},
 		{"rollback", "--version", "2.15.0", "--setup"},
