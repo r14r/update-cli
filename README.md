@@ -2,7 +2,7 @@
 
 **Transactional project updates from ZIP releases or Git repositories.**
 
-Current release: **2.16.14**
+Current release: **2.16.15**
 
 Update CLI separates installation defaults, local runtime state, and versioned project configuration/automation:
 
@@ -46,6 +46,21 @@ update-cli releases --list --json
 ```
 
 
+
+## What changed in 2.16.15
+
+### Repository sources always use pull mode
+
+Repository sources are now normalized to `mode: pull` throughout effective configuration resolution. This also overrides stale or contradictory project manifests that still declare `update.mode: update` while using a repository source.
+
+For example, this contradictory project configuration:
+
+```yaml
+update:
+  mode: update
+```
+
+no longer breaks a repository-based project. If the effective source is `repository`, Update CLI uses `mode: pull`.
 
 ## What changed in 2.16.14
 
