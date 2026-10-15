@@ -245,6 +245,12 @@ var commandHelpDetails = map[string]commandHelp{
 		Description: "Zeigt die Update-CLI-Version aus der einzigen Versionsquelle VERSION.",
 		Examples:    []string{"update-cli version"},
 	},
+	"whatsnew": {
+		Usage:       []string{"update-cli whatsnew", "update-cli whatsnew --version VERSION"},
+		Description: "Zeigt die in das Binary eingebetteten Markdown-Neuerungen der aktuellen oder einer angegebenen Version.",
+		Options:     []string{"--version VERSION  Neuerungen einer bestimmten dokumentierten Version anzeigen"},
+		Examples:    []string{"update-cli whatsnew", "update-cli whatsnew --version 2.16.16"},
+	},
 }
 
 func printHelp(v string) {
