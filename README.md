@@ -2,7 +2,7 @@
 
 **Transactional project updates from ZIP releases or Git repositories.**
 
-Current release: **2.16.17**
+Current release: **2.17.0**
 
 Update CLI separates installation defaults, local runtime state, and versioned project configuration/automation:
 
@@ -46,6 +46,23 @@ update-cli releases --list --json
 ```
 
 
+
+## What changed in 2.17.0
+
+### Crash-safe transactions and atomic activation
+
+Update CLI now writes a persistent transaction journal before deployment mutation. Real updates build and verify a staged `current.next-<transaction-id>` tree, run setup against that staged tree, and only then atomically switch it into `current/`.
+
+If the process or host stops during an update, the recovery information survives under `.update-cli/transactions/`. Use:
+
+```bash
+update-cli recover
+update-cli recover --json
+```
+
+History entries include the transaction ID so failures, successful commits, and recoveries can be correlated.
+
+See `lib/whatsnew/releases/2.17.0.md` for the complete release highlights.
 
 ## What changed in 2.16.17
 
