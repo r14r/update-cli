@@ -896,7 +896,7 @@ func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o op
 	defer tools.RemoveTree(s.workDir)
 	s.extractDir = filepath.Join(s.workDir, "extract")
 
-	totalSteps := 13
+	totalSteps := 14
 	if o.plan || o.dryRun {
 		totalSteps = 5
 	}
@@ -982,8 +982,15 @@ func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o op
 		return failUpdateBeforeTransaction(console, cfg, s, phase, err)
 	}
 
+	if err := tx.setTargetVersion(s.version.String()); err != nil {
+		return failUpdateWithRecovery(console, cfg, s, tx, "transaction-journal", err, nil, nil)
+	}
+
 	backupPath := ""
 	phase = "backup"
+	if err := tx.setPhase(phase); err != nil {
+		return failUpdateWithRecovery(console, cfg, s, tx, phase, err, nil, nil)
+	}
 	if o.backup && tx.currentExisted {
 		if err := progress.run("Persistentes Pre-Update-Backup erstellen", func() error {
 			b, backupErr := backup.Create(ctx, cfg, false)
@@ -993,7 +1000,7 @@ func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o op
 			backupPath = b.Backup.Path
 			return nil
 		}); err != nil {
-			return failUpdateWithRecovery(console, cfg, s, tx, phase, err, nil)
+			return failUpdateWithRecovery(console, cfg, s, tx, phase, err, nil, nil)
 		}
 	} else if o.backup {
 		progress.skip("Persistentes Pre-Update-Backup erstellen", "Erstinstallation ohne vorhandenes current")
@@ -1002,29 +1009,42 @@ func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o op
 	}
 
 	var releaseSwap *tools.DirectorySwap
+	var currentSwap *tools.DirectorySwap
 	recoverOnError := func(cause error) error {
-		return failUpdateWithRecovery(console, cfg, s, tx, phase, cause, releaseSwap)
+		return failUpdateWithRecovery(console, cfg, s, tx, phase, cause, releaseSwap, currentSwap)
 	}
 
-	phase = "sync-current"
-	if err := progress.run("Release nach current synchronisieren", func() error {
-		return syncCurrent(ctx, s, false)
+	phase = "stage-current"
+	if err := tx.setPhase(phase); err != nil {
+		return recoverOnError(err)
+	}
+	if err := progress.run("Neuen current-Zustand im Staging vorbereiten", func() error {
+		return prepareCurrentStage(ctx, s, tx)
 	}); err != nil {
 		return recoverOnError(err)
 	}
 
 	phase = "verify-current"
-	if err := progress.run("Installierten current-Zustand verifizieren", func() error {
-		return verifyCurrent(ctx, s)
+	if err := tx.setPhase(phase); err != nil {
+		return recoverOnError(err)
+	}
+	if err := progress.run("Gestagten current-Zustand verifizieren", func() error {
+		return verifyCurrentAt(ctx, s, s.currentStageDir)
 	}); err != nil {
 		return recoverOnError(err)
 	}
 
+	stageCfg := cfg
+	stageCfg.CurrentDir = s.currentStageDir
+
 	phase = "setup-detect"
+	if err := tx.setPhase(phase); err != nil {
+		return recoverOnError(err)
+	}
 	runSetup := o.setup
 	setupAvailable := false
 	if !o.noSetup {
-		available, detectErr := projectsetup.Available(cfg)
+		available, detectErr := projectsetup.Available(stageCfg)
 		if detectErr != nil {
 			return recoverOnError(detectErr)
 		}
@@ -1050,9 +1070,12 @@ func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o op
 	}
 
 	phase = "setup"
+	if err := tx.setPhase(phase); err != nil {
+		return recoverOnError(err)
+	}
 	if runSetup {
-		if err := progress.run("Projekt-Setup ausführen", func() error {
-			_, setupErr := projectsetup.Run(ctx, cfg, console)
+		if err := progress.run("Projekt-Setup im Staging ausführen", func() error {
+			_, setupErr := projectsetup.Run(ctx, stageCfg, console)
 			return setupErr
 		}); err != nil {
 			if cfg.KeepRsyncOnSetupError {
@@ -1068,12 +1091,35 @@ func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o op
 		progress.skip("Projekt-Setup ausführen", "vom Benutzer nicht ausgewählt")
 	}
 
+	phase = "activate-current"
+	if err := tx.setPhase(phase); err != nil {
+		return recoverOnError(err)
+	}
+	if err := progress.run("Gestagten current-Zustand atomar aktivieren", func() error {
+		backupPath := tx.journal.BackupCurrent
+		var swapErr error
+		currentSwap, swapErr = tools.SwapDirectoryWithBackup(s.currentStageDir, cfg.CurrentDir, backupPath)
+		if swapErr != nil {
+			return swapErr
+		}
+		s.currentStageDir = ""
+		return tx.markActivated()
+	}); err != nil {
+		return recoverOnError(err)
+	}
+
 	phase = "services-start"
+	if err := tx.setPhase(phase); err != nil {
+		return recoverOnError(err)
+	}
 	if err := runPostSetupActivation(ctx, cfg, tx, progress, setupDeclinedInteractively, recoverOnError); err != nil {
 		return err
 	}
 
 	phase = "activate-release"
+	if err := tx.setPhase(phase); err != nil {
+		return recoverOnError(err)
+	}
 	if err := progress.run("Versioniertes Release aktivieren", func() error {
 		if s.releaseStage == "" {
 			return nil
@@ -1089,12 +1135,21 @@ func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o op
 	}
 
 	phase = "metadata"
+	if err := tx.setPhase(phase); err != nil {
+		return recoverOnError(err)
+	}
 	if err := progress.run("Status schreiben und Transaktion abschließen", func() error {
 		if err := writeReleaseState(s); err != nil {
 			return err
 		}
 		if err := tx.commit(); err != nil {
 			console.Warn("Temporäre Transaktionsdaten konnten nach erfolgreichem Commit nicht entfernt werden: " + err.Error())
+		}
+		if currentSwap != nil {
+			if err := currentSwap.Commit(); err != nil {
+				console.Warn("Vorheriger current-Zustand konnte nach Commit nicht entfernt werden: " + err.Error())
+			}
+			currentSwap = nil
 		}
 		if releaseSwap != nil {
 			if err := releaseSwap.Commit(); err != nil {
@@ -1110,7 +1165,7 @@ func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o op
 	if err := writeLegacyRootMarkers(cfg, s.version.String(), sourceRef(s)); err != nil {
 		console.Warn("Legacy-Release-Marker konnten nicht vollständig geschrieben werden: " + err.Error())
 	}
-	entry := history.Entry{Action: "update", ProjectName: cfg.ProjectName, FromVersion: s.fromVersion, ToVersion: s.version.String(), Source: sourceRef(s), Backup: backupPath, Setup: runSetup, Status: "success", Phase: "committed"}
+	entry := history.Entry{TransactionID: tx.journal.ID, Action: "update", ProjectName: cfg.ProjectName, FromVersion: s.fromVersion, ToVersion: s.version.String(), Source: sourceRef(s), Backup: backupPath, Setup: runSetup, Status: "success", Phase: "committed"}
 	appendSuccessHistory(console, cfg, entry)
 	console.SetProjectVersion(s.version.String())
 	printUpdateResult(console, s, runSetup)
