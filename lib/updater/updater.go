@@ -1255,13 +1255,25 @@ func failUpdateBeforeTransaction(console *ui.Console, cfg config.Config, s *stat
 	return recorded
 }
 
-func failUpdateWithRecovery(console *ui.Console, cfg config.Config, s *state, tx *transaction, phase string, cause error, releaseSwap *tools.DirectorySwap) error {
+func failUpdateWithRecovery(console *ui.Console, cfg config.Config, s *state, tx *transaction, phase string, cause error, releaseSwap, currentSwap *tools.DirectorySwap) error {
+	if currentSwap != nil {
+		if swapErr := currentSwap.Rollback(); swapErr != nil {
+			cause = fmt.Errorf("%w; Current-Recovery fehlgeschlagen: %v", cause, swapErr)
+		} else if tx != nil {
+			tx.journal.Activated = false
+			_ = tx.writeJournal()
+		}
+	}
 	if releaseSwap != nil {
 		if swapErr := releaseSwap.Rollback(); swapErr != nil {
 			cause = fmt.Errorf("%w; Release-Recovery fehlgeschlagen: %v", cause, swapErr)
 		}
 	}
-	recorded := recordFailure(cfg, "update", phase, s.fromVersion, updateTargetVersion(s), sourceRef(s), cause)
+	transactionID := ""
+	if tx != nil {
+		transactionID = tx.journal.ID
+	}
+	recorded := recordFailure(cfg, "update", phase, s.fromVersion, updateTargetVersion(s), sourceRef(s), cause, transactionID)
 	recovered := tx.recover(recorded)
 	showUpdateFailure(console, cfg, s, phase, recovered)
 	return recovered
@@ -1273,20 +1285,38 @@ func failUpdateWithRecovery(console *ui.Console, cfg config.Config, s *state, tx
 // consistent. The command still returns an error and the history entry remains
 // failed; only file-state rollback is suppressed for the setup phase.
 func failSetupKeepingSynced(console *ui.Console, cfg config.Config, s *state, tx *transaction, phase string, cause error) error {
+	var currentSwap *tools.DirectorySwap
 	var releaseSwap *tools.DirectorySwap
+
+	if s.currentStageDir != "" {
+		var err error
+		currentSwap, err = tools.SwapDirectoryWithBackup(s.currentStageDir, cfg.CurrentDir, tx.journal.BackupCurrent)
+		if err != nil {
+			return failUpdateWithRecovery(console, cfg, s, tx, phase, fmt.Errorf("%w; gestagter current-Stand konnte nicht aktiviert werden: %v", cause, err), nil, currentSwap)
+		}
+		s.currentStageDir = ""
+		if err := tx.markActivated(); err != nil {
+			return failUpdateWithRecovery(console, cfg, s, tx, phase, fmt.Errorf("%w; Aktivierung konnte nicht im Journal bestätigt werden: %v", cause, err), nil, currentSwap)
+		}
+	}
 	if s.releaseStage != "" {
 		var err error
 		releaseSwap, err = tools.SwapDirectory(s.releaseStage, s.releaseDir)
 		if err != nil {
-			return failUpdateWithRecovery(console, cfg, s, tx, phase, fmt.Errorf("%w; synchronisierter Stand konnte nicht als Release aktiviert werden: %v", cause, err), releaseSwap)
+			return failUpdateWithRecovery(console, cfg, s, tx, phase, fmt.Errorf("%w; synchronisierter Stand konnte nicht als Release aktiviert werden: %v", cause, err), releaseSwap, currentSwap)
 		}
 		s.releaseStage = ""
 	}
 	if err := writeReleaseState(s); err != nil {
-		return failUpdateWithRecovery(console, cfg, s, tx, phase, fmt.Errorf("%w; Release-Status konnte für den beibehaltenen Stand nicht geschrieben werden: %v", cause, err), releaseSwap)
+		return failUpdateWithRecovery(console, cfg, s, tx, phase, fmt.Errorf("%w; Release-Status konnte für den beibehaltenen Stand nicht geschrieben werden: %v", cause, err), releaseSwap, currentSwap)
 	}
 	if err := tx.commit(); err != nil {
 		console.Warn("Temporäre Transaktionsdaten konnten nach beibehaltenem Setup-Fehler nicht vollständig entfernt werden: " + err.Error())
+	}
+	if currentSwap != nil {
+		if err := currentSwap.Commit(); err != nil {
+			console.Warn("Vorheriger current-Zustand konnte nach Commit nicht vollständig entfernt werden: " + err.Error())
+		}
 	}
 	if releaseSwap != nil {
 		if err := releaseSwap.Commit(); err != nil {
@@ -1296,8 +1326,8 @@ func failSetupKeepingSynced(console *ui.Console, cfg config.Config, s *state, tx
 	if err := writeLegacyRootMarkers(cfg, s.version.String(), sourceRef(s)); err != nil {
 		console.Warn("Legacy-Release-Marker konnten für den beibehaltenen Stand nicht vollständig geschrieben werden: " + err.Error())
 	}
-	recorded := recordFailure(cfg, "update", phase, s.fromVersion, updateTargetVersion(s), sourceRef(s), cause)
-	console.Warn("Projekt-Setup fehlgeschlagen; rsync-Stand bleibt wegen setup.keepRsyncOnError=true in current/ erhalten")
+	recorded := recordFailure(cfg, "update", phase, s.fromVersion, updateTargetVersion(s), sourceRef(s), cause, tx.journal.ID)
+	console.Warn("Projekt-Setup fehlgeschlagen; gestagter Stand bleibt wegen setup.keepRsyncOnError=true als current aktiviert")
 	showUpdateFailure(console, cfg, s, phase, recorded)
 	return recorded
 }
@@ -1804,8 +1834,12 @@ func appendSuccessHistory(console *ui.Console, c config.Config, e history.Entry)
 		console.Warn("Vorgang erfolgreich, Historie konnte nicht geschrieben werden: " + err.Error())
 	}
 }
-func recordFailure(c config.Config, action, phase, from, to, src string, cause error) error {
-	hErr := appendHistory(c, history.Entry{Action: action, Phase: phase, ProjectName: c.ProjectName, FromVersion: from, ToVersion: to, Source: src, Status: "failed", Message: cause.Error()})
+func recordFailure(c config.Config, action, phase, from, to, src string, cause error, transactionIDs ...string) error {
+	transactionID := ""
+	if len(transactionIDs) > 0 {
+		transactionID = strings.TrimSpace(transactionIDs[0])
+	}
+	hErr := appendHistory(c, history.Entry{TransactionID: transactionID, Action: action, Phase: phase, ProjectName: c.ProjectName, FromVersion: from, ToVersion: to, Source: src, Status: "failed", Message: cause.Error()})
 	if hErr != nil {
 		return fmt.Errorf("%w; zusätzlich konnte Fehlerhistorie nicht geschrieben werden: %v", cause, hErr)
 	}
