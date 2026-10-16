@@ -25,7 +25,7 @@ jobs:
           if [ -n "$out" ]; then
             printf '%s\n' "$out"
             while IFS= read -r file; do
-              gofmt -d "$file"
+              gofmt -d "$file" || true
             done <<< "$out"
             exit 1
           fi
