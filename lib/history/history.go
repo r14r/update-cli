@@ -13,6 +13,7 @@ import (
 )
 
 type Entry struct {
+	TransactionID string    `json:"transactionId,omitempty"`
 	Timestamp   time.Time `json:"timestamp"`
 	Action      string    `json:"action"`
 	Phase       string    `json:"phase,omitempty"`
