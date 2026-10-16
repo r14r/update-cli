@@ -628,6 +628,8 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 		console.SetFooter("RUN  Git Pull läuft")
 	}
 	switch {
+	case o.recover:
+		return runRecover(ctx, console, cfg, o.jsonOutput)
 	case o.history:
 		entries, err := history.List(cfg.HistoryFile, o.limit)
 		if err != nil {
