@@ -10,7 +10,7 @@ import (
 
 type options struct {
 	archive, downloadDir, mode, sourceType, sourceFolder, sourceURL, repository, fromRepository, rootDir, projectName, setupManifest, setupTask, setupWorkflow, setupStep, helpTopic, initialGitDir, whatsNewVersion                                                                                                                                                                                                                                                                                                                         string
-	dryRun, plan, allowDowngrade, jsonOutput, update, backup, rollback, history, cleanup, clean, init, upgrade, check, doctor, fix, status, list, verify, setup, noSetup, config, configList, configCheck, configMigrate, templatesMode, templatesList, setupList, convertYAML, createYAML, createSetupScript, withAI, details, debug, edit, force, noColor, noUI, noAsk, wait, noWait, showHelp, showHowTo, showVersion, whatsNew, unlock, run, install, schema, schemaView, schemaVersion, doctorMigrate, doctorFix, noParameterInvocation bool
+	dryRun, plan, allowDowngrade, jsonOutput, update, backup, rollback, history, cleanup, clean, init, upgrade, check, doctor, fix, status, list, verify, setup, noSetup, config, configList, configCheck, configMigrate, templatesMode, templatesList, setupList, convertYAML, createYAML, createSetupScript, withAI, details, debug, edit, force, noColor, noUI, noAsk, wait, noWait, showHelp, showHowTo, showVersion, whatsNew, recover, unlock, run, install, schema, schemaView, schemaVersion, doctorMigrate, doctorFix, noParameterInvocation bool
 	rollbackVersion, restore, useTemplate, templateUse, templateName, schemaSave                                                                                                                                                                                                                                                                                                                                                                                                                                                             string
 	keep, limit                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              int
 	configSet                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                []string
@@ -99,6 +99,7 @@ func parseOptions(args []string) (options, error) {
 	fs.BoolVar(&o.showVersion, "V", false, "")
 	fs.BoolVar(&o.whatsNew, "whatsnew", false, "")
 	fs.StringVar(&o.whatsNewVersion, "whatsnew-version", "", "")
+	fs.BoolVar(&o.recover, "recover", false, "")
 	fs.BoolVar(&o.unlock, "unlock", false, "")
 	fs.BoolVar(&o.run, "run", false, "")
 	fs.BoolVar(&o.install, "install", false, "")
@@ -226,7 +227,7 @@ func parseOptions(args []string) (options, error) {
 		return o, errors.New("setup --list/task/workflow/run sind eigenständige Befehle; update/rollback/restore entfernen")
 	}
 	primary := 0
-	for _, b := range []bool{o.update, standaloneBackup, o.rollback, o.restore != "", o.history, o.cleanup, o.clean, o.init, o.upgrade, o.check, o.doctor, o.fix, o.status, o.list, o.verify, o.config, o.templatesMode, o.showHelp, o.showHowTo, o.showVersion, o.whatsNew, o.unlock, o.run, o.install, o.schema, o.setupManifest != "", setupSelectorMode, setupManageMode} {
+	for _, b := range []bool{o.update, standaloneBackup, o.rollback, o.restore != "", o.history, o.cleanup, o.clean, o.init, o.upgrade, o.check, o.doctor, o.fix, o.status, o.list, o.verify, o.config, o.templatesMode, o.showHelp, o.showHowTo, o.showVersion, o.whatsNew, o.recover, o.unlock, o.run, o.install, o.schema, o.setupManifest != "", setupSelectorMode, setupManageMode} {
 		if b {
 			primary++
 		}
@@ -464,6 +465,8 @@ func normalizeCommandArguments(args []string) []string {
 			out = append(out, arg)
 		}
 		return out
+	case "recover":
+		return prepend("--recover")
 	case "check":
 		return prepend("--check")
 	case "update":
