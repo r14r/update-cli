@@ -18,6 +18,7 @@ import (
 
 type transaction struct {
 	cfg                 config.Config
+	journal             transactionJournal
 	console             *ui.Console
 	snapshotRoot        string
 	snapshotCurrent     string
@@ -55,6 +56,20 @@ func beginTransaction(ctx context.Context, cfg config.Config, console *ui.Consol
 	}
 	t.snapshotRoot = workspace
 	t.snapshotCurrent = filepath.Join(t.snapshotRoot, "current")
+	t.journal = transactionJournal{
+		SchemaVersion:  transactionJournalSchemaVersion,
+		ID:             filepath.Base(workspace),
+		ProjectName:    cfg.ProjectName,
+		State:          "running",
+		Phase:          "transaction-begin",
+		FromVersion:    installedVersion(cfg.CurrentDir),
+		CurrentDir:     cfg.CurrentDir,
+		CurrentExisted: t.currentExisted,
+		StartedAt:      time.Now(),
+	}
+	if err := t.writeJournal(); err != nil {
+		return nil, t.abortBegin(fmt.Errorf("Transaktionsjournal kann nicht geschrieben werden: %w", err))
+	}
 
 	if t.currentExisted && cfg.Docker.Lifecycle != "disabled" {
 		d, detectErr := projectdocker.Detect(cfg.CurrentDir)
@@ -83,6 +98,10 @@ func beginTransaction(ctx context.Context, cfg config.Config, console *ui.Consol
 			}
 			t.servicesStopped = true
 		}
+	}
+	t.journal.ServicesWereRunning = t.servicesWereRunning
+	if err := t.writeJournal(); err != nil {
+		return nil, t.abortBegin(fmt.Errorf("Transaktionsjournal kann nicht aktualisiert werden: %w", err))
 	}
 
 	if t.currentExisted {
@@ -164,6 +183,11 @@ func (t *transaction) commit() error {
 		return nil
 	}
 	t.committed = true
+	t.journal.State = "committed"
+	t.journal.Phase = "committed"
+	if err := t.writeJournal(); err != nil {
+		return err
+	}
 	if t.snapshotRoot != "" {
 		return tools.RemoveTree(t.snapshotRoot)
 	}
