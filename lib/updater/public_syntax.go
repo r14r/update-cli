@@ -8,7 +8,7 @@ import (
 var publicCommands = map[string]struct{}{
 	"help": {}, "howto": {}, "version": {}, "check": {}, "update": {},
 	"backup": {}, "rollback": {}, "restore": {}, "history": {}, "cleanup": {},
-	"clean": {}, "init": {}, "upgrade": {}, "migrate": {}, "whatsnew": {}, "doctor": {}, "fix": {}, "status": {},
+	"clean": {}, "init": {}, "upgrade": {}, "migrate": {}, "whatsnew": {}, "recover": {}, "doctor": {}, "fix": {}, "status": {},
 	"releases": {}, "verify": {}, "unlock": {}, "run": {}, "install": {},
 	"schema": {}, "setup": {}, "config": {}, "templates": {},
 	"convert-yaml": {}, "create-yaml": {}, "create-setup-script": {},
