@@ -16,21 +16,21 @@ import (
 const transactionJournalSchemaVersion = 1
 
 type transactionJournal struct {
-	SchemaVersion        int       `json:"schemaVersion"`
-	ID                   string    `json:"id"`
-	ProjectName          string    `json:"projectName"`
-	State                string    `json:"state"`
-	Phase                string    `json:"phase"`
-	FromVersion          string    `json:"fromVersion,omitempty"`
-	ToVersion            string    `json:"toVersion,omitempty"`
-	CurrentDir           string    `json:"currentDir"`
-	StageCurrent         string    `json:"stageCurrent,omitempty"`
-	BackupCurrent        string    `json:"backupCurrent,omitempty"`
-	CurrentExisted       bool      `json:"currentExisted"`
-	ServicesWereRunning  bool      `json:"servicesWereRunning"`
-	Activated            bool      `json:"activated"`
-	StartedAt            time.Time `json:"startedAt"`
-	UpdatedAt            time.Time `json:"updatedAt"`
+	SchemaVersion       int       `json:"schemaVersion"`
+	ID                  string    `json:"id"`
+	ProjectName         string    `json:"projectName"`
+	State               string    `json:"state"`
+	Phase               string    `json:"phase"`
+	FromVersion         string    `json:"fromVersion,omitempty"`
+	ToVersion           string    `json:"toVersion,omitempty"`
+	CurrentDir          string    `json:"currentDir"`
+	StageCurrent        string    `json:"stageCurrent,omitempty"`
+	BackupCurrent       string    `json:"backupCurrent,omitempty"`
+	CurrentExisted      bool      `json:"currentExisted"`
+	ServicesWereRunning bool      `json:"servicesWereRunning"`
+	Activated           bool      `json:"activated"`
+	StartedAt           time.Time `json:"startedAt"`
+	UpdatedAt           time.Time `json:"updatedAt"`
 }
 
 type pendingTransaction struct {
