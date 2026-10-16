@@ -373,7 +373,7 @@ def main() -> int:
                 "setup confirmation YES button": b"YES",
                 "setup confirmation NO button": b"NO",
                 "setup modal cursor hint": "←/→ = auswählen".encode("utf-8"),
-                "aligned progress row": "[01/13] [".encode("utf-8"),
+                "aligned progress row": "[01/14] [".encode("utf-8"),
                 "transaction phase": b"Transaktions-Rollback vorbereiten",
                 "green completed-step icon": b"\x1b[32m\x1b[1m" + "✓".encode("utf-8"),
                 "final installed version": (
@@ -385,7 +385,7 @@ def main() -> int:
             raise SystemExit("transaction rollback preparation emitted a duplicate INFO row")
         if b"OK    Transaktions-Rollback vorbereiten" in prompt_output:
             raise SystemExit("transaction rollback preparation emitted a duplicate OK row")
-        if b"INFO  [01/13]" in prompt_output:
+        if b"INFO  [01/14]" in prompt_output:
             raise SystemExit("update phase still contains INFO prefix")
         if b"INFO  [" in prompt_output:
             raise SystemExit("an update/setup step still contains INFO prefix")
@@ -488,7 +488,7 @@ def main() -> int:
             b"Release-Quelle aufl",
             b"Zielversion und Update-Regeln pr",
             b"Transaktions-Rollback vorbereiten",
-            b"Release nach current synchronisieren",
+            b"Neuen current-Zustand im Staging vorbereiten",
         ):
             if stale in final_frame:
                 raise SystemExit(
@@ -605,7 +605,7 @@ def main() -> int:
                 "detailed phase": "Phase: Projekt-Setup ausführen (setup)".encode("utf-8"),
                 "target version": b"Zielversion: 1.1.0",
                 "concrete cause": "Ursache: setup step".encode("utf-8"),
-                "recovery": "Vorheriges Release 1.0.0 wiederhergestellt".encode("utf-8"),
+                "recovery": "Gestagter current-Zustand verworfen; vorheriger current-Zustand blieb unverändert".encode("utf-8"),
             },
         )
         if (error_root / "current" / "app.txt").read_text(encoding="utf-8") != "old\n":
