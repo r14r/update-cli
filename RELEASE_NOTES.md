@@ -1,3 +1,28 @@
+# 2.17.0
+
+## Added
+
+- Add persistent update transaction journals under `.update-cli/transactions/`.
+- Add `update-cli recover` and `update-cli recover --json` for interrupted update recovery.
+- Record transaction IDs in update/recovery history.
+- Add journal-aware directory swaps with a recovery path persisted before activation.
+- Add recovery tests for interrupted pre-activation and post-activation states.
+
+## Changed
+
+- Build real updates in `current.next-<transaction-id>` instead of mutating the live `current/` tree directly.
+- Run setup against the staged current tree before activation.
+- Activate `current/` using directory renames and retain the exact previous tree until the transaction commits.
+- Increase the fullscreen update pipeline from 13 to 14 phases to expose atomic current activation explicitly.
+- Align Just recipes with canonical command-first CLI syntax.
+- Make CI formatting failures print both filenames and exact `gofmt` diffs.
+
+## Reliability
+
+- A crash between renaming the previous `current/` and activating the staged tree can now be recovered deterministically because both paths are recorded before the first rename.
+- A crash before activation leaves the live current tree unchanged; recovery only discards the staged tree.
+- A crash after activation restores the previous exact current tree when the recovery directory is present.
+
 # 2.16.17
 
 ## Added
