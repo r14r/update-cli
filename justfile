@@ -19,6 +19,15 @@ init *args:
 upgrade *args:
     go run . upgrade {{args}}
 
+migrate *args:
+    go run . migrate {{args}}
+
+recover *args:
+    go run . recover {{args}}
+
+whatsnew *args:
+    go run . whatsnew {{args}}
+
 update *args:
     go run . update {{args}}
 
@@ -35,7 +44,7 @@ rollback *args:
     go run . rollback {{args}}
 
 restore backup="latest" *args:
-    go run . restore "{{backup}}" {{args}}
+    go run . restore --snapshot "{{backup}}" {{args}}
 
 history *args:
     go run . history {{args}}
@@ -56,7 +65,7 @@ legacy-list *args:
     go run . list {{args}}
 
 verify archive *args:
-    go run . verify "{{archive}}" {{args}}
+    go run . verify --archive "{{archive}}" {{args}}
 
 doctor *args:
     go run . doctor {{args}}
@@ -65,13 +74,13 @@ setup:
     ./setup.sh
 
 setup-manifest file="update-cli.yaml":
-    go run . setup manifest "{{file}}"
+    go run . setup --manifest "{{file}}"
 
 setup-list:
-    go run . setup list
+    go run . setup --list
 
 setup-task task *args:
-    go run . setup task "{{task}}" {{args}}
+    go run . setup --task "{{task}}" {{args}}
 
 convert-yaml *args:
     go run . convert-yaml {{args}}
@@ -86,7 +95,7 @@ create-setup-script *args:
     go run . create-setup-script {{args}}
 
 setup-workflow workflow *args:
-    go run . setup workflow "{{workflow}}" {{args}}
+    go run . setup --workflow "{{workflow}}" {{args}}
 
 config *args:
     go run . config {{args}}
