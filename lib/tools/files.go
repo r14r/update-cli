@@ -37,12 +37,27 @@ type DirectorySwap struct {
 }
 
 func SwapDirectory(stage, target string) (*DirectorySwap, error) {
-	if _, err := os.Stat(stage); err != nil {
-		return nil, fmt.Errorf("Staging-Ordner fehlt: %w", err)
-	}
 	backup, err := uniqueSwapBackupPath(target)
 	if err != nil {
 		return nil, err
+	}
+	return SwapDirectoryWithBackup(stage, target, backup)
+}
+
+// SwapDirectoryWithBackup atomically activates stage at target while using a
+// caller-selected recovery path. Supplying the backup path before the first
+// rename allows callers to persist a crash-recovery journal before activation.
+func SwapDirectoryWithBackup(stage, target, backup string) (*DirectorySwap, error) {
+	if _, err := os.Stat(stage); err != nil {
+		return nil, fmt.Errorf("Staging-Ordner fehlt: %w", err)
+	}
+	if strings.TrimSpace(backup) == "" {
+		return nil, errors.New("Recovery-Pfad für Directory-Swap fehlt")
+	}
+	if _, err := os.Lstat(backup); err == nil {
+		return nil, fmt.Errorf("Recovery-Pfad existiert bereits: %s", backup)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("Recovery-Pfad kann nicht geprüft werden: %w", err)
 	}
 	swap := &DirectorySwap{Target: target, Backup: backup}
 	if _, err := os.Stat(target); err == nil {
