@@ -119,7 +119,6 @@ func TestDirectorySwapDoesNotDeletePreexistingOldDirectory(t *testing.T) {
 	}
 }
 
-
 func TestDirectorySwapWithKnownBackupSupportsCrashRecoveryPath(t *testing.T) {
 	root := t.TempDir()
 	stage := filepath.Join(root, "current.next-tx")
