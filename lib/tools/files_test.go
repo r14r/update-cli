@@ -118,3 +118,40 @@ func TestDirectorySwapDoesNotDeletePreexistingOldDirectory(t *testing.T) {
 		t.Fatalf("swap reused pre-existing recovery directory %s", stale)
 	}
 }
+
+
+func TestDirectorySwapWithKnownBackupSupportsCrashRecoveryPath(t *testing.T) {
+	root := t.TempDir()
+	stage := filepath.Join(root, "current.next-tx")
+	target := filepath.Join(root, "current")
+	backup := filepath.Join(root, "current.previous-tx")
+	for _, dir := range []string{stage, target} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(stage, "value.txt"), []byte("new"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(target, "value.txt"), []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	swap, err := SwapDirectoryWithBackup(stage, target, backup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if swap.Backup != backup {
+		t.Fatalf("backup=%q want %q", swap.Backup, backup)
+	}
+	if _, err := os.Stat(filepath.Join(backup, "value.txt")); err != nil {
+		t.Fatalf("known recovery path missing: %v", err)
+	}
+	if err := swap.Rollback(); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(target, "value.txt"))
+	if err != nil || string(data) != "old" {
+		t.Fatalf("rollback did not restore old target: %q, %v", data, err)
+	}
+}
