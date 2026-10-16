@@ -36,19 +36,19 @@ func TestRecoverRestoresInterruptedAtomicCurrentSwap(t *testing.T) {
 	}
 
 	journal := transactionJournal{
-		SchemaVersion:       transactionJournalSchemaVersion,
-		ID:                  "txn-test",
-		ProjectName:         "demo",
-		State:               "running",
-		Phase:               "services-start",
-		FromVersion:         "1.0.0",
-		ToVersion:           "2.0.0",
-		CurrentDir:          current,
-		BackupCurrent:       backup,
-		CurrentExisted:      true,
-		Activated:           true,
-		StartedAt:           time.Now().Add(-time.Minute),
-		UpdatedAt:           time.Now(),
+		SchemaVersion:  transactionJournalSchemaVersion,
+		ID:             "txn-test",
+		ProjectName:    "demo",
+		State:          "running",
+		Phase:          "services-start",
+		FromVersion:    "1.0.0",
+		ToVersion:      "2.0.0",
+		CurrentDir:     current,
+		BackupCurrent:  backup,
+		CurrentExisted: true,
+		Activated:      true,
+		StartedAt:      time.Now().Add(-time.Minute),
+		UpdatedAt:      time.Now(),
 	}
 	data, err := json.MarshalIndent(journal, "", "  ")
 	if err != nil {
