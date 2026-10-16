@@ -215,6 +215,11 @@ var commandHelpDetails = map[string]commandHelp{
 		Description: "Migriert die Projekt-Runtime-Konfiguration auf das aktuelle Schema; identisch zu update-cli upgrade.",
 		Examples:    []string{"update-cli migrate"},
 	},
+	"recover": {
+		Usage:       []string{"update-cli recover", "update-cli recover --json"},
+		Description: "Stellt unvollständige Update-Transaktionen anhand des persistenten Transaktionsjournals wieder her.",
+		Examples:    []string{"update-cli recover", "update-cli recover --json"},
+	},
 	"unlock": {
 		Usage:       []string{"update-cli unlock"},
 		Description: "Entfernt einen als veraltet erkannten Update-Lock.",
@@ -329,6 +334,7 @@ func printHelpSummary() {
   update-cli config [--set KEY=VALUE ...] [--check|--migrate|--list|--edit|--use-template NAME]
   update-cli init --project PROJECTNAME
   update-cli upgrade
+  update-cli recover [--json]
   update-cli unlock
   update-cli howto
   update-cli version
