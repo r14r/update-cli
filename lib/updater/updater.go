@@ -56,7 +56,7 @@ type state struct {
 	cfg                                                                                                 config.Config
 	artifact                                                                                            source.Artifact
 	version                                                                                             versionutil.Version
-	workDir, extractDir, contentDir, releaseDir, releaseStage, dryReleaseDir, dryCurrentDir, gitSeedDir string
+	workDir, extractDir, contentDir, releaseDir, releaseStage, dryReleaseDir, dryCurrentDir, currentStageDir, gitSeedDir string
 	releaseChanges, currentChanges                                                                      int
 	currentPlan                                                                                         []rsyncutil.Change
 	fromVersion                                                                                         string
@@ -1523,7 +1523,46 @@ func syncCurrent(ctx context.Context, s *state, dry bool) error {
 	s.currentPlan = append(append([]rsyncutil.Change(nil), gitChanges...), r.Items...)
 	return nil
 }
-func verifyCurrent(ctx context.Context, s *state) error {
+func prepareCurrentStage(ctx context.Context, s *state, tx *transaction) error {
+	if tx == nil {
+		return errors.New("Transaktion für current-Staging fehlt")
+	}
+	stage := s.cfg.CurrentDir + ".next-" + tx.journal.ID
+	backupPath := s.cfg.CurrentDir + ".previous-" + tx.journal.ID
+	if err := tools.RemoveTree(stage); err != nil {
+		return err
+	}
+	if tx.currentExisted {
+		if _, err := rsyncutil.TransactionSnapshot(ctx, s.cfg.CurrentDir, stage, filepath.Join(s.workDir, "stage-current-base.log")); err != nil {
+			return fmt.Errorf("current-Staging kann nicht aus dem bestehenden Zustand vorbereitet werden: %w", err)
+		}
+	} else if err := os.MkdirAll(stage, 0o755); err != nil {
+		return err
+	}
+
+	src := s.releaseStage
+	if src == "" {
+		src = s.releaseDir
+	}
+	gitSeedDir := strings.TrimSpace(s.gitSeedDir)
+	if gitSeedDir == "" && s.artifact.Type == source.Repository {
+		gitSeedDir = filepath.Join(s.cfg.RepositoryCacheDir, ".git")
+	}
+	gitChanges, err := rsyncutil.SeedGitMetadata(ctx, gitSeedDir, stage, false)
+	if err != nil {
+		return err
+	}
+	result, err := rsyncutil.Current(ctx, src, stage, filepath.Join(s.workDir, "rsync-current-stage.log"), false, s.cfg.Preserve)
+	if err != nil {
+		return err
+	}
+	s.currentStageDir = stage
+	s.currentChanges = result.Changes + len(gitChanges)
+	s.currentPlan = append(append([]rsyncutil.Change(nil), gitChanges...), result.Items...)
+	return tx.setCurrentSwap(stage, backupPath)
+}
+
+func verifyCurrentAt(ctx context.Context, s *state, currentDir string) error {
 	releaseSource := s.releaseStage
 	if releaseSource == "" {
 		releaseSource = s.releaseDir
@@ -1531,19 +1570,19 @@ func verifyCurrent(ctx context.Context, s *state) error {
 	if err := verifyMarker(releaseSource, s.version.String()); err != nil {
 		return err
 	}
-	if err := verifyMarker(s.cfg.CurrentDir, s.version.String()); err != nil {
+	if err := verifyMarker(currentDir, s.version.String()); err != nil {
 		return err
 	}
 	if commit := strings.TrimSpace(s.artifact.Commit); commit != "" {
-		b, err := os.ReadFile(filepath.Join(s.cfg.CurrentDir, ".release-commit"))
+		b, err := os.ReadFile(filepath.Join(currentDir, ".release-commit"))
 		if err != nil {
-			return fmt.Errorf("Release-Commit-Marker fehlt in %s: %w", s.cfg.CurrentDir, err)
+			return fmt.Errorf("Release-Commit-Marker fehlt in %s: %w", currentDir, err)
 		}
 		if strings.TrimSpace(string(b)) != commit {
-			return fmt.Errorf("Release-Commit-Marker in %s ist inkonsistent", s.cfg.CurrentDir)
+			return fmt.Errorf("Release-Commit-Marker in %s ist inkonsistent", currentDir)
 		}
 	}
-	r, err := rsyncutil.Current(ctx, releaseSource, s.cfg.CurrentDir, filepath.Join(s.workDir, "verify-current.log"), true, s.cfg.Preserve)
+	r, err := rsyncutil.Current(ctx, releaseSource, currentDir, filepath.Join(s.workDir, "verify-current.log"), true, s.cfg.Preserve)
 	if err != nil {
 		return err
 	}
@@ -1552,6 +1591,11 @@ func verifyCurrent(ctx context.Context, s *state) error {
 	}
 	return nil
 }
+
+func verifyCurrent(ctx context.Context, s *state) error {
+	return verifyCurrentAt(ctx, s, s.cfg.CurrentDir)
+}
+
 func writeReleaseMarkers(dir string, s *state) error {
 	// VERSION is the only version source. Remove the historical parallel marker
 	// when staging a release so it cannot become authoritative again.
