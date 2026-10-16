@@ -216,7 +216,8 @@ func (t *transaction) recover(cause error) error {
 			_, _ = projectdocker.Stop(ctx, t.cfg.CurrentDir)
 		}
 	}
-	if t.currentExisted {
+	shouldRestoreCurrent := t.journal.Activated || strings.TrimSpace(t.journal.StageCurrent) == ""
+	if t.currentExisted && shouldRestoreCurrent {
 		log := filepath.Join(t.snapshotRoot, "restore.log")
 		switch {
 		case t.rollbackRelease != "":
@@ -234,9 +235,14 @@ func (t *transaction) recover(cause error) error {
 				t.console.Success("Vorheriger current-Zustand wiederhergestellt")
 			}
 		}
-	} else {
+	} else if !t.currentExisted && t.journal.Activated {
 		if err := tools.RemoveTree(t.cfg.CurrentDir); err != nil {
 			recoveryErr = fmt.Errorf("unvollständige Erstinstallation konnte nicht entfernt werden: %w", err)
+		}
+	}
+	if stage := strings.TrimSpace(t.journal.StageCurrent); stage != "" {
+		if err := tools.RemoveTree(stage); err != nil && recoveryErr == nil {
+			recoveryErr = fmt.Errorf("current-Staging konnte nicht entfernt werden: %w", err)
 		}
 	}
 	if t.servicesWereRunning {
@@ -250,6 +256,9 @@ func (t *transaction) recover(cause error) error {
 			t.console.Success("Vorheriger Docker-Compose-Stack wieder gestartet")
 		}
 	}
+	t.journal.State = "recovered"
+	t.journal.Phase = "recovered"
+	_ = t.writeJournal()
 	_ = tools.RemoveTree(t.snapshotRoot)
 	if recoveryErr != nil {
 		return fmt.Errorf("%w; Recovery-Fehler: %v", cause, recoveryErr)
