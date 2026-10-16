@@ -14,17 +14,17 @@ import (
 
 type Entry struct {
 	TransactionID string    `json:"transactionId,omitempty"`
-	Timestamp   time.Time `json:"timestamp"`
-	Action      string    `json:"action"`
-	Phase       string    `json:"phase,omitempty"`
-	ProjectName string    `json:"projectName"`
-	FromVersion string    `json:"fromVersion,omitempty"`
-	ToVersion   string    `json:"toVersion,omitempty"`
-	Source      string    `json:"source,omitempty"`
-	Backup      string    `json:"backup,omitempty"`
-	Setup       bool      `json:"setup"`
-	Status      string    `json:"status"`
-	Message     string    `json:"message,omitempty"`
+	Timestamp     time.Time `json:"timestamp"`
+	Action        string    `json:"action"`
+	Phase         string    `json:"phase,omitempty"`
+	ProjectName   string    `json:"projectName"`
+	FromVersion   string    `json:"fromVersion,omitempty"`
+	ToVersion     string    `json:"toVersion,omitempty"`
+	Source        string    `json:"source,omitempty"`
+	Backup        string    `json:"backup,omitempty"`
+	Setup         bool      `json:"setup"`
+	Status        string    `json:"status"`
+	Message       string    `json:"message,omitempty"`
 }
 
 func Append(path string, e Entry) error {
