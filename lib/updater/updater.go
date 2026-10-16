@@ -1616,6 +1616,10 @@ func prepareCurrentStage(ctx context.Context, s *state, tx *transaction) error {
 	}
 	stage := s.cfg.CurrentDir + ".next-" + tx.journal.ID
 	backupPath := s.cfg.CurrentDir + ".previous-" + tx.journal.ID
+	s.currentStageDir = stage
+	if err := tx.setCurrentSwap(stage, backupPath); err != nil {
+		return err
+	}
 	if err := tools.RemoveTree(stage); err != nil {
 		return err
 	}
@@ -1643,10 +1647,9 @@ func prepareCurrentStage(ctx context.Context, s *state, tx *transaction) error {
 	if err != nil {
 		return err
 	}
-	s.currentStageDir = stage
 	s.currentChanges = result.Changes + len(gitChanges)
 	s.currentPlan = append(append([]rsyncutil.Change(nil), gitChanges...), result.Items...)
-	return tx.setCurrentSwap(stage, backupPath)
+	return nil
 }
 
 func verifyCurrentAt(ctx context.Context, s *state, currentDir string) error {
