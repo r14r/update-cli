@@ -22,7 +22,13 @@ jobs:
       - name: Format
         run: |
           out="$(gofmt -l .)"
-          test -z "$out" || { printf '%s\n' "$out"; exit 1; }
+          if [ -n "$out" ]; then
+            printf '%s\n' "$out"
+            while IFS= read -r file; do
+              gofmt -d "$file"
+            done <<< "$out"
+            exit 1
+          fi
       - name: Shell syntax
         run: |
           bash -n setup.sh
