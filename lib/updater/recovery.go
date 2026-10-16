@@ -106,11 +106,22 @@ func recoverPendingTransaction(ctx context.Context, console *ui.Console, cfg con
 		}
 	}
 
-	if !restored && j.Activated && !j.CurrentExisted {
-		if err := tools.RemoveTree(cfg.CurrentDir); err != nil {
-			return recoveryItem{}, fmt.Errorf("unvollständige Erstinstallation kann nicht entfernt werden: %w", err)
+	if !restored && !j.CurrentExisted {
+		stage := strings.TrimSpace(j.StageCurrent)
+		activationMayHaveCompleted := j.Activated
+		if !activationMayHaveCompleted && j.Phase == "activate-current" && stage != "" {
+			if _, stageErr := os.Lstat(stage); errors.Is(stageErr, os.ErrNotExist) {
+				if _, currentErr := os.Lstat(cfg.CurrentDir); currentErr == nil {
+					activationMayHaveCompleted = true
+				}
+			}
 		}
-		restored = true
+		if activationMayHaveCompleted {
+			if err := tools.RemoveTree(cfg.CurrentDir); err != nil {
+				return recoveryItem{}, fmt.Errorf("unvollständige Erstinstallation kann nicht entfernt werden: %w", err)
+			}
+			restored = true
+		}
 	}
 
 	if stage := strings.TrimSpace(j.StageCurrent); stage != "" {
