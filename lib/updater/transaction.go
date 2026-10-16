@@ -243,6 +243,8 @@ func (t *transaction) recover(cause error) error {
 	if stage := strings.TrimSpace(t.journal.StageCurrent); stage != "" {
 		if err := tools.RemoveTree(stage); err != nil && recoveryErr == nil {
 			recoveryErr = fmt.Errorf("current-Staging konnte nicht entfernt werden: %w", err)
+		} else if !t.journal.Activated && recoveryErr == nil {
+			t.console.Success("Gestagter current-Zustand verworfen; vorheriger current-Zustand blieb unverändert")
 		}
 	}
 	if t.servicesWereRunning {
