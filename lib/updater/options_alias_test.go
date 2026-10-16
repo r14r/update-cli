@@ -31,6 +31,7 @@ func TestCanonicalCommandFormsParse(t *testing.T) {
 		{"init", "--repository", "https://github.com/r14r/demo.git"},
 		{"upgrade"},
 		{"migrate"},
+		{"recover"},
 		{"unlock"},
 		{"howto"},
 		{"version"},
