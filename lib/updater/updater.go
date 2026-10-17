@@ -770,7 +770,10 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 }
 
 func projectMigrationRequired(root string) bool {
-	return doctor.InspectMigrationRequirement(root).Requirfunc runNoParameter(ctx context.Context, buildVersion string, debug bool) error {
+	return doctor.InspectMigrationRequirement(root).Required
+}
+
+func runNoParameter(ctx context.Context, buildVersion string, debug bool) error {
 	root, err := config.ResolveRoot("")
 	if err != nil {
 		printHelp(buildVersion)
