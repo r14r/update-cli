@@ -191,6 +191,10 @@ whatsnew *args:
 update *args:
     go run . update {{args}}
 
+# No-argument lifecycle: update, then prompt for bootstrap and install.
+lifecycle:
+    go run .
+
 update-plan *args:
     go run . update --plan {{args}}
 

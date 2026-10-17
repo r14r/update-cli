@@ -21,7 +21,6 @@
     "keepRsyncOnError": false
   },
   "no parameter": [
-    "update",
-    "no-setup"
+    "update"
   ]
 }

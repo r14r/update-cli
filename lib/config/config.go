@@ -218,7 +218,7 @@ func defaultFile(project string) FileConfig {
 	// sync is intentionally omitted from a new project-local config. The
 	// installation-wide config provides the default preserve/exclude policy;
 	// migrate() still supplies built-in defaults when no global config exists.
-	return FileConfig{SchemaVersion: SchemaVersion, ProjectName: project, Mode: ModeUpdate, Source: &SourceConfig{Type: "download", Folder: buildconfig.Current().DefaultDownloadFolder, DefaultUser: DefaultRepositoryUser}, ReleaseDir: "release", CurrentDir: "current", NoParameter: NoParameterConfig{"update", "no-setup"}, Setup: &SetupConfig{Commands: []string{}}, Backup: &BackupConfig{Directory: "backup", Keep: 3}, Retention: &RetentionConfig{Releases: 5}, Security: ptrSecurity(defaultSecurity()), Docker: &DockerConfig{Lifecycle: "auto"}, Healthcheck: &HealthcheckConfig{}}
+	return FileConfig{SchemaVersion: SchemaVersion, ProjectName: project, Mode: ModeUpdate, Source: &SourceConfig{Type: "download", Folder: buildconfig.Current().DefaultDownloadFolder, DefaultUser: DefaultRepositoryUser}, ReleaseDir: "release", CurrentDir: "current", NoParameter: NoParameterConfig{"update"}, Setup: &SetupConfig{Commands: []string{}}, Backup: &BackupConfig{Directory: "backup", Keep: 3}, Retention: &RetentionConfig{Releases: 5}, Security: ptrSecurity(defaultSecurity()), Docker: &DockerConfig{Lifecycle: "auto"}, Healthcheck: &HealthcheckConfig{}}
 }
 func ptrSecurity(s SecurityConfig) *SecurityConfig { return &s }
 
@@ -995,10 +995,10 @@ func normalizedNoParameter(v NoParameterConfig) (NoParameterConfig, error) {
 		}
 		seen[a] = true
 		switch a {
-		case "help", "check", "update", "setup", "no-setup":
+		case "help", "check", "update", "setup", "no-setup", "no-bootstrap", "no-install":
 			out = append(out, a)
 		default:
-			return nil, fmt.Errorf("no parameter unterstützt nur help, check, update, setup, no-setup")
+			return nil, fmt.Errorf("no parameter unterstützt nur help, check, update, setup, no-setup, no-bootstrap, no-install")
 		}
 	}
 	if seen["help"] && len(out) > 1 {
@@ -1006,6 +1006,9 @@ func normalizedNoParameter(v NoParameterConfig) (NoParameterConfig, error) {
 	}
 	if seen["check"] && seen["update"] {
 		return nil, errors.New("check und update dürfen nicht kombiniert werden")
+	}
+	if (seen["no-bootstrap"] || seen["no-install"]) && !seen["update"] {
+		return nil, errors.New("no-bootstrap und no-install benötigen update in no parameter")
 	}
 	if seen["no-setup"] && !seen["update"] {
 		return nil, errors.New("no-setup darf in no parameter nur mit update kombiniert werden")
@@ -1017,7 +1020,7 @@ func normalizedNoParameter(v NoParameterConfig) (NoParameterConfig, error) {
 	// after the user confirms installation, run project setup as part of that
 	// update. setup is therefore a modifier of check here, not a second CLI mode.
 	ordered := []string{}
-	for _, a := range []string{"help", "check", "update", "setup", "no-setup"} {
+	for _, a := range []string{"help", "check", "update", "setup", "no-setup", "no-bootstrap", "no-install"} {
 		if seen[a] {
 			ordered = append(ordered, a)
 		}
