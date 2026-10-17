@@ -1,9 +1,9 @@
 package updater
 
 import (
-	"io"
 	"bufio"
 	"context"
+	"io"
 	"encoding/json"
 	"errors"
 	"fmt"
