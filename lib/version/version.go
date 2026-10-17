@@ -46,42 +46,12 @@ func (v Version) Compare(o Version) int {
 	return 0
 }
 
-// CompareForProject compares versions using Update CLI's historical release
-// epochs. The project reset from legacy 2.x/3.x to 0.8.x, promoted that line
-// to stable 1.x, and now uses 2.x as the current stable major line.
-//
-// There is an unavoidable ambiguity between very old pre-reset 2.x releases
-// and current 2.x releases because both use the same SemVer major. Current 2.x
-// must win so that normal 1.x -> 2.x upgrades and archive discovery work.
-// Legacy 3.x remains explicitly below the 0.8+/1.x/2.x lines.
-func CompareForProject(project string, a, b Version) int {
-	if !strings.EqualFold(strings.TrimSpace(project), "update-cli") {
-		return a.Compare(b)
-	}
-	aEpoch := updateCLIReleaseEpoch(a)
-	bEpoch := updateCLIReleaseEpoch(b)
-	if aEpoch != bEpoch {
-		if aEpoch < bEpoch {
-			return -1
-		}
-		return 1
-	}
+// CompareForProject follows semantic-version precedence for all projects.
+// Historical pre-reset 3.x releases cannot be distinguished from the new
+// 3.x line by a version number alone; explicit migration metadata would be
+// required to support both numbering schemes simultaneously.
+func CompareForProject(_ string, a, b Version) int {
 	return a.Compare(b)
-}
-
-func updateCLIReleaseEpoch(v Version) int {
-	switch {
-	case v.Major == 2:
-		return 4 // current stable 2.x line
-	case v.Major == 1:
-		return 3 // stable 1.x line
-	case v.Major == 0 && v.Minor >= 8:
-		return 2 // public 0.8.x/0.9.x transition line
-	case v.Major == 3:
-		return 1 // pre-reset development releases
-	default:
-		return 0
-	}
 }
 
 type ArchiveInfo struct {

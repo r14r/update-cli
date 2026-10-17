@@ -1,3 +1,9 @@
+# 3.0.4
+
+## Fixed
+
+- Correct SemVer upgrade ordering: 3.0.1 is newer than 2.17.0. Remove the legacy epoch comparison that incorrectly rejected 3.x as a downgrade.
+
 # 3.0.3
 
 ## Fixed
