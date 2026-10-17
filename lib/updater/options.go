@@ -473,7 +473,11 @@ func normalizeCommandArguments(args []string) []string {
 		if len(rest) > 0 && strings.EqualFold(strings.TrimSpace(rest[0]), "plan") {
 			return append([]string{"--update", "--plan"}, rest[1:]...)
 		}
-		return prepend("--update")
+		return prepend("--update", "--no-setup")
+	case "bootstrap":
+		return prepend("--setup-workflow", "bootstrap")
+	case "build":
+		return prepend("--setup-workflow", "build")
 	case "backup":
 		return prepend("--backup")
 	case "rollback":
