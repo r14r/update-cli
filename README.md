@@ -2,7 +2,7 @@
 
 **Transactional project updates from ZIP releases or Git repositories.**
 
-Current release: **3.0.0**
+Current release: **3.0.1**
 
 Update CLI separates installation defaults, local runtime state, and versioned project configuration/automation:
 
@@ -46,6 +46,18 @@ update-cli releases --list --json
 ```
 
 
+
+## What changed in 3.0.1
+
+Running `update-cli` without arguments updates the current project and then interactively asks whether to run `bootstrap` and `install`. Add `"no-bootstrap"` and/or `"no-install"` to `"no parameter"` in `.update-cli/config.json` to skip these prompts. In non-interactive environments, neither optional action runs automatically.
+
+```json
+{
+  "no parameter": ["update", "no-bootstrap", "no-install"]
+}
+```
+
+The standalone `update-cli update` command remains fetch/activate-only.
 
 ## What changed in 3.0.0
 
