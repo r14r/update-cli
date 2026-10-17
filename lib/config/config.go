@@ -1007,7 +1007,10 @@ func normalizedNoParameter(v NoParameterConfig) (NoParameterConfig, error) {
 	if seen["check"] && seen["update"] {
 		return nil, errors.New("check und update dürfen nicht kombiniert werden")
 	}
-	if (seen["no-bootstrap"] || seen["no-install"]) && !seen["update"] {\n\t\treturn nil, errors.New("no-bootstrap und no-install benötigen update in no parameter")\n\t}\n	if seen["no-setup"] && !seen["update"] {
+	if (seen["no-bootstrap"] || seen["no-install"]) && !seen["update"] {
+		return nil, errors.New("no-bootstrap und no-install benötigen update in no parameter")
+	}
+	if seen["no-setup"] && !seen["update"] {
 		return nil, errors.New("no-setup darf in no parameter nur mit update kombiniert werden")
 	}
 	if seen["setup"] && seen["no-setup"] {
