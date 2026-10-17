@@ -174,3 +174,24 @@ tape-quickstart:
     ./scripts/render-tapes.sh docs/tapes/quickstart.tape
 
 tapes: tape-install tape-quickstart
+
+# Install native Git hooks for this clone.
+hooks-install:
+    chmod +x .githooks/pre-commit .githooks/pre-push
+    git config --local core.hooksPath .githooks
+
+# Disable the project Git hooks in this clone.
+hooks-uninstall:
+    git config --local --unset core.hooksPath || true
+
+# Run the same checks as the local pre-commit hook.
+precommit:
+    bash scripts/precommit.sh --commit
+
+# Run the more expensive checks before pushing.
+prepush:
+    bash scripts/precommit.sh --push
+
+# Run the complete CI quality gate locally.
+precommit-all:
+    bash scripts/precommit.sh --all
