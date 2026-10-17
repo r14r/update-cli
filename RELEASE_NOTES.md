@@ -1,3 +1,12 @@
+# 3.0.1
+
+## Changed
+
+- Run the repository update before offering bootstrap and installation on a no-argument invocation.
+- Support `no-bootstrap` and `no-install` in config.json's `no parameter` action list.
+- Avoid automatic bootstrap/install in non-interactive environments.
+- Align Justfile lifecycle and project manifest documentation.
+
 # 3.0.0
 
 ## Added
