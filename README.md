@@ -2,7 +2,7 @@
 
 **Transactional project updates from ZIP releases or Git repositories.**
 
-Current release: **2.17.0**
+Current release: **3.0.0**
 
 Update CLI separates installation defaults, local runtime state, and versioned project configuration/automation:
 
@@ -46,6 +46,18 @@ update-cli releases --list --json
 ```
 
 
+
+## What changed in 3.0.0
+
+### Explicit application lifecycle
+
+- `update-cli update` retrieves and activates a new project release without automatically running setup.
+- `update-cli bootstrap` initializes development prerequisites using the project's bootstrap workflow and `just bootstrap`.
+- `update-cli build` executes the project's build workflow using `just build`.
+- `update-cli run` starts the application using the manifest's run definition.
+- `update-cli install` remains a separate deployment action.
+
+These lifecycle changes are a major version milestone. See `docs/lifecycle.md` and `lib/whatsnew/releases/3.0.0.md`.
 
 ## What changed in 2.17.0
 
