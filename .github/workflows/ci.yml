@@ -15,6 +15,15 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify PR patch version bump
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch origin "$BASE_REF"
+          bash scripts/check-patch-version.sh --base "origin/$BASE_REF"
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod

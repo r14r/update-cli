@@ -85,6 +85,12 @@ test-race:
 
 check: fmt-check vet test test-race
 
+bump-patch:
+    bash scripts/bump-patch.sh
+
+check-patch-version:
+    bash scripts/check-patch-version.sh --staged
+
 validate-version:
     ./scripts/validate-version.sh . >/dev/null
 

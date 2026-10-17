@@ -60,3 +60,34 @@ INSTALL_DIR="$HOME/.local/bin" UPDATE_CLI_CONFIG_DIR="$HOME/.config/update-cli" 
 `bootstrap` installs Python `pre-commit` into `.venv` as a development tool.
 The Git hooks installed for this project are native Bash hooks; Python pre-commit
 is not required for their execution.
+
+## Enforced checks during `update-cli update`
+
+The versioned `update-cli.yaml` setup workflow now executes this fail-fast chain
+when an update runs setup:
+
+```text
+prepare (go mod download)
+  -> format (gofmt -w .)
+  -> check (gofmt check, go vet, unit tests, race tests)
+  -> precommit (scripts/precommit.sh --commit)
+  -> build (Go binary)
+  -> verify (executable and version)
+  -> install (just install)
+  -> installed-binary-smoke (version and --help)
+```
+
+The install stage uses `INSTALL_DIR` when set, otherwise
+`/usr/local/bin/update-cli`. The update fails on any failed required step.
+The installation destination must be writable; configure permissions in advance,
+rather than running a non-interactive update that prompts for elevation.
+
+Run the standalone setup workflow with:
+
+```sh
+update-cli setup --workflow setup
+```
+
+The `ci` workflow runs through binary verification without installing.
+Note that `gofmt -w .` modifies source files in the update staging checkout;
+to validate without formatting use `just precommit-all`.
