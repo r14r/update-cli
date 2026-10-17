@@ -1,6 +1,8 @@
 package updater
 
 import (
+	"io"
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -768,63 +770,84 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 }
 
 func projectMigrationRequired(root string) bool {
-	return doctor.InspectMigrationRequirement(root).Required
+	return doctor.InspectMigrationRequirement(root).Requirfunc runNoParameter(ctx context.Context, buildVersion string, debug bool) error {
+ root, err := config.ResolveRoot("")
+ if err != nil {
+  printHelp(buildVersion)
+  return nil
+ }
+ cfg, repair, err := config.LoadResilient(root, "")
+ if err != nil {
+  stateDir := filepath.Join(root, config.ConfigDirName)
+  projectFile := filepath.Join(root, config.ProjectFileName)
+  _, stateErr := os.Stat(stateDir)
+  _, projectErr := os.Stat(projectFile)
+  if errors.Is(stateErr, os.ErrNotExist) && errors.Is(projectErr, os.ErrNotExist) {
+   printHelp(buildVersion)
+   return nil
+  }
+  return err
+ }
+ if repair != nil && (repair.Local.Changed || (repair.Global != nil && repair.Global.Changed)) {
+  fmt.Fprintln(os.Stderr, "WARN  config.json wurde automatisch auf den aktuellen Standard migriert; Backup wurde erstellt")
+ }
+ actions := make(map[string]bool, len(cfg.NoParameterActions))
+ for _, action := range cfg.NoParameterActions {
+  actions[strings.ToLower(strings.TrimSpace(action))] = true
+ }
+ if actions["help"] && len(actions) == 1 {
+  printHelp(buildVersion)
+  return nil
+ }
+ // Explicitly configured check-only behavior remains available.
+ if actions["check"] {
+  args := []string{"check", "--root", root}
+  if debug { args = append(args, "--debug") }
+  return Run(ctx, buildVersion, args)
+ }
+ // No argument means source update, not implicit build or deployment.
+ args := []string{"update", "--root", root}
+ if debug { args = append(args, "--debug") }
+ if err := Run(ctx, buildVersion, args); err != nil { return err }
+ if !actions["no-bootstrap"] {
+  yes, err := confirmLifecycleStage("Bootstrap (just bootstrap) ausführen?")
+  if err != nil { return err }
+  if yes {
+   args := []string{"bootstrap", "--root", root}
+   if debug { args = append(args, "--debug") }
+   if err := Run(ctx, buildVersion, args); err != nil { return fmt.Errorf("bootstrap fehlgeschlagen: %w", err) }
+  }
+ }
+ if !actions["no-install"] {
+  yes, err := confirmLifecycleStage("Install (just install) ausführen?")
+  if err != nil { return err }
+  if yes {
+   args := []string{"install", "--root", root}
+   if debug { args = append(args, "--debug") }
+   if err := Run(ctx, buildVersion, args); err != nil { return fmt.Errorf("install fehlgeschlagen: %w", err) }
+  }
+ }
+ return nil
 }
 
-func runNoParameter(ctx context.Context, buildVersion string, debug bool) error {
-	root, err := config.ResolveRoot("")
-	if err != nil {
-		printHelp(buildVersion)
-		return nil
-	}
-	cfg, repair, err := config.LoadResilient(root, "")
-	if err != nil {
-		stateDir := filepath.Join(root, config.ConfigDirName)
-		projectFile := filepath.Join(root, config.ProjectFileName)
-		_, stateErr := os.Stat(stateDir)
-		_, projectErr := os.Stat(projectFile)
-		if errors.Is(stateErr, os.ErrNotExist) && errors.Is(projectErr, os.ErrNotExist) {
-			printHelp(buildVersion)
-			return nil
-		}
-		return err
-	}
-	if repair != nil && (repair.Local.Changed || (repair.Global != nil && repair.Global.Changed)) {
-		fmt.Fprintln(os.Stderr, "WARN  config.json wurde automatisch auf den aktuellen Standard migriert; Backup wurde erstellt")
-	}
-	if len(cfg.NoParameterActions) == 0 || (len(cfg.NoParameterActions) == 1 && cfg.NoParameterActions[0] == "help") {
-		printHelp(buildVersion)
-		return nil
-	}
-	args := []string{}
-	actions := make(map[string]bool, len(cfg.NoParameterActions))
-	for _, action := range cfg.NoParameterActions {
-		actions[action] = true
-	}
-	switch {
-	case actions["check"]:
-		// setup is intentionally not forwarded as --setup here. For the
-		// historical ["check", "setup"] configuration it is a modifier used
-		// by the check flow after the user confirms the offered update.
-		args = append(args, "--check")
-	case actions["update"]:
-		args = append(args, "--update")
-		if actions["no-setup"] {
-			args = append(args, "--no-setup")
-		} else if actions["setup"] {
-			args = append(args, "--setup")
-		}
-	case actions["setup"]:
-		args = append(args, "--setup")
-	default:
-		printHelp(buildVersion)
-		return nil
-	}
-	args = append(args, "--root", root)
-	if debug {
-		args = append(args, "--debug")
-	}
-	return Run(ctx, buildVersion, args)
+// Non-interactive invocations never approve installation or bootstrap implicitly.
+func confirmLifecycleStage(question string) (bool, error) {
+ fi, err := os.Stdin.Stat()
+ if err != nil { return false, err }
+ if fi.Mode()&os.ModeCharDevice == 0 {
+  fmt.Fprintf(os.Stderr, "SKIP  %s (keine interaktive Eingabe)\n", question)
+  return false, nil
+ }
+ fmt.Fprintf(os.Stderr, "%s [y/N]: ", question)
+ line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+ if err != nil && !errors.Is(err, io.EOF) { return false, err }
+ switch strings.ToLower(strings.TrimSpace(line)) {
+ case "y", "yes", "j", "ja":
+  return true, nil
+ }
+ return false, nil
+}
+rgs)
 }
 func repairProjectManifests(root, currentDir string) ([]projectsetup.ProjectRepairResult, error) {
 	dirs := []string{root}
