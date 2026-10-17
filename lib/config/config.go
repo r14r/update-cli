@@ -995,10 +995,10 @@ func normalizedNoParameter(v NoParameterConfig) (NoParameterConfig, error) {
 		}
 		seen[a] = true
 		switch a {
-		case "help", "check", "update", "setup", "no-setup":
+		case "help", "check", "update", "setup", "no-setup", "no-bootstrap", "no-install":
 			out = append(out, a)
 		default:
-			return nil, fmt.Errorf("no parameter unterstützt nur help, check, update, setup, no-setup")
+			return nil, fmt.Errorf("no parameter unterstützt nur help, check, update, setup, no-setup, no-bootstrap, no-install")
 		}
 	}
 	if seen["help"] && len(out) > 1 {
@@ -1007,7 +1007,7 @@ func normalizedNoParameter(v NoParameterConfig) (NoParameterConfig, error) {
 	if seen["check"] && seen["update"] {
 		return nil, errors.New("check und update dürfen nicht kombiniert werden")
 	}
-	if seen["no-setup"] && !seen["update"] {
+	if (seen["no-bootstrap"] || seen["no-install"]) && !seen["update"] {\n\t\treturn nil, errors.New("no-bootstrap und no-install benötigen update in no parameter")\n\t}\n	if seen["no-setup"] && !seen["update"] {
 		return nil, errors.New("no-setup darf in no parameter nur mit update kombiniert werden")
 	}
 	if seen["setup"] && seen["no-setup"] {
@@ -1017,7 +1017,7 @@ func normalizedNoParameter(v NoParameterConfig) (NoParameterConfig, error) {
 	// after the user confirms installation, run project setup as part of that
 	// update. setup is therefore a modifier of check here, not a second CLI mode.
 	ordered := []string{}
-	for _, a := range []string{"help", "check", "update", "setup", "no-setup"} {
+	for _, a := range []string{"help", "check", "update", "setup", "no-setup", "no-bootstrap", "no-install"} {
 		if seen[a] {
 			ordered = append(ordered, a)
 		}
