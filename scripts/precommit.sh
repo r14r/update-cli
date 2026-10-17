@@ -43,7 +43,10 @@ if [[ "$mode" == "--commit" || "$mode" == "--all" ]]; then
     while IFS= read -r file; do gofmt -d "$file" >&2 || true; done <<< "$unformatted"
     exit 1
   fi
-  step "Shell syntax" bash -n setup.sh setup-template.sh scripts/*.sh
+  printf '\n==> Shell syntax\n'
+  for script in setup.sh setup-template.sh scripts/*.sh; do
+    bash -n "$script"
+  done
   printf '\n==> Justfile escaping\n'
   if grep -n '\$\$' justfile; then
     echo 'ERROR: Justfile contains literal double dollar escaping' >&2
