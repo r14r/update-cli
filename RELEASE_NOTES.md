@@ -1,3 +1,9 @@
+# 3.0.3
+
+## Fixed
+
+- Repair malformed function boundary in `lib/updater/updater.go` that prevented formatting and compilation.
+
 # 3.0.1
 
 ## Changed
