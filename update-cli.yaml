@@ -77,9 +77,9 @@ workflows:
     tasks:
       - verify
   build:
-    description: Projekt prüfen und Binary bauen
+    description: Projekt mit just build erstellen
     tasks:
-      - build
+      - just-build
   clean:
     description: Generierte Dateien entfernen
     tasks:
@@ -94,6 +94,15 @@ tasks:
         shell: |
           command -v just >/dev/null 2>&1 || { echo "just ist für bootstrap erforderlich" >&2; exit 1; }
           just bootstrap
+
+  just-build:
+    description: Justfile als kanonischen Build-Einstiegspunkt verwenden
+    steps:
+      - id: invoke-just-build
+        name: just build ausführen
+        shell: |
+          command -v just >/dev/null 2>&1 || { echo "just ist für build erforderlich" >&2; exit 1; }
+          just build
 
   prepare:
     description: Go-Abhängigkeiten vorbereiten
