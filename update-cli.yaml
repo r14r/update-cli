@@ -69,7 +69,7 @@ workflows:
     tasks:
       - install
   ci:
-    description: Prüfen, testen, bauen und verifizieren
+    description: Formatieren, linten, Pre-Commit prüfen, testen, bauen und verifizieren
     tasks:
       - verify
   build:
@@ -92,10 +92,19 @@ tasks:
         when:
           fileExists: go.mod
 
-  check:
-    description: Quellcode statisch prüfen und testen
+  format:
+    description: Go-Quellcode formatieren
     requires:
       - prepare
+    steps:
+      - id: gofmt-write
+        name: Go-Dateien formatieren
+        shell: gofmt -w .
+
+  check:
+    description: Quellcode linten, statisch prüfen und testen
+    requires:
+      - format
     steps:
       - id: gofmt
         name: Go-Formatierung prüfen
@@ -121,10 +130,19 @@ tasks:
         when:
           os: [darwin, linux]
 
+  precommit:
+    description: Alle verpflichtenden Pre-Commit-Checks ausführen
+    requires:
+      - check
+    steps:
+      - id: precommit-checks
+        name: Pre-Commit-Checks
+        shell: bash scripts/precommit.sh --commit
+
   build:
     description: Update CLI Binary bauen
     requires:
-      - check
+      - precommit
     steps:
       - id: build
         name: Update CLI bauen
@@ -206,9 +224,9 @@ tasks:
           fileExists: "{{ distDir }}/{{ binary }}"
 
   install:
-    description: Vorhandenes Binary über den kanonischen Just-Installationspfad installieren
+    description: Geprüftes Binary installieren und die Installation verifizieren
     requires:
-      - build
+      - verify
     steps:
       - id: just-install
         name: just install ausführen
@@ -218,6 +236,17 @@ tasks:
           # Er darf den verschachtelten Installationsprozess nicht beeinflussen.
           unset UPDATE_CLI_SETUP_RUNNING
           exec just install
+
+      - id: installed-binary-smoke
+        name: Installiertes Binary auf Version und Startfähigkeit prüfen
+        shell: |
+          destination="${INSTALL_DIR:-/usr/local/bin}/update-cli"
+          test -x "$destination" || { echo "Installiertes Binary fehlt: $destination" >&2; exit 1; }
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          OUTPUT="$("$destination" version)"
+          printf '%s\n' "$OUTPUT"
+          printf '%s\n' "$OUTPUT" | grep -F "$VERSION" >/dev/null
+          "$destination" --help >/dev/null
 
   clean:
     description: Build-Artefakte entfernen
