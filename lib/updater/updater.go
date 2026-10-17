@@ -802,29 +802,47 @@ func projectMigrationRequired(root string) bool {
 	// Explicitly configured check-only behavior remains available.
 	if actions["check"] {
 		args := []string{"check", "--root", root}
-		if debug { args = append(args, "--debug") }
+		if debug {
+		args = append(args, "--debug")
+	}
 		return Run(ctx, buildVersion, args)
 	}
 	// No argument means source update, not implicit build or deployment.
 	args := []string{"update", "--root", root}
-	if debug { args = append(args, "--debug") }
-	if err := Run(ctx, buildVersion, args); err != nil { return err }
+	if debug {
+		args = append(args, "--debug")
+	}
+	if err := Run(ctx, buildVersion, args); err != nil {
+		return err
+	}
 	if !actions["no-bootstrap"] {
 		yes, err := confirmLifecycleStage("Bootstrap (just bootstrap) ausführen?")
-		if err != nil { return err }
+		if err != nil {
+		return err
+	}
 		if yes {
 			args := []string{"bootstrap", "--root", root}
-			if debug { args = append(args, "--debug") }
-			if err := Run(ctx, buildVersion, args); err != nil { return fmt.Errorf("bootstrap fehlgeschlagen: %w", err) }
+			if debug {
+		args = append(args, "--debug")
+	}
+			if err := Run(ctx, buildVersion, args); err != nil {
+			return fmt.Errorf("bootstrap fehlgeschlagen: %w", err)
+		}
 		}
 	}
 	if !actions["no-install"] {
 		yes, err := confirmLifecycleStage("Install (just install) ausführen?")
-		if err != nil { return err }
+		if err != nil {
+		return err
+	}
 		if yes {
 			args := []string{"install", "--root", root}
-			if debug { args = append(args, "--debug") }
-			if err := Run(ctx, buildVersion, args); err != nil { return fmt.Errorf("install fehlgeschlagen: %w", err) }
+			if debug {
+		args = append(args, "--debug")
+	}
+			if err := Run(ctx, buildVersion, args); err != nil {
+			return fmt.Errorf("install fehlgeschlagen: %w", err)
+		}
 		}
 	}
 	return nil
@@ -840,7 +858,9 @@ func confirmLifecycleStage(question string) (bool, error) {
 	}
 	fmt.Fprintf(os.Stderr, "%s [y/N]: ", question)
 	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
-	if err != nil && !errors.Is(err, io.EOF) { return false, err }
+	if err != nil && !errors.Is(err, io.EOF) {
+		return false, err
+	}
 	switch strings.ToLower(strings.TrimSpace(line)) {
 	case "y", "yes", "j", "ja":
 		return true, nil
