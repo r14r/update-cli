@@ -1,3 +1,16 @@
+# 3.0.2
+
+## Fixed
+
+- Compare Update CLI versions using standard Semantic Versioning: 3.0.1 is newer than 2.17.0.
+- Remove the legacy release-epoch override that incorrectly classified new 3.x versions as downgrades.
+- Add regression coverage for upgrades between 2.17.0 and 3.0.1.
+
+## Compatibility
+
+- Very old pre-reset 3.x versions are now ordered numerically. Their numbering
+  cannot be distinguished from modern 3.x using the version string alone.
+
 # 3.0.1
 
 ## Changed
