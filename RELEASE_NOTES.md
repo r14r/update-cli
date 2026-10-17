@@ -1,3 +1,21 @@
+# 3.0.0
+
+## Added
+
+- Introduce explicit `update-cli bootstrap` and `update-cli build` lifecycle commands, delegating to project-defined Just workflows.
+- Document a consistent update, bootstrap, build, run and install lifecycle for CLI and Docker-based applications.
+
+## Changed
+
+- Default `update-cli update` to retrieval/activation without implicit setup; an explicit setup option retains the combined workflow.
+- Preserve manifest-driven `update-cli run` and separate installation from compilation.
+- Set the project's semantic version to 3.0.0.
+
+## Compatibility
+
+- The new default update behavior changes existing automated update-and-setup flows. Review scripts relying on implicit setup before upgrading.
+- Existing transactional release management, recovery, and rollback remain available.
+
 # 2.17.0
 
 ## Added
