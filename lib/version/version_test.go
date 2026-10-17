@@ -15,11 +15,11 @@ func mustVersion(t *testing.T, s string) Version {
 	return v
 }
 
-func TestUpdateCLINumberingResetIsNotDowngrade(t *testing.T) {
+func TestUpdateCLISemVerTreatsHistorical3xAsNewer(t *testing.T) {
 	legacy := mustVersion(t, "3.3.4")
 	baseline := mustVersion(t, "0.8.0")
-	if CompareForProject("update-cli", baseline, legacy) <= 0 {
-		t.Fatal("0.8.0 new numbering line must be newer than legacy 3.3.4")
+	if CompareForProject("update-cli", baseline, legacy) >= 0 {
+		t.Fatal("semantic versioning orders 0.8.0 below 3.3.4")
 	}
 	if CompareForProject("other-project", baseline, legacy) >= 0 {
 		t.Fatal("other projects must retain strict semantic-version ordering")
@@ -37,7 +37,7 @@ func TestUpdateCLIArchiveSelectionPrefersNewNumberingLine(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := v.String(), "0.8.1"; got != want {
+	if got, want := v.String(), "3.3.4"; got != want {
 		t.Fatalf("newest version = %s, want %s", got, want)
 	}
 }
@@ -66,11 +66,11 @@ func TestCompareForProjectUpdateCLIStable103IsNewerThan102(t *testing.T) {
 	}
 }
 
-func TestCompareForProjectUpdateCLIStable100IsNewerThanLegacy334(t *testing.T) {
+func TestCompareForProjectUpdateCLIStable100IsOlderThanLegacy334(t *testing.T) {
 	stable, _ := Parse("1.0.0")
 	legacy, _ := Parse("3.3.4")
-	if got := CompareForProject("update-cli", stable, legacy); got <= 0 {
-		t.Fatalf("expected 1.0.0 > legacy 3.3.4, got %d", got)
+	if got := CompareForProject("update-cli", stable, legacy); got >= 0 {
+		t.Fatalf("expected semver 1.0.0 < 3.3.4, got %d", got)
 	}
 }
 
@@ -93,7 +93,7 @@ func TestUpdateCLIArchiveSelectionPrefersStablePatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := v.String(), "1.0.1"; got != want {
+	if got, want := v.String(), "3.3.4"; got != want {
 		t.Fatalf("newest version = %s, want %s", got, want)
 	}
 }
@@ -109,7 +109,7 @@ func TestUpdateCLIArchiveSelectionPrefersStable100(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := v.String(), "1.0.0"; got != want {
+	if got, want := v.String(), "3.3.4"; got != want {
 		t.Fatalf("newest version = %s, want %s", got, want)
 	}
 }
@@ -141,7 +141,7 @@ func TestUpdateCLIArchiveSelectionPrefersCurrent2x(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := v.String(), "2.2.0"; got != want {
+	if got, want := v.String(), "3.3.4"; got != want {
 		t.Fatalf("newest version = %s, want %s", got, want)
 	}
 }
@@ -180,5 +180,16 @@ func TestListArchivesAcceptsBothFilenameFormsAndSelectsNewest(t *testing.T) {
 	}
 	if got, want := archives[0].Name, "demo-1.2.4.zip"; got != want {
 		t.Fatalf("newest archive = %q, want %q", got, want)
+	}
+}
+
+func TestUpdateCLIMajor3IsUpgradeFrom2170(t *testing.T) {
+	installed := mustVersion(t, "2.17.0")
+	selected := mustVersion(t, "3.0.1")
+	if got := CompareForProject("update-cli", selected, installed); got <= 0 {
+		t.Fatalf("3.0.1 must be newer than 2.17.0; compare=%d", got)
+	}
+	if got := CompareForProject("update-cli", installed, selected); got >= 0 {
+		t.Fatalf("2.17.0 must be older than 3.0.1; compare=%d", got)
 	}
 }
