@@ -218,7 +218,7 @@ func defaultFile(project string) FileConfig {
 	// sync is intentionally omitted from a new project-local config. The
 	// installation-wide config provides the default preserve/exclude policy;
 	// migrate() still supplies built-in defaults when no global config exists.
-	return FileConfig{SchemaVersion: SchemaVersion, ProjectName: project, Mode: ModeUpdate, Source: &SourceConfig{Type: "download", Folder: buildconfig.Current().DefaultDownloadFolder, DefaultUser: DefaultRepositoryUser}, ReleaseDir: "release", CurrentDir: "current", NoParameter: NoParameterConfig{"update", "no-setup"}, Setup: &SetupConfig{Commands: []string{}}, Backup: &BackupConfig{Directory: "backup", Keep: 3}, Retention: &RetentionConfig{Releases: 5}, Security: ptrSecurity(defaultSecurity()), Docker: &DockerConfig{Lifecycle: "auto"}, Healthcheck: &HealthcheckConfig{}}
+	return FileConfig{SchemaVersion: SchemaVersion, ProjectName: project, Mode: ModeUpdate, Source: &SourceConfig{Type: "download", Folder: buildconfig.Current().DefaultDownloadFolder, DefaultUser: DefaultRepositoryUser}, ReleaseDir: "release", CurrentDir: "current", NoParameter: NoParameterConfig{"update"}, Setup: &SetupConfig{Commands: []string{}}, Backup: &BackupConfig{Directory: "backup", Keep: 3}, Retention: &RetentionConfig{Releases: 5}, Security: ptrSecurity(defaultSecurity()), Docker: &DockerConfig{Lifecycle: "auto"}, Healthcheck: &HealthcheckConfig{}}
 }
 func ptrSecurity(s SecurityConfig) *SecurityConfig { return &s }
 
