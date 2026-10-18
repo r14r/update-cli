@@ -484,6 +484,10 @@ func normalizeCommandArguments(args []string) []string {
 		return prepend("--setup-workflow", "bootstrap")
 	case "build":
 		return prepend("--setup-workflow", "build")
+	case "precommit":
+		return prepend("--setup-workflow", "precommit")
+	case "ci":
+		return prepend("--setup-workflow", "ci")
 	case "backup":
 		return prepend("--backup")
 	case "rollback":
