@@ -1,3 +1,9 @@
+# 3.0.16
+
+- A pure `update-cli update` / `--no-setup` no longer stops, starts or restarts Docker Compose services.
+- Skip post-update Docker activation and healthchecks when setup is explicitly disabled.
+- Preserve managed Docker restart behavior for updates that explicitly run setup.
+
 # 3.0.15
 
 - Display a green Content heading only at high-level stage boundaries in multi-command lifecycles (Update, Bootstrap, Test, Install).
