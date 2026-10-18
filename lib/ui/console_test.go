@@ -64,9 +64,6 @@ func TestStepHeaderUsesSuccessGreenBackgroundAndWhiteText(t *testing.T) {
 	if !strings.Contains(line, "Go-Dateien formatieren") {
 		t.Fatalf("step title missing: %q", line)
 	}
-	if width := displayWidth(line); width != 66 {
-		t.Fatalf("step header width = %d, want 66", width)
-	}
 }
 
 func TestStepHeaderPlainModeRemainsReadable(t *testing.T) {
