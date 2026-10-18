@@ -2,7 +2,7 @@
 
 **Transactional project updates from ZIP releases or Git repositories.**
 
-Current release: **3.0.4**
+Current release: **3.0.6**
 
 Update CLI separates installation defaults, local runtime state, and versioned project configuration/automation:
 
@@ -46,6 +46,10 @@ update-cli releases --list --json
 ```
 
 
+
+## Failure log and clipboard confirmation (3.0.6)
+
+If `update-cli update` or `update-cli setup` fails, Update CLI saves the combined console transcript under `.update-cli/logs/failure-*.log`. In interactive sessions a confirmation dialog asks **Copy Error Message to Clipboard?** (default No). Confirming copies the full error transcript to the operating system clipboard (`pbcopy` on macOS; `wl-copy`, `xclip`, or `xsel` on Linux). Headless operation saves the log without prompting. Successful operations remove the temporary transcript. Set `UPDATE_CLI_ERROR_LOG_DIR` to override the log directory.
 
 ## What changed in 3.0.1
 
