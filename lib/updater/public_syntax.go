@@ -10,6 +10,7 @@ var publicCommands = map[string]struct{}{
 	"backup": {}, "rollback": {}, "restore": {}, "history": {}, "cleanup": {},
 	"clean": {}, "init": {}, "upgrade": {}, "migrate": {}, "whatsnew": {}, "recover": {}, "doctor": {}, "fix": {}, "status": {},
 	"releases": {}, "verify": {}, "unlock": {}, "run": {}, "install": {},
+	"bootstrap": {}, "build": {}, "test": {}, "precommit": {}, "ci": {},
 	"schema": {}, "setup": {}, "config": {}, "templates": {},
 	"convert-yaml": {}, "create-yaml": {}, "create-setup-script": {},
 }
