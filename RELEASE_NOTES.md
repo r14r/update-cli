@@ -1,3 +1,11 @@
+# 3.0.9
+
+## Consolidated release
+
+- Add failure log capture and copy-to-clipboard modal for update, setup, install, bootstrap, and build.
+- Add full-width green/white step headers in the Content panel.
+- Include version 3.0.8 installation TUI and corrected setup and integration tests.
+
 # 3.0.8
 
 ## Installation UI
