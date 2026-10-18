@@ -131,6 +131,22 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="update-cli-tui-") as tmp:
         tmpdir = pathlib.Path(tmp)
 
+        # CI does not require the system just executable. Provide a deterministic
+        # stand-in for PTY tests that verify TUI routing rather than Just itself.
+        fake_bin = tmpdir / "fake-bin"
+        fake_bin.mkdir()
+        fake_just = fake_bin / "just"
+        fake_just.write_text(
+            "#!/bin/sh\n"
+            "case \"$1\" in\n"
+            "  test|install) echo \"$1\" >> lifecycle.log; exit 0 ;;\n"
+            "  *) exit 2 ;;\n"
+            "esac\n",
+            encoding="utf-8",
+        )
+        fake_just.chmod(0o755)
+        just_env = {"PATH": str(fake_bin) + os.pathsep + os.environ.get("PATH", "")}
+
         # Install must use fullscreen even when the environment requests plain.
         install_root = tmpdir / "install-project"
         install_root.mkdir()
@@ -139,7 +155,7 @@ def main() -> int:
             binary,
             ["install", "--root", str(install_root), "--no-wait"],
             0,
-            env_overrides={"UPDATE_CLI_TUI": "plain"},
+            env_overrides={"UPDATE_CLI_TUI": "plain", **just_env},
         )
         require(install_output, {
             "install fullscreen enter": b"\x1b[?1049h",
@@ -148,7 +164,8 @@ def main() -> int:
             "install fullscreen exit": b"\x1b[?1049l",
         })
         install_plain = run_pty(
-            binary, ["install", "--root", str(install_root), "--noui", "--no-wait"], 0
+            binary, ["install", "--root", str(install_root), "--noui", "--no-wait"], 0,
+            env_overrides=just_env,
         )
         if b"\x1b[?1049h" in install_plain:
             raise SystemExit("--noui must disable fullscreen install")
@@ -696,6 +713,7 @@ def main() -> int:
                 ("Tests (just test) ausführen?".encode("utf-8"), b"y"),
                 ("Install (just install) ausführen?".encode("utf-8"), b"y"),
             ],
+            env_overrides=just_env,
         )
         require(completed, {
             "bootstrap confirmation": "Bootstrap (just bootstrap) ausführen?".encode("utf-8"),
