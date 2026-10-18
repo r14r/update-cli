@@ -367,12 +367,7 @@ def main() -> int:
         require(
             prompt_output,
             {
-                "setup confirmation modal question": "Projekt-Setup ist verfügbar. Jetzt ausführen?".encode(
-                    "utf-8"
-                ),
-                "setup confirmation YES button": b"YES",
-                "setup confirmation NO button": b"NO",
-                "setup modal cursor hint": "←/→ = auswählen".encode("utf-8"),
+                "no implicit setup": "mit --no-setup deaktiviert".encode("utf-8"),
                 "aligned progress row": "[01/14] [".encode("utf-8"),
                 "transaction phase": b"Transaktions-Rollback vorbereiten",
                 "green completed-step icon": b"\x1b[32m\x1b[1m" + "✓".encode("utf-8"),
