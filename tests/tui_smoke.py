@@ -658,6 +658,55 @@ def main() -> int:
         if not (lifecycle_root / "current" / "app.txt").exists():
             raise SystemExit("No on bootstrap wrongly cancelled completed update")
 
+        # Accepting each confirmation executes all stages without leaving
+        # the shared fullscreen interface or prompting in the command line.
+        lifecycle_yes_root = tmpdir / "lifecycle-yes-project"
+        lifecycle_yes_downloads = tmpdir / "lifecycle-yes-downloads"
+        lifecycle_yes_downloads.mkdir()
+        write_config(lifecycle_yes_root, lifecycle_yes_downloads, "lifecycle-yes", ["update"])
+        release_zip(
+            lifecycle_yes_downloads, "lifecycle-yes", "1.0.0",
+            {
+                "app.txt": "installed\n",
+                "justfile": (
+                    "test:\n"
+                    "    @echo test >> lifecycle.log\n"
+                    "install:\n"
+                    "    @echo install >> lifecycle.log\n"
+                ),
+                "update-cli.yaml": (
+                    "schemaVersion: 2\n"
+                    "project:\n"
+                    "  name: lifecycle-yes\n"
+                    "tasks:\n"
+                    "  bootstrap:\n"
+                    "    steps:\n"
+                    "      - name: Bootstrap\n"
+                    "        shell: echo bootstrap >> lifecycle.log\n"
+                    "workflows:\n"
+                    "  bootstrap:\n"
+                    "    tasks: [bootstrap]\n"
+                ),
+            },
+        )
+        completed = run_pty(
+            binary, [], 0, cwd=lifecycle_yes_root,
+            responses=[
+                ("Bootstrap (just bootstrap) ausführen?".encode("utf-8"), b"y"),
+                ("Tests (just test) ausführen?".encode("utf-8"), b"y"),
+                ("Install (just install) ausführen?".encode("utf-8"), b"y"),
+            ],
+        )
+        require(completed, {
+            "bootstrap confirmation": "Bootstrap (just bootstrap) ausführen?".encode("utf-8"),
+            "test confirmation": "Tests (just test) ausführen?".encode("utf-8"),
+            "install confirmation": "Install (just install) ausführen?".encode("utf-8"),
+            "test stage": "just test ausführen".encode("utf-8"),
+            "install stage": "just install ausführen".encode("utf-8"),
+        })
+        stages_run = (lifecycle_yes_root / "current" / "lifecycle.log").read_text(encoding="utf-8")
+        if stages_run.splitlines() != ["bootstrap", "test", "install"]:
+            raise SystemExit(f"lifecycle stages in wrong order: {stages_run!r}")
     return 0
 
 
