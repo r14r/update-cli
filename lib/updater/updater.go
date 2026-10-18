@@ -587,6 +587,9 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 	if o.templatesMode {
 		return runTemplates(ctx, console, root, o, buildVersion)
 	}
+	if o.test {
+		return projectsetup.RunJustTest(ctx, root, console)
+	}
 	if o.install {
 		installErr := projectsetup.RunJustInstall(ctx, root, console)
 		if installErr == nil {
@@ -818,34 +821,32 @@ func runNoParameter(ctx context.Context, buildVersion string, debug bool) error 
 	if err := Run(ctx, buildVersion, args); err != nil {
 		return err
 	}
-	if !actions["no-bootstrap"] {
-		yes, err := confirmLifecycleStage("Bootstrap (just bootstrap) ausführen?")
-		if err != nil {
-			return err
-		}
-		if yes {
-			args := []string{"bootstrap", "--root", root}
-			if debug {
-				args = append(args, "--debug")
-			}
-			if err := Run(ctx, buildVersion, args); err != nil {
-				return fmt.Errorf("bootstrap fehlgeschlagen: %w", err)
-			}
-		}
+	stages := []struct {
+		name string
+		excluded string
+		question string
+	}{
+		{"bootstrap", "no-bootstrap", "Bootstrap (just bootstrap) ausführen?"},
+		{"test", "no-test", "Tests (just test) ausführen?"},
+		{"install", "no-install", "Install (just install) ausführen?"},
 	}
-	if !actions["no-install"] {
-		yes, err := confirmLifecycleStage("Install (just install) ausführen?")
-		if err != nil {
-			return err
+	for _, stage := range stages {
+		if actions[stage.excluded] {
+			continue
 		}
-		if yes {
-			args := []string{"install", "--root", root}
-			if debug {
-				args = append(args, "--debug")
-			}
-			if err := Run(ctx, buildVersion, args); err != nil {
-				return fmt.Errorf("install fehlgeschlagen: %w", err)
-			}
+		yes, confirmErr := confirmLifecycleStage(stage.question)
+		if confirmErr != nil {
+			return confirmErr
+		}
+		if !yes {
+			return nil
+		}
+		stageArgs := []string{stage.name, "--root", root}
+		if debug {
+			stageArgs = append(stageArgs, "--debug")
+		}
+		if runErr := Run(ctx, buildVersion, stageArgs); runErr != nil {
+			return fmt.Errorf("%s fehlgeschlagen: %w", stage.name, runErr)
 		}
 	}
 	return nil
