@@ -225,4 +225,3 @@ func shouldRecordFailure(args []string) bool {
 		return false
 	}
 }
-
