@@ -1,3 +1,9 @@
+# 3.0.14
+
+- Register `bootstrap`, `build`, `test`, `precommit`, and `ci` as public CLI commands.
+- Execute `precommit` and `ci` via their project setup workflows.
+- Add missing precommit workflow to update-cli.yaml.
+
 # 3.0.13
 
 ## Lifecycle
