@@ -173,8 +173,15 @@ func (c *Console) StartFullscreen(title string) bool {
 	if mode == "" {
 		mode = "auto"
 	}
-	if mode == "plain" || mode == "off" || mode == "0" || !c.interactive || !c.color {
+	installScreen := strings.HasSuffix(title, "— Install")
+	if !c.interactive {
 		return false
+	}
+	if !installScreen && (mode == "plain" || mode == "off" || mode == "0" || !c.color) {
+		return false
+	}
+	if installScreen {
+		mode = "fullscreen"
 	}
 	if mode != "auto" && mode != "fullscreen" && mode != "full" && mode != "1" {
 		return false
@@ -1399,7 +1406,11 @@ func (c *Console) renderFullscreenLockedWithSize(width, height int) {
 	case "question":
 		background = blueBackground + brightWhite + bold
 	}
-	b.WriteString(coloredBoxLine(c.footer, inner, background))
+	if c.color {
+		b.WriteString(coloredBoxLine(c.footer, inner, background))
+	} else {
+		b.WriteString(plainBoxLine(c.footer, inner))
+	}
 	b.WriteByte('\n')
 	b.WriteString(boxBottom(width))
 	fmt.Fprint(os.Stdout, b.String())

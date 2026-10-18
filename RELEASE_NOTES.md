@@ -1,3 +1,10 @@
+# 3.0.11
+
+## Fixed
+
+- Interactive `update-cli install` always uses the four-panel fullscreen TUI, even if `UPDATE_CLI_TUI=plain` or colors are disabled. `--noui` continues to use direct output.
+- Avoid ANSI color in footer when the UI runs in no-color mode.
+- Add install TUI smoke coverage.
 # 3.0.12
 
 ## Fixed

@@ -131,6 +131,28 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="update-cli-tui-") as tmp:
         tmpdir = pathlib.Path(tmp)
 
+        # Install must use fullscreen even when the environment requests plain.
+        install_root = tmpdir / "install-project"
+        install_root.mkdir()
+        (install_root / "justfile").write_text("install:\n    @echo install-ui-success\n", encoding="utf-8")
+        install_output = run_pty(
+            binary,
+            ["install", "--root", str(install_root), "--no-wait"],
+            0,
+            env_overrides={"UPDATE_CLI_TUI": "plain"},
+        )
+        require(install_output, {
+            "install fullscreen enter": b"\x1b[?1049h",
+            "install header": header + b"   |   Install",
+            "install step": "just install ausführen".encode("utf-8"),
+            "install fullscreen exit": b"\x1b[?1049l",
+        })
+        install_plain = run_pty(
+            binary, ["install", "--root", str(install_root), "--noui", "--no-wait"], 0
+        )
+        if b"\x1b[?1049h" in install_plain:
+            raise SystemExit("--noui must disable fullscreen install")
+
         success_manifest = tmpdir / "success.yaml"
         (tmpdir / "VERSION").write_text("7.8.9\n", encoding="utf-8")
         success_manifest.write_text(
