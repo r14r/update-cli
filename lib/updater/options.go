@@ -10,7 +10,7 @@ import (
 
 type options struct {
 	archive, downloadDir, mode, sourceType, sourceFolder, sourceURL, repository, fromRepository, rootDir, projectName, setupManifest, setupTask, setupWorkflow, setupStep, helpTopic, initialGitDir, whatsNewVersion                                                                                                                                                                                                                                                                                                                                  string
-	dryRun, plan, allowDowngrade, jsonOutput, update, backup, rollback, history, cleanup, clean, init, upgrade, check, doctor, fix, status, list, verify, setup, noSetup, config, configList, configCheck, configMigrate, templatesMode, templatesList, setupList, convertYAML, createYAML, createSetupScript, withAI, details, debug, edit, force, noColor, noUI, noAsk, wait, noWait, showHelp, showHowTo, showVersion, whatsNew, recover, unlock, run, install, schema, schemaView, schemaVersion, doctorMigrate, doctorFix, noParameterInvocation bool
+	dryRun, plan, allowDowngrade, jsonOutput, update, backup, rollback, history, cleanup, clean, init, upgrade, check, doctor, fix, status, list, verify, setup, noSetup, config, configList, configCheck, configMigrate, templatesMode, templatesList, setupList, convertYAML, createYAML, createSetupScript, withAI, details, debug, edit, force, noColor, noUI, noAsk, wait, noWait, showHelp, showHowTo, showVersion, whatsNew, recover, unlock, run, install, test, schema, schemaView, schemaVersion, doctorMigrate, doctorFix, noParameterInvocation bool
 	rollbackVersion, restore, useTemplate, templateUse, templateName, schemaSave                                                                                                                                                                                                                                                                                                                                                                                                                                                                      string
 	keep, limit                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       int
 	configSet                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         []string
@@ -103,6 +103,7 @@ func parseOptions(args []string) (options, error) {
 	fs.BoolVar(&o.unlock, "unlock", false, "")
 	fs.BoolVar(&o.run, "run", false, "")
 	fs.BoolVar(&o.install, "install", false, "")
+	fs.BoolVar(&o.test, "test", false, "")
 	fs.BoolVar(&o.schema, "schema", false, "")
 	fs.BoolVar(&o.schemaView, "view", false, "")
 	fs.StringVar(&o.schemaSave, "save", "", "")
@@ -528,6 +529,8 @@ func normalizeCommandArguments(args []string) []string {
 		return prepend("--run")
 	case "install":
 		return prepend("--install")
+	case "test":
+		return prepend("--test")
 	case "schema":
 		if len(rest) > 0 && !strings.HasPrefix(rest[0], "-") {
 			sub := strings.ToLower(strings.TrimSpace(rest[0]))
