@@ -75,6 +75,10 @@ workflows:
     description: Projektumgebung vorbereiten ohne Build oder Installation
     tasks:
       - bootstrap
+  precommit:
+    description: Formatierung und Pre-Commit-Checks ausführen
+    tasks:
+      - precommit
   ci:
     description: Formatieren, linten, Pre-Commit prüfen, testen, bauen und verifizieren
     tasks:
