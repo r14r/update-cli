@@ -11,7 +11,6 @@ import (
 	"runtime"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/r14r/update-cli/lib/config"
 )
@@ -201,4 +200,3 @@ func shouldRecordFailure(args []string) bool {
 	}
 }
 
-var _ = time.Second
