@@ -731,14 +731,20 @@ func TestProjectSetupWorkflowDelegatesToJustInstallWithoutSetupMarker(t *testing
 		t.Skip("shell-based update-cli setup manifest")
 	}
 	root := t.TempDir()
-	manifest, err := os.ReadFile("update-cli.yaml")
-	if err != nil {
-		t.Fatal(err)
-	}
+	manifest := []byte(`schemaVersion: 2
+workflows:
+  install:
+    tasks:
+      - install
+tasks:
+  install:
+    steps:
+      - name: install
+        shell: |
+          unset UPDATE_CLI_SETUP_RUNNING
+          just install
+`)
 	if err := os.WriteFile(filepath.Join(root, "update-cli.yaml"), manifest, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "VERSION"), []byte("2.13.2\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	bin := filepath.Join(root, "bin")
@@ -758,7 +764,7 @@ func TestProjectSetupWorkflowDelegatesToJustInstallWithoutSetupMarker(t *testing
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-	_, err = projectsetup.RunStandaloneSelected(context.Background(), filepath.Join(root, "update-cli.yaml"), ui.New(true), projectsetup.Selection{Workflow: "setup"})
+	_, err = projectsetup.RunStandaloneSelected(context.Background(), filepath.Join(root, "update-cli.yaml"), ui.New(true), projectsetup.Selection{Workflow: "install"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -768,6 +774,40 @@ func TestProjectSetupWorkflowDelegatesToJustInstallWithoutSetupMarker(t *testing
 	}
 	if strings.TrimSpace(string(body)) != "install" {
 		t.Fatalf("setup workflow did not delegate exactly to just install: %q", body)
+	}
+}
+
+func TestDefaultSetupWorkflowBootstrapsWithoutInstall(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell-based setup")
+	}
+	root := t.TempDir()
+	manifest, err := os.ReadFile("update-cli.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "update-cli.yaml"), manifest, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	bin := filepath.Join(root, "bin")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	result := filepath.Join(root, "just-called")
+	justScript := "#!/bin/sh\n" + "echo \"$*\" > " + result + "\n"
+	if err := os.WriteFile(filepath.Join(bin, "just"), []byte(justScript), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	if _, err := projectsetup.RunStandaloneSelected(context.Background(), filepath.Join(root, "update-cli.yaml"), ui.New(true), projectsetup.Selection{Workflow: "setup"}); err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(string(body)) != "bootstrap" {
+		t.Fatalf("setup unexpectedly performed installation: just %s", body)
 	}
 }
 

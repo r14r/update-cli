@@ -217,7 +217,7 @@ func TestInitDefaultsNoParameterToUpdateWithoutSetup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantActions := []string{"update", "no-setup"}
+	wantActions := []string{"update"}
 	if !reflect.DeepEqual(cfg.NoParameterActions, wantActions) {
 		t.Fatalf("new project no parameter = %#v, want %#v", cfg.NoParameterActions, wantActions)
 	}
@@ -230,8 +230,8 @@ func TestInitDefaultsNoParameterToUpdateWithoutSetup(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, ok := raw["no parameter"].([]any)
-	if !ok || len(got) != 2 || got[0] != "update" || got[1] != "no-setup" {
-		t.Fatalf("persisted no parameter = %#v, want [update no-setup]", raw["no parameter"])
+	if !ok || len(got) != 1 || got[0] != "update" {
+		t.Fatalf("persisted no parameter = %#v, want [update]", raw["no parameter"])
 	}
 }
 

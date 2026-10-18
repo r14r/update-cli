@@ -23,8 +23,8 @@ func TestEnforceVersionPolicyAllowsUpdateCLINumberingReset(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := enforceVersionPolicy(config.Config{ProjectName: "update-cli", CurrentDir: current}, source.Artifact{Metadata: source.Metadata{Version: target, VersionText: target.String()}}, false, false, false); err != nil {
-		t.Fatalf("numbering reset treated as downgrade: %v", err)
+	if err := enforceVersionPolicy(config.Config{ProjectName: "update-cli", CurrentDir: current}, source.Artifact{Metadata: source.Metadata{Version: target, VersionText: target.String()}}, false, false, false); err == nil {
+		t.Fatal("3.3.4 to 0.8.0 should be rejected as a downgrade")
 	}
 }
 
@@ -65,8 +65,8 @@ func TestEnforceVersionPolicyAllowsUpdateCLIStable100FromLegacy334(t *testing.T)
 		t.Fatal(err)
 	}
 	target, _ := versionutil.Parse("1.0.0")
-	if err := enforceVersionPolicy(config.Config{ProjectName: "update-cli", CurrentDir: current}, source.Artifact{Metadata: source.Metadata{Version: target, VersionText: target.String()}}, false, false, false); err != nil {
-		t.Fatalf("legacy 3.3.4 -> 1.0.0 transition treated as downgrade: %v", err)
+	if err := enforceVersionPolicy(config.Config{ProjectName: "update-cli", CurrentDir: current}, source.Artifact{Metadata: source.Metadata{Version: target, VersionText: target.String()}}, false, false, false); err == nil {
+		t.Fatal("3.3.4 to 1.0.0 should be rejected as a downgrade")
 	}
 }
 

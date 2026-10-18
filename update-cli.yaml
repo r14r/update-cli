@@ -72,9 +72,9 @@ workflows:
     tasks:
       - bootstrap
   setup:
-    description: Installation über den kanonischen Just-Installationspfad
+    description: Projektumgebung vorbereiten ohne Build oder Installation
     tasks:
-      - install
+      - bootstrap
   ci:
     description: Formatieren, linten, Pre-Commit prüfen, testen, bauen und verifizieren
     tasks:

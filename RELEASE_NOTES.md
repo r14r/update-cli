@@ -1,3 +1,17 @@
+# 3.0.5
+
+## Fixed
+
+- Make the default `setup` workflow bootstrap-only, instead of invoking installation and its complete build/test dependency chain.
+- Isolate the installation fixture so a standalone setup test no longer runs the entire production workflow.
+- Preserve explicit `update --setup` support without injecting a conflicting implicit `--no-setup`.
+- Update test expectations for default no-argument actions, SemVer ordering, and release retention.
+- Add a regression test proving that default setup runs `just bootstrap`, not `just install`.
+
+## Diagnostics
+
+- Repeated Doctor and installation sections in the previous failure log were output from Go integration tests, not separate user-requested operations.
+
 # 3.0.4
 
 ## Fixed

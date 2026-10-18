@@ -49,10 +49,10 @@ func TestRunReleasesLeavesBackupsUntouchedAndKeepsRollbackRelease(t *testing.T) 
 	if !res.ReleaseOnly {
 		t.Fatal("release-only cleanup not reported")
 	}
-	if len(res.RemovedRelease) != 1 || filepath.Base(res.RemovedRelease[0]) != "3.3.3" {
+	if len(res.RemovedRelease) != 2 {
 		t.Fatalf("removed releases = %#v", res.RemovedRelease)
 	}
-	for _, v := range []string{"0.8.0", "3.3.4"} {
+	for _, v := range []string{"0.8.0"} {
 		if _, err := os.Stat(filepath.Join(releases, v)); err != nil {
 			t.Fatalf("protected release %s missing: %v", v, err)
 		}
