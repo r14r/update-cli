@@ -630,6 +630,34 @@ def main() -> int:
         if (error_root / "current" / "app.txt").read_text(encoding="utf-8") != "old\n":
             raise SystemExit("failed update did not restore previous current tree")
 
+        # No-argument lifecycle must use modal confirmations in the SAME
+        # fullscreen session and stop immediately when the user selects No.
+        lifecycle_root = tmpdir / "lifecycle-stop-project"
+        lifecycle_downloads = tmpdir / "lifecycle-stop-downloads"
+        lifecycle_downloads.mkdir()
+        write_config(lifecycle_root, lifecycle_downloads, "lifecycle-stop", ["update"])
+        release_zip(
+            lifecycle_downloads, "lifecycle-stop", "1.0.0",
+            {"app.txt": "installed\n"},
+        )
+        stopped = run_pty(
+            binary, [], 0, cwd=lifecycle_root,
+            responses=[("Bootstrap (just bootstrap) ausführen?".encode("utf-8"), b"n")],
+        )
+        require(stopped, {
+            "workflow full screen": b"\x1b[?1049h",
+            "bootstrap modal": "Bootstrap (just bootstrap) ausführen?".encode("utf-8"),
+            "modal YES": b"YES",
+            "modal NO": b"NO",
+            "workflow screen exit": b"\x1b[?1049l",
+        })
+        if "Tests (just test) ausführen?".encode("utf-8") in stopped:
+            raise SystemExit("No on bootstrap failed to stop before test")
+        if "Install (just install) ausführen?".encode("utf-8") in stopped:
+            raise SystemExit("No on bootstrap failed to stop before install")
+        if not (lifecycle_root / "current" / "app.txt").exists():
+            raise SystemExit("No on bootstrap wrongly cancelled completed update")
+
     return 0
 
 
