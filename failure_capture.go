@@ -1,18 +1,18 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
 
 	"github.com/r14r/update-cli/lib/config"
+	"github.com/r14r/update-cli/lib/ui"
 )
 
 // captureCommandOutput transparently mirrors stdout/stderr and records the
@@ -108,6 +108,9 @@ func captureCommandOutput(run func() error) (runErr error, logPath string, logEr
 }
 
 func failureLogDirectory() string {
+	if override := strings.TrimSpace(os.Getenv("UPDATE_CLI_ERROR_LOG_DIR")); override != "" {
+		return override
+	}
 	if root, err := config.ResolveRoot(""); err == nil {
 		return filepath.Join(root, config.ConfigDirName, "logs")
 	}
@@ -123,8 +126,8 @@ func terminalFile(f *os.File) bool {
 	return err == nil && fi.Mode()&os.ModeCharDevice != 0
 }
 
-// askCopyFailureLog is a terminal modal shown after the failure screen has
-// closed. Headless processes save the log but never block for input.
+// askCopyFailureLog offers an interactive modal after the error screen closes.
+// In --noui mode the same question appears as a plain terminal prompt.
 func askCopyFailureLog(path string) {
 	if path == "" {
 		return
@@ -133,18 +136,25 @@ func askCopyFailureLog(path string) {
 	if !terminalFile(os.Stdin) {
 		return
 	}
-	fmt.Fprintln(os.Stderr, "┌─────────────────────────────────────────────────┐")
-	fmt.Fprintln(os.Stderr, "│  Fehler – Copy Error Message to Clipboard?     │")
-	fmt.Fprintln(os.Stderr, "└─────────────────────────────────────────────────┘")
-	fmt.Fprint(os.Stderr, "Copy Error Message to Clipboard? [y/N]: ")
-	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
-	if err != nil && !errors.Is(err, os.ErrClosed) {
-		// EOF means the operator dismissed the dialog.
-		return
+	plain := false
+	for _, arg := range os.Args[1:] {
+		if arg == "--noui" || arg == "--no-ui" || arg == "-noui" {
+			plain = true
+			break
+		}
 	}
-	switch strings.ToLower(strings.TrimSpace(line)) {
-	case "y", "yes", "j", "ja":
-	default:
+	console := ui.New(false)
+	if !plain {
+		if console.StartFullscreen("Update CLI — Fehlerprotokoll") {
+			console.SetInfoTitle("Fehlerprotokoll")
+			console.InfoRow("Logdatei", path)
+		}
+	}
+	confirmed, err := console.Confirm("Copy Error Message to Clipboard?", false)
+	if console.Fullscreen() {
+		console.FinishFullscreen(false, false)
+	}
+	if err != nil || !confirmed {
 		return
 	}
 	data, err := os.ReadFile(path)
@@ -152,11 +162,20 @@ func askCopyFailureLog(path string) {
 		fmt.Fprintln(os.Stderr, "Cannot read error log:", err)
 		return
 	}
+	// Terminal screen-control codes are useful for live rendering but must
+	// not pollute issue reports or clipboard messages.
+	data = stripTerminalSequences(data)
 	if err := copyErrorLog(data); err != nil {
 		fmt.Fprintln(os.Stderr, "Clipboard unavailable:", err)
 		return
 	}
 	fmt.Fprintln(os.Stderr, "Error log copied to clipboard.")
+}
+
+var terminalEscapeSequence = regexp.MustCompile("\x1b\\[[0-9;?]*[ -/]*[@-~]")
+
+func stripTerminalSequences(data []byte) []byte {
+	return terminalEscapeSequence.ReplaceAll(bytes.ReplaceAll(data, []byte("\r"), nil), nil)
 }
 
 func copyErrorLog(data []byte) error {
