@@ -1,3 +1,12 @@
+# 3.0.8
+
+## Installation UI
+
+- Show `update-cli install` in the standard four-panel fullscreen TUI in interactive mode.
+- Show project details in the information panel and `just install` as a tracked step in the content panel.
+- Honor `--noui` for plain output. Preserve process exit codes and installation errors.
+- Include setup and test fixes from the 3.0.5 branch, not yet merged into main.
+
 # 3.0.5
 
 ## Fixed
