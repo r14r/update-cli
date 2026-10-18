@@ -141,6 +141,8 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 		fullscreenTitle = fullscreenBase + " — Setup"
 	case o.install:
 		fullscreenTitle = fullscreenBase + " — Install"
+	case o.test:
+		fullscreenTitle = fullscreenBase + " — Test"
 	case o.check:
 		fullscreenTitle = fullscreenBase + " — Versionsprüfung"
 	case o.update && !o.plan && !o.dryRun:
@@ -155,6 +157,8 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 				console.SetFooter("RUN  Projekt-Setup läuft")
 			case strings.HasSuffix(fullscreenTitle, "— Install"):
 				console.SetFooter("RUN  Installation läuft")
+			case strings.HasSuffix(fullscreenTitle, "— Test"):
+				console.SetFooter("RUN  Tests laufen")
 			case strings.HasSuffix(fullscreenTitle, "— Versionsprüfung"):
 				console.SetFooter("RUN  Versionsprüfung läuft")
 			case strings.HasSuffix(fullscreenTitle, "— Update"):
