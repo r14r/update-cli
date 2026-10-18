@@ -1,133 +1,204 @@
 package main
 
 import (
- "bytes"
- "fmt"
- "io"
- "os"
- "os/exec"
- "path/filepath"
- "runtime"
- "strings"
- "sync"
- "time"
+	"bufio"
+	"bytes"
+	"errors"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/r14r/update-cli/lib/config"
 )
 
-// captureCommandOutput mirrors stdout/stderr while retaining the complete
-// transcript. It saves the transcript only when the command fails.
-func captureCommandOutput(run func() error) (error, string, error) {
- originalOut, originalErr := os.Stdout, os.Stderr
- outR, outW, err := os.Pipe()
- if err != nil { return err, "", err }
- errR, errW, err := os.Pipe()
- if err != nil { outR.Close(); outW.Close(); return err, "", err }
- var mu sync.Mutex
- var transcript bytes.Buffer
- drain := func(r *os.File, target *os.File, done *sync.WaitGroup) {
-  defer done.Done()
-  defer r.Close()
-  buf := make([]byte, 32*1024)
-  for {
-   n, e := r.Read(buf)
-   if n > 0 {
-    _, _ = target.Write(buf[:n])
-    mu.Lock()
-    _, _ = transcript.Write(buf[:n])
-    mu.Unlock()
-   }
-   if e != nil { return }
-  }
- }
- var wg sync.WaitGroup
- wg.Add(2)
- go drain(outR, originalOut, &wg)
- go drain(errR, originalErr, &wg)
- os.Stdout, os.Stderr = outW, errW
- var result error
- func() {
-  defer func() {
-   if recovered := recover(); recovered != nil {
-    result = fmt.Errorf("panic: %v", recovered)
-   }
-  }()
-  result = run()
- }()
- os.Stdout, os.Stderr = originalOut, originalErr
- _ = outW.Close()
- _ = errW.Close()
- wg.Wait()
- if result == nil { return nil, "", nil }
- mu.Lock()
- text := transcript.String()
- mu.Unlock()
- text += "\nERROR  " + result.Error() + "\n"
- directory, e := os.UserCacheDir()
- if e != nil { directory = os.TempDir() }
- directory = filepath.Join(directory, "update-cli", "logs")
- if e := os.MkdirAll(directory, 0o700); e != nil { return result, "", e }
- path := filepath.Join(directory, "failure-"+time.Now().Format("20060102-150405.000000000")+".log")
- if e := os.WriteFile(path, []byte(text), 0o600); e != nil { return result, "", e }
- return result, path, nil
+// captureCommandOutput transparently mirrors stdout/stderr and records the
+// complete transcript on disk. Successful runs delete their temporary log.
+func captureCommandOutput(run func() error) (runErr error, logPath string, logErr error) {
+	directory := failureLogDirectory()
+	if err := os.MkdirAll(directory, 0o700); err != nil {
+		return run(), "", err
+	}
+	logFile, err := os.CreateTemp(directory, "failure-*.log")
+	if err != nil {
+		return run(), "", err
+	}
+	path := logFile.Name()
+	defer logFile.Close()
+
+	originalOut, originalErr := os.Stdout, os.Stderr
+	outR, outW, err := os.Pipe()
+	if err != nil {
+		_ = os.Remove(path)
+		return run(), "", err
+	}
+	errR, errW, err := os.Pipe()
+	if err != nil {
+		_ = outR.Close()
+		_ = outW.Close()
+		_ = os.Remove(path)
+		return run(), "", err
+	}
+
+	// The output is piped for recording, but the original terminal remains
+	// available on stdin. UI uses this marker for TTY and terminal dimensions.
+	if terminalFile(originalOut) && terminalFile(os.Stdin) {
+		old, existed := os.LookupEnv("UPDATE_CLI_CAPTURE_TTY")
+		_ = os.Setenv("UPDATE_CLI_CAPTURE_TTY", "1")
+		defer func() {
+			if existed {
+				_ = os.Setenv("UPDATE_CLI_CAPTURE_TTY", old)
+			} else {
+				_ = os.Unsetenv("UPDATE_CLI_CAPTURE_TTY")
+			}
+		}()
+	}
+
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	drain := func(reader, destination *os.File) {
+		defer wg.Done()
+		defer reader.Close()
+		buf := make([]byte, 32*1024)
+		for {
+			n, readErr := reader.Read(buf)
+			if n > 0 {
+				_, _ = destination.Write(buf[:n])
+				mu.Lock()
+				_, _ = logFile.Write(buf[:n])
+				mu.Unlock()
+			}
+			if readErr != nil {
+				return
+			}
+		}
+	}
+	wg.Add(2)
+	go drain(outR, originalOut)
+	go drain(errR, originalErr)
+
+	os.Stdout, os.Stderr = outW, errW
+	func() {
+		defer func() {
+			if p := recover(); p != nil {
+				runErr = fmt.Errorf("unexpected panic: %v", p)
+			}
+		}()
+		runErr = run()
+	}()
+	os.Stdout, os.Stderr = originalOut, originalErr
+	_ = outW.Close()
+	_ = errW.Close()
+	wg.Wait()
+
+	if runErr == nil {
+		_ = os.Remove(path)
+		return nil, "", nil
+	}
+	if _, err := fmt.Fprintf(logFile, "\nERROR  %s\n", runErr); err != nil {
+		return runErr, path, err
+	}
+	if err := logFile.Sync(); err != nil {
+		return runErr, path, err
+	}
+	return runErr, path, nil
 }
 
-// askCopyFailureLog presents a compact terminal dialog only for interactive
-// sessions. Background jobs retain the logfile without an interactive pause.
+func failureLogDirectory() string {
+	if root, err := config.ResolveRoot(""); err == nil {
+		return filepath.Join(root, config.ConfigDirName, "logs")
+	}
+	directory, err := os.UserCacheDir()
+	if err != nil {
+		directory = os.TempDir()
+	}
+	return filepath.Join(directory, "update-cli", "logs")
+}
+
+func terminalFile(f *os.File) bool {
+	fi, err := f.Stat()
+	return err == nil && fi.Mode()&os.ModeCharDevice != 0
+}
+
+// askCopyFailureLog is a terminal modal shown after the failure screen has
+// closed. Headless processes save the log but never block for input.
 func askCopyFailureLog(path string) {
- if path == "" { return }
- fmt.Fprintf(os.Stderr, "\nFailure log saved: %s\n", path)
- if !isInteractiveInput() { return }
- fmt.Fprintln(os.Stderr, "+-------------------------------------------------------+")
- fmt.Fprintln(os.Stderr, "| Fehler: Copy Error Message to Clipboard?             |")
- fmt.Fprintln(os.Stderr, "+-------------------------------------------------------+")
- fmt.Fprint(os.Stderr, "Copy Error Message to Clipboard? [y/N]: ")
- var answer string
- _, _ = fmt.Fscanln(os.Stdin, &answer)
- switch strings.ToLower(strings.TrimSpace(answer)) {
- case "y", "yes", "j", "ja":
- default:
-  return
- }
- b, err := os.ReadFile(path)
- if err != nil { fmt.Fprintln(os.Stderr, "Cannot read log:", err); return }
- if err := copyErrorLog(b); err != nil {
-  fmt.Fprintln(os.Stderr, "Clipboard unavailable:", err)
-  return
- }
- fmt.Fprintln(os.Stderr, "Error log copied to clipboard.")
+	if path == "" {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "\nFailure log saved: %s\n", path)
+	if !terminalFile(os.Stdin) {
+		return
+	}
+	fmt.Fprintln(os.Stderr, "┌─────────────────────────────────────────────────┐")
+	fmt.Fprintln(os.Stderr, "│  Fehler – Copy Error Message to Clipboard?     │")
+	fmt.Fprintln(os.Stderr, "└─────────────────────────────────────────────────┘")
+	fmt.Fprint(os.Stderr, "Copy Error Message to Clipboard? [y/N]: ")
+	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	if err != nil && !errors.Is(err, os.ErrClosed) {
+		// EOF means the operator dismissed the dialog.
+		return
+	}
+	switch strings.ToLower(strings.TrimSpace(line)) {
+	case "y", "yes", "j", "ja":
+	default:
+		return
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Cannot read error log:", err)
+		return
+	}
+	if err := copyErrorLog(data); err != nil {
+		fmt.Fprintln(os.Stderr, "Clipboard unavailable:", err)
+		return
+	}
+	fmt.Fprintln(os.Stderr, "Error log copied to clipboard.")
 }
 
-func isInteractiveInput() bool {
- fi, err := os.Stdin.Stat()
- return err == nil && fi.Mode()&os.ModeCharDevice != 0
-}
-
-func copyErrorLog(b []byte) error {
- choices := [][]string{}
- switch runtime.GOOS {
- case "darwin":
-  choices = append(choices, []string{"pbcopy"})
- case "windows":
-  choices = append(choices, []string{"clip"})
- default:
-  choices = append(choices, []string{"wl-copy"}, []string{"xclip", "-selection", "clipboard"}, []string{"xsel", "--clipboard", "--input"})
- }
- for _, args := range choices {
-  path, err := exec.LookPath(args[0])
-  if err != nil { continue }
-  cmd := exec.Command(path, args[1:]...)
-  cmd.Stdin = bytes.NewReader(b)
-  if err := cmd.Run(); err == nil { return nil }
- }
- return fmt.Errorf("no supported clipboard utility was found")
+func copyErrorLog(data []byte) error {
+	var choices [][]string
+	switch runtime.GOOS {
+	case "darwin":
+		choices = [][]string{{"pbcopy"}}
+	case "windows":
+		choices = [][]string{{"clip"}}
+	default:
+		choices = [][]string{
+			{"wl-copy"},
+			{"xclip", "-selection", "clipboard"},
+			{"xsel", "--clipboard", "--input"},
+		}
+	}
+	for _, args := range choices {
+		executable, err := exec.LookPath(args[0])
+		if err != nil {
+			continue
+		}
+		cmd := exec.Command(executable, args[1:]...)
+		cmd.Stdin = bytes.NewReader(data)
+		if err := cmd.Run(); err == nil {
+			return nil
+		}
+	}
+	return fmt.Errorf("no usable clipboard command (pbcopy, wl-copy, xclip or xsel)")
 }
 
 func shouldRecordFailure(args []string) bool {
- if len(args)==0 { return true }
- for _, arg := range args {
-  if arg=="--no-ui" || arg=="--noui" { continue }
- }
- cmd := strings.TrimLeft(strings.ToLower(args[0]), "-")
- return cmd=="update" || cmd=="setup" || cmd=="bootstrap" || cmd=="build" || cmd=="install"
+	if len(args) == 0 {
+		return true
+	}
+	command := strings.TrimLeft(strings.ToLower(args[0]), "-")
+	switch command {
+	case "update", "setup", "bootstrap", "build", "install":
+		return true
+	default:
+		return false
+	}
 }
 
-var _ io.Reader = (*bytes.Buffer)(nil)
+var _ = time.Second
