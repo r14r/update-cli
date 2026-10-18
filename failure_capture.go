@@ -112,7 +112,10 @@ func failureLogDirectory() string {
 		return override
 	}
 	if root, err := config.ResolveRoot(""); err == nil {
-		return filepath.Join(root, config.ConfigDirName, "logs")
+		managedConfig := filepath.Join(root, config.ConfigDirName, config.ConfigFileName)
+		if _, err := os.Stat(managedConfig); err == nil {
+			return filepath.Join(root, config.ConfigDirName, "logs")
+		}
 	}
 	directory, err := os.UserCacheDir()
 	if err != nil {
