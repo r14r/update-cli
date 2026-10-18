@@ -731,7 +731,17 @@ func TestProjectSetupWorkflowDelegatesToJustInstallWithoutSetupMarker(t *testing
 		t.Skip("shell-based update-cli setup manifest")
 	}
 	root := t.TempDir()
-	manifest := []byte("schemaVersion: 2\nworkflows:\n  install:\n    tasks: [install]\ntasks:\n  install:\n    steps:\n      - name: install\n        shell: just install\n")
+	manifest := []byte(`schemaVersion: 2
+workflows:
+  install:
+    tasks:
+      - install
+tasks:
+  install:
+    steps:
+      - name: install
+        shell: just install
+`)
 	if err := os.WriteFile(filepath.Join(root, "update-cli.yaml"), manifest, 0o644); err != nil {
 		t.Fatal(err)
 	}
