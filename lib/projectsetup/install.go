@@ -24,21 +24,28 @@ func RunJustInstall(ctx context.Context, root string, console *ui.Console) error
 		return errors.New("Kommando 'just' ist nicht installiert")
 	}
 
-	console.Header("Projekt installieren")
-	console.Row("Arbeitsordner", work)
-	console.Row("Kommando", "just install")
-
-	cmd := exec.CommandContext(ctx, just, "install")
-	cmd.Dir = work
-	cmd.Env = append(os.Environ(), "UPDATE_CLI_INSTALL_RUNNING=1")
-	cmd.Stdin = os.Stdin
-	stdout, stderr := console.ProcessWriters()
-	cmd.Stdout = stdout
-	cmd.Stderr = stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("just install fehlgeschlagen: %w", err)
+	if console.Fullscreen() {
+		console.SetInfoTitle("Projekt installieren")
+		console.InfoRow("Arbeitsordner", work)
+		console.InfoRow("Kommando", "just install")
+	} else {
+		console.Header("Projekt installieren")
+		console.Row("Arbeitsordner", work)
+		console.Row("Kommando", "just install")
 	}
-	return nil
+	return console.Step(ctx, 0, 1, "just install ausführen", func() error {
+		cmd := exec.CommandContext(ctx, just, "install")
+		cmd.Dir = work
+		cmd.Env = append(os.Environ(), "UPDATE_CLI_INSTALL_RUNNING=1")
+		cmd.Stdin = os.Stdin
+		stdout, stderr := console.ProcessWriters()
+		cmd.Stdout = stdout
+		cmd.Stderr = stderr
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("just install fehlgeschlagen: %w", err)
+		}
+		return nil
+	})
 }
 
 func justInstallDirectory(root string) (string, error) {
