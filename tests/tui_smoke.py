@@ -466,7 +466,7 @@ def main() -> int:
         )
         clear_output = run_pty(
             binary,
-            ["update", "--archive", str(clear_archive), "--root", str(clear_root), "--no-wait"],
+            ["update", "--archive", str(clear_archive), "--root", str(clear_root), "--setup", "--no-wait"],
             0,
             input_data=b"\x1b[D\r",
         )
