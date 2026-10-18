@@ -764,7 +764,7 @@ tasks:
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-	_, err = projectsetup.RunStandaloneSelected(context.Background(), filepath.Join(root, "update-cli.yaml"), ui.New(true), projectsetup.Selection{Workflow: "install"})
+	_, err := projectsetup.RunStandaloneSelected(context.Background(), filepath.Join(root, "update-cli.yaml"), ui.New(true), projectsetup.Selection{Workflow: "install"})
 	if err != nil {
 		t.Fatal(err)
 	}
