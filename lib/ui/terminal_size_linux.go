@@ -13,6 +13,9 @@ type winsize struct {
 }
 
 func terminalSize(f *os.File) (int, int) {
+	if os.Getenv("UPDATE_CLI_CAPTURE_TTY") == "1" {
+		f = os.Stdin
+	}
 	ws := &winsize{}
 	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, f.Fd(), uintptr(0x5413), uintptr(unsafe.Pointer(ws)))
 	if errno == 0 && ws.Cols > 0 && ws.Rows > 0 {
