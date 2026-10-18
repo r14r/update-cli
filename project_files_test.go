@@ -731,14 +731,8 @@ func TestProjectSetupWorkflowDelegatesToJustInstallWithoutSetupMarker(t *testing
 		t.Skip("shell-based update-cli setup manifest")
 	}
 	root := t.TempDir()
-	manifest, err := os.ReadFile("update-cli.yaml")
-	if err != nil {
-		t.Fatal(err)
-	}
+	manifest := []byte("schemaVersion: 2\nworkflows:\n  install:\n    tasks: [install]\ntasks:\n  install:\n    steps:\n      - name: install\n        shell: just install\n")
 	if err := os.WriteFile(filepath.Join(root, "update-cli.yaml"), manifest, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "VERSION"), []byte("2.13.2\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	bin := filepath.Join(root, "bin")
@@ -758,7 +752,7 @@ func TestProjectSetupWorkflowDelegatesToJustInstallWithoutSetupMarker(t *testing
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-	_, err = projectsetup.RunStandaloneSelected(context.Background(), filepath.Join(root, "update-cli.yaml"), ui.New(true), projectsetup.Selection{Workflow: "setup"})
+	_, err = projectsetup.RunStandaloneSelected(context.Background(), filepath.Join(root, "update-cli.yaml"), ui.New(true), projectsetup.Selection{Workflow: "install"})
 	if err != nil {
 		t.Fatal(err)
 	}
