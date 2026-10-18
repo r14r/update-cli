@@ -2,7 +2,7 @@
 
 **Transactional project updates from ZIP releases or Git repositories.**
 
-Current release: **3.0.4**
+Current release: **3.0.5**
 
 Update CLI separates installation defaults, local runtime state, and versioned project configuration/automation:
 
@@ -46,6 +46,10 @@ update-cli releases --list --json
 ```
 
 
+
+## What changed in 3.0.5
+
+The default `update-cli setup --noui` now runs only the project bootstrap workflow (`just bootstrap`), without triggering `just install`, full build checks, or deployment. Explicit `update-cli install` remains available. The regression suite was updated to reflect the 3.x lifecycle and standard SemVer ordering.
 
 ## What changed in 3.0.1
 
