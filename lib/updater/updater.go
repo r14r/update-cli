@@ -862,7 +862,7 @@ func confirmLifecycleStage(question string) (bool, error) {
 		return false, nil
 	}
 	console := ui.New(false)
-	console.StartFullscreen("Update CLI — Installation")
+	console.StartFullscreen("Update CLI — Install")
 	console.SetInfoTitle("Optionale Projektphase")
 	console.InfoRow("Aktion", question)
 	console.SetFooter("WAIT  Bestätigung erforderlich")
