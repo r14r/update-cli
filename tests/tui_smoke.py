@@ -322,7 +322,8 @@ def main() -> int:
             encoding="utf-8",
         )
         failure = run_pty(
-            binary, ["setup", "--manifest", str(failure_manifest), "--no-wait"], 1
+            binary, ["setup", "--manifest", str(failure_manifest), "--no-wait"], 1,
+            responses=[(b"Copy Error Message to Clipboard?", b"n\n")],
         )
         require(
             failure,
@@ -592,6 +593,7 @@ def main() -> int:
             binary,
             ["update", "--archive", str(v2), "--root", str(error_root), "--setup", "--no-wait"],
             1,
+            responses=[(b"Copy Error Message to Clipboard?", b"n\n")],
         )
         require(
             update_failure,
