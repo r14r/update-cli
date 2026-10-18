@@ -740,7 +740,9 @@ tasks:
   install:
     steps:
       - name: install
-        shell: just install
+        shell: |
+          unset UPDATE_CLI_SETUP_RUNNING
+          just install
 `)
 	if err := os.WriteFile(filepath.Join(root, "update-cli.yaml"), manifest, 0o644); err != nil {
 		t.Fatal(err)
