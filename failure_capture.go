@@ -95,6 +95,7 @@ func captureCommandOutput(run func() error) (runErr error, logPath string, logEr
 	wg.Wait()
 
 	if runErr == nil {
+		_ = logFile.Close()
 		_ = os.Remove(path)
 		return nil, "", nil
 	}
@@ -102,6 +103,9 @@ func captureCommandOutput(run func() error) (runErr error, logPath string, logEr
 		return runErr, path, err
 	}
 	if err := logFile.Sync(); err != nil {
+		return runErr, path, err
+	}
+	if err := logFile.Close(); err != nil {
 		return runErr, path, err
 	}
 	return runErr, path, nil
