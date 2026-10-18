@@ -863,16 +863,16 @@ func confirmLifecycleStage(question string) (bool, error) {
 		fmt.Fprintf(os.Stderr, "SKIP  %s (keine interaktive Eingabe)\n", question)
 		return false, nil
 	}
-	fmt.Fprintf(os.Stderr, "%s [y/N]: ", question)
-	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
-	if err != nil && !errors.Is(err, io.EOF) {
-		return false, err
+	console := ui.New(false)
+	console.StartFullscreen("Update CLI — Installation")
+	console.SetInfoTitle("Optionale Projektphase")
+	console.InfoRow("Aktion", question)
+	console.SetFooter("WAIT  Bestätigung erforderlich")
+	yes, err := console.Confirm(question, false)
+	if console.Fullscreen() {
+		console.FinishFullscreen(err == nil && yes, false)
 	}
-	switch strings.ToLower(strings.TrimSpace(line)) {
-	case "y", "yes", "j", "ja":
-		return true, nil
-	}
-	return false, nil
+	return yes, err
 }
 
 func repairProjectManifests(root, currentDir string) ([]projectsetup.ProjectRepairResult, error) {
