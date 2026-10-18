@@ -1,3 +1,10 @@
+# 3.0.12
+
+## Fixed
+
+- Optional bootstrap and install confirmations after the no-argument update lifecycle now use the existing fullscreen TUI modal rather than an inline command prompt.
+- Headless operation continues to skip optional actions without blocking.
+
 # 3.0.10
 
 ## Fixed
