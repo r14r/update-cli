@@ -323,8 +323,8 @@ func parseOptions(args []string) (options, error) {
 	if o.wait && o.noWait {
 		return o, errors.New("--wait und --no-wait schließen sich aus")
 	}
-	if (o.wait || o.noWait) && !(o.check || o.update || o.setup || o.setupManifest != "" || o.setupTask != "" || o.setupWorkflow != "" || o.setupStep != "" || (o.rollback && o.setup)) {
-		return o, errors.New("--wait/--no-wait sind nur mit --check, --update oder Setup zulässig")
+	if (o.wait || o.noWait) && !(o.check || o.update || o.install || o.test || o.setup || o.setupManifest != "" || o.setupTask != "" || o.setupWorkflow != "" || o.setupStep != "" || (o.rollback && o.setup)) {
+		return o, errors.New("--wait/--no-wait sind nur mit --check, --update, --install, --test oder Setup zulässig")
 	}
 	if len(o.configSet) > 0 && !o.config {
 		return o, errors.New("--set ist nur mit config/--config zulässig")
