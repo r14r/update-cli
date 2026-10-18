@@ -389,8 +389,8 @@ def main() -> int:
             or "Projekt-Setup ist verfügbar. Jetzt ausführen? [J/n]".encode("utf-8") in prompt_output
         ):
             raise SystemExit("fullscreen setup confirmation still uses an inline footer prompt")
-        if not (prompt_root / "current" / "setup-ran.txt").exists():
-            raise SystemExit("default-YES setup modal did not run project setup on Enter")
+        if (prompt_root / "current" / "setup-ran.txt").exists():
+            raise SystemExit("update unexpectedly ran setup without explicit --setup")
 
         # Re-selecting the currently installed release is a successful no-op.
         # It must not paint the version-policy step or footer as FAIL. Instead
