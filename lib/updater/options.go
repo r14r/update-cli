@@ -228,7 +228,7 @@ func parseOptions(args []string) (options, error) {
 		return o, errors.New("setup --list/task/workflow/run sind eigenständige Befehle; update/rollback/restore entfernen")
 	}
 	primary := 0
-	for _, b := range []bool{o.update, standaloneBackup, o.rollback, o.restore != "", o.history, o.cleanup, o.clean, o.init, o.upgrade, o.check, o.doctor, o.fix, o.status, o.list, o.verify, o.config, o.templatesMode, o.showHelp, o.showHowTo, o.showVersion, o.whatsNew, o.recover, o.unlock, o.run, o.install, o.schema, o.setupManifest != "", setupSelectorMode, setupManageMode} {
+	for _, b := range []bool{o.update, standaloneBackup, o.rollback, o.restore != "", o.history, o.cleanup, o.clean, o.init, o.upgrade, o.check, o.doctor, o.fix, o.status, o.list, o.verify, o.config, o.templatesMode, o.showHelp, o.showHowTo, o.showVersion, o.whatsNew, o.recover, o.unlock, o.run, o.install, o.test, o.schema, o.setupManifest != "", setupSelectorMode, setupManageMode} {
 		if b {
 			primary++
 		}
