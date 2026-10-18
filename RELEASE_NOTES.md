@@ -3,7 +3,7 @@
 ## Added
 
 - Capture the combined stdout and stderr transcript for `update`, `setup`, `bootstrap`, `build` and `install`, including no-argument lifecycle runs.
-- Persist full failure logs in `.update-cli/logs/failure-*.log` with restrictive permissions.
+- Persist full failure logs in `.update-cli/logs/failure-*.log` for configured projects or the user cache for standalone projects with restrictive permissions.
 - Prompt the operator after a failed interactive operation with **Copy Error Message to Clipboard?**; confirmation copies the error report.
 - Preserve terminal UI rendering during recording, and support a plain prompt with `--noui`.
 - Automatically discard temporary transcripts after successful operations.
