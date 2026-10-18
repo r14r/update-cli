@@ -1075,7 +1075,12 @@ func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o op
 	var tx *transaction
 	if err := progress.run("Transaktions-Rollback vorbereiten", func() error {
 		var beginErr error
-		tx, beginErr = beginTransaction(ctx, cfg, console)
+		// A pure update must not stop or restart the application's containers.
+		transactionConfig := cfg
+		if o.noSetup {
+			transactionConfig.Docker.Lifecycle = "disabled"
+		}
+		tx, beginErr = beginTransaction(ctx, transactionConfig, console)
 		return beginErr
 	}); err != nil {
 		return failUpdateBeforeTransaction(console, cfg, s, phase, err)
@@ -1211,7 +1216,7 @@ func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o op
 	if err := tx.setPhase(phase); err != nil {
 		return recoverOnError(err)
 	}
-	if err := runPostSetupActivation(ctx, cfg, tx, progress, setupDeclinedInteractively, recoverOnError); err != nil {
+	if err := runPostSetupActivation(ctx, cfg, tx, progress, setupDeclinedInteractively || o.noSetup, recoverOnError); err != nil {
 		return err
 	}
 
@@ -1273,8 +1278,8 @@ func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o op
 
 func runPostSetupActivation(ctx context.Context, cfg config.Config, tx *transaction, progress *updateProgress, setupDeclinedInteractively bool, recoverOnError func(error) error) error {
 	if setupDeclinedInteractively {
-		progress.skip("Vorher laufende Docker-Dienste starten", "Setup vom Benutzer nicht ausgewählt; Dienste bleiben für die manuelle Einrichtung gestoppt")
-		progress.skip("Healthcheck der neuen Installation ausführen", "Setup vom Benutzer nicht ausgewählt; Aktivierung wird manuell abgeschlossen")
+		progress.skip("Vorher laufende Docker-Dienste starten", "Setup übersprungen; Docker-Dienste werden nicht verändert")
+		progress.skip("Healthcheck der neuen Installation ausführen", "Setup übersprungen; kein Healthcheck oder Dienstneustart")
 		return nil
 	}
 
