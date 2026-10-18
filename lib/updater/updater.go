@@ -826,7 +826,7 @@ func runNoParameter(ctx context.Context, buildVersion string, debug bool) error 
 		return err
 	}
 	stages := []struct {
-		name string
+		name     string
 		excluded string
 		question string
 	}{
