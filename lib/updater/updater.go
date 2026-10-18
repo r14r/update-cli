@@ -62,6 +62,8 @@ type state struct {
 	fromVersion                                                                                                          string
 }
 
+type lifecycleUIContextKey struct{}
+
 func Run(ctx context.Context, buildVersion string, args []string) (retErr error) {
 	if len(args) == 0 {
 		return runNoParameter(ctx, buildVersion, false)
@@ -126,9 +128,15 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 		return nil
 	}
 	console := ui.New(o.noColor || o.jsonOutput)
+	sharedConsole, usingSharedConsole := ctx.Value(lifecycleUIContextKey{}).(*ui.Console)
+	if usingSharedConsole && sharedConsole != nil {
+		console = sharedConsole
+	}
 	console.SetApplicationVersion(buildVersion)
-	console.SuppressFinalStatus(o.jsonOutput || o.run)
-	defer console.PrintFinalStatus()
+	console.SuppressFinalStatus(o.jsonOutput || o.run || usingSharedConsole)
+	if !usingSharedConsole {
+		defer console.PrintFinalStatus()
+	}
 	console.SetDirect(o.noUI || o.debug)
 	console.SetDetails(o.details || o.noUI || o.debug)
 	if o.debug {
@@ -166,7 +174,7 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 			}
 		}
 	}
-	if fullscreen {
+	if fullscreen && !usingSharedConsole {
 		defer func() {
 			if retErr != nil && !console.ErrorShown() {
 				console.ErrorNotice("Fehlerdetails", retErr.Error())
@@ -782,7 +790,7 @@ func projectMigrationRequired(root string) bool {
 	return doctor.InspectMigrationRequirement(root).Required
 }
 
-func runNoParameter(ctx context.Context, buildVersion string, debug bool) error {
+func runNoParameter(ctx context.Context, buildVersion string, debug bool) (retErr error) {
 	root, err := config.ResolveRoot("")
 	if err != nil {
 		printHelp(buildVersion)
@@ -818,6 +826,19 @@ func runNoParameter(ctx context.Context, buildVersion string, debug bool) error 
 		}
 		return Run(ctx, buildVersion, args)
 	}
+	// Own one fullscreen TUI for the complete update -> bootstrap -> test -> install
+	// lifecycle; individual Run calls change its phase without closing the screen.
+	lifecycleConsole := ui.New(false)
+	if !debug && lifecycleConsole.StartFullscreen(fmt.Sprintf("Update CLI Version %s — Install", buildVersion)) {
+		ctx = context.WithValue(ctx, lifecycleUIContextKey{}, lifecycleConsole)
+		lifecycleConsole.SetApplicationVersion(buildVersion)
+		defer func() {
+			if retErr != nil && !lifecycleConsole.ErrorShown() {
+				lifecycleConsole.ErrorNotice("Fehlerdetails", retErr.Error())
+			}
+			lifecycleConsole.FinishFullscreen(retErr == nil, false)
+		}()
+	}
 	args := []string{"update", "--root", root}
 	if debug {
 		args = append(args, "--debug")
@@ -838,7 +859,7 @@ func runNoParameter(ctx context.Context, buildVersion string, debug bool) error 
 		if actions[stage.excluded] {
 			continue
 		}
-		yes, confirmErr := confirmLifecycleStage(stage.question)
+		yes, confirmErr := confirmLifecycleStage(lifecycleConsole, stage.question)
 		if confirmErr != nil {
 			return confirmErr
 		}
@@ -857,7 +878,11 @@ func runNoParameter(ctx context.Context, buildVersion string, debug bool) error 
 }
 
 // In headless mode optional lifecycle stages are skipped unless invoked explicitly.
-func confirmLifecycleStage(question string) (bool, error) {
+func confirmLifecycleStage(console *ui.Console, question string) (bool, error) {
+	if console != nil && console.Fullscreen() {
+		console.SetFooter("WAIT  Bestätigung erforderlich")
+		return console.Confirm(question, false)
+	}
 	fi, err := os.Stdin.Stat()
 	if err != nil {
 		return false, err
@@ -867,7 +892,7 @@ func confirmLifecycleStage(question string) (bool, error) {
 		fmt.Fprintf(os.Stderr, "SKIP  %s (keine interaktive Eingabe)\n", question)
 		return false, nil
 	}
-	console := ui.New(false)
+	console = ui.New(false)
 	console.StartFullscreen("Update CLI — Install")
 	console.SetInfoTitle("Optionale Projektphase")
 	console.InfoRow("Aktion", question)
