@@ -995,10 +995,10 @@ func normalizedNoParameter(v NoParameterConfig) (NoParameterConfig, error) {
 		}
 		seen[a] = true
 		switch a {
-		case "help", "check", "update", "setup", "no-setup", "no-bootstrap", "no-install":
+		case "help", "check", "update", "setup", "no-setup", "no-bootstrap", "no-test", "no-install":
 			out = append(out, a)
 		default:
-			return nil, fmt.Errorf("no parameter unterstützt nur help, check, update, setup, no-setup, no-bootstrap, no-install")
+			return nil, fmt.Errorf("no parameter unterstützt nur help, check, update, setup, no-setup, no-bootstrap, no-test, no-install")
 		}
 	}
 	if seen["help"] && len(out) > 1 {
@@ -1007,8 +1007,8 @@ func normalizedNoParameter(v NoParameterConfig) (NoParameterConfig, error) {
 	if seen["check"] && seen["update"] {
 		return nil, errors.New("check und update dürfen nicht kombiniert werden")
 	}
-	if (seen["no-bootstrap"] || seen["no-install"]) && !seen["update"] {
-		return nil, errors.New("no-bootstrap und no-install benötigen update in no parameter")
+	if (seen["no-bootstrap"] || seen["no-test"] || seen["no-install"]) && !seen["update"] {
+		return nil, errors.New("no-bootstrap, no-test und no-install benötigen update in no parameter")
 	}
 	if seen["no-setup"] && !seen["update"] {
 		return nil, errors.New("no-setup darf in no parameter nur mit update kombiniert werden")

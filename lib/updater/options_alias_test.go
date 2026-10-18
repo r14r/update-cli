@@ -20,6 +20,7 @@ func TestCanonicalCommandFormsParse(t *testing.T) {
 		{"config", "--set", "no-parameter=update,no-setup"},
 		{"update", "--archive", "release.zip", "--setup"},
 		{"run"},
+		{"test"},
 		{"backup"},
 		{"rollback", "--version", "1.2.3", "--setup"},
 		{"restore", "--snapshot", "latest"},

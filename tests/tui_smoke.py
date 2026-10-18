@@ -131,6 +131,22 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="update-cli-tui-") as tmp:
         tmpdir = pathlib.Path(tmp)
 
+        # CI does not require the system just executable. Provide a deterministic
+        # stand-in for PTY tests that verify TUI routing rather than Just itself.
+        fake_bin = tmpdir / "fake-bin"
+        fake_bin.mkdir()
+        fake_just = fake_bin / "just"
+        fake_just.write_text(
+            "#!/bin/sh\n"
+            "case \"$1\" in\n"
+            "  test|install) echo \"$1\" >> lifecycle.log; exit 0 ;;\n"
+            "  *) exit 2 ;;\n"
+            "esac\n",
+            encoding="utf-8",
+        )
+        fake_just.chmod(0o755)
+        just_env = {"PATH": str(fake_bin) + os.pathsep + os.environ.get("PATH", "")}
+
         # Install must use fullscreen even when the environment requests plain.
         install_root = tmpdir / "install-project"
         install_root.mkdir()
@@ -139,7 +155,7 @@ def main() -> int:
             binary,
             ["install", "--root", str(install_root), "--no-wait"],
             0,
-            env_overrides={"UPDATE_CLI_TUI": "plain"},
+            env_overrides={"UPDATE_CLI_TUI": "plain", **just_env},
         )
         require(install_output, {
             "install fullscreen enter": b"\x1b[?1049h",
@@ -148,7 +164,8 @@ def main() -> int:
             "install fullscreen exit": b"\x1b[?1049l",
         })
         install_plain = run_pty(
-            binary, ["install", "--root", str(install_root), "--noui", "--no-wait"], 0
+            binary, ["install", "--root", str(install_root), "--noui", "--no-wait"], 0,
+            env_overrides=just_env,
         )
         if b"\x1b[?1049h" in install_plain:
             raise SystemExit("--noui must disable fullscreen install")
@@ -630,6 +647,84 @@ def main() -> int:
         if (error_root / "current" / "app.txt").read_text(encoding="utf-8") != "old\n":
             raise SystemExit("failed update did not restore previous current tree")
 
+        # No-argument lifecycle must use modal confirmations in the SAME
+        # fullscreen session and stop immediately when the user selects No.
+        lifecycle_root = tmpdir / "lifecycle-stop-project"
+        lifecycle_downloads = tmpdir / "lifecycle-stop-downloads"
+        lifecycle_downloads.mkdir()
+        write_config(lifecycle_root, lifecycle_downloads, "lifecycle-stop", ["update"])
+        release_zip(
+            lifecycle_downloads, "lifecycle-stop", "1.0.0",
+            {"app.txt": "installed\n"},
+        )
+        stopped = run_pty(
+            binary, [], 0, cwd=lifecycle_root,
+            responses=[("Bootstrap (just bootstrap) ausführen?".encode("utf-8"), b"n")],
+        )
+        require(stopped, {
+            "workflow full screen": b"\x1b[?1049h",
+            "bootstrap modal": "Bootstrap (just bootstrap) ausführen?".encode("utf-8"),
+            "modal YES": b"YES",
+            "modal NO": b"NO",
+            "workflow screen exit": b"\x1b[?1049l",
+        })
+        if "Tests (just test) ausführen?".encode("utf-8") in stopped:
+            raise SystemExit("No on bootstrap failed to stop before test")
+        if "Install (just install) ausführen?".encode("utf-8") in stopped:
+            raise SystemExit("No on bootstrap failed to stop before install")
+        if not (lifecycle_root / "current" / "app.txt").exists():
+            raise SystemExit("No on bootstrap wrongly cancelled completed update")
+
+        # Accepting each confirmation executes all stages without leaving
+        # the shared fullscreen interface or prompting in the command line.
+        lifecycle_yes_root = tmpdir / "lifecycle-yes-project"
+        lifecycle_yes_downloads = tmpdir / "lifecycle-yes-downloads"
+        lifecycle_yes_downloads.mkdir()
+        write_config(lifecycle_yes_root, lifecycle_yes_downloads, "lifecycle-yes", ["update"])
+        release_zip(
+            lifecycle_yes_downloads, "lifecycle-yes", "1.0.0",
+            {
+                "app.txt": "installed\n",
+                "justfile": (
+                    "test:\n"
+                    "    @echo test >> lifecycle.log\n"
+                    "install:\n"
+                    "    @echo install >> lifecycle.log\n"
+                ),
+                "update-cli.yaml": (
+                    "schemaVersion: 2\n"
+                    "project:\n"
+                    "  name: lifecycle-yes\n"
+                    "tasks:\n"
+                    "  bootstrap:\n"
+                    "    steps:\n"
+                    "      - name: Bootstrap\n"
+                    "        shell: echo bootstrap >> lifecycle.log\n"
+                    "workflows:\n"
+                    "  bootstrap:\n"
+                    "    tasks: [bootstrap]\n"
+                ),
+            },
+        )
+        completed = run_pty(
+            binary, [], 0, cwd=lifecycle_yes_root,
+            responses=[
+                ("Bootstrap (just bootstrap) ausführen?".encode("utf-8"), b"y"),
+                ("Tests (just test) ausführen?".encode("utf-8"), b"y"),
+                ("Install (just install) ausführen?".encode("utf-8"), b"y"),
+            ],
+            env_overrides=just_env,
+        )
+        require(completed, {
+            "bootstrap confirmation": "Bootstrap (just bootstrap) ausführen?".encode("utf-8"),
+            "test confirmation": "Tests (just test) ausführen?".encode("utf-8"),
+            "install confirmation": "Install (just install) ausführen?".encode("utf-8"),
+            "test stage": "just test ausführen".encode("utf-8"),
+            "install stage": "just install ausführen".encode("utf-8"),
+        })
+        stages_run = (lifecycle_yes_root / "current" / "lifecycle.log").read_text(encoding="utf-8")
+        if stages_run.splitlines() != ["bootstrap", "test", "install"]:
+            raise SystemExit(f"lifecycle stages in wrong order: {stages_run!r}")
     return 0
 
 

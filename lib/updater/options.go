@@ -9,11 +9,11 @@ import (
 )
 
 type options struct {
-	archive, downloadDir, mode, sourceType, sourceFolder, sourceURL, repository, fromRepository, rootDir, projectName, setupManifest, setupTask, setupWorkflow, setupStep, helpTopic, initialGitDir, whatsNewVersion                                                                                                                                                                                                                                                                                                                                  string
-	dryRun, plan, allowDowngrade, jsonOutput, update, backup, rollback, history, cleanup, clean, init, upgrade, check, doctor, fix, status, list, verify, setup, noSetup, config, configList, configCheck, configMigrate, templatesMode, templatesList, setupList, convertYAML, createYAML, createSetupScript, withAI, details, debug, edit, force, noColor, noUI, noAsk, wait, noWait, showHelp, showHowTo, showVersion, whatsNew, recover, unlock, run, install, schema, schemaView, schemaVersion, doctorMigrate, doctorFix, noParameterInvocation bool
-	rollbackVersion, restore, useTemplate, templateUse, templateName, schemaSave                                                                                                                                                                                                                                                                                                                                                                                                                                                                      string
-	keep, limit                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       int
-	configSet                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         []string
+	archive, downloadDir, mode, sourceType, sourceFolder, sourceURL, repository, fromRepository, rootDir, projectName, setupManifest, setupTask, setupWorkflow, setupStep, helpTopic, initialGitDir, whatsNewVersion                                                                                                                                                                                                                                                                                                                                        string
+	dryRun, plan, allowDowngrade, jsonOutput, update, backup, rollback, history, cleanup, clean, init, upgrade, check, doctor, fix, status, list, verify, setup, noSetup, config, configList, configCheck, configMigrate, templatesMode, templatesList, setupList, convertYAML, createYAML, createSetupScript, withAI, details, debug, edit, force, noColor, noUI, noAsk, wait, noWait, showHelp, showHowTo, showVersion, whatsNew, recover, unlock, run, install, test, schema, schemaView, schemaVersion, doctorMigrate, doctorFix, noParameterInvocation bool
+	rollbackVersion, restore, useTemplate, templateUse, templateName, schemaSave                                                                                                                                                                                                                                                                                                                                                                                                                                                                            string
+	keep, limit                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             int
+	configSet                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               []string
 }
 
 func parseOptions(args []string) (options, error) {
@@ -103,6 +103,7 @@ func parseOptions(args []string) (options, error) {
 	fs.BoolVar(&o.unlock, "unlock", false, "")
 	fs.BoolVar(&o.run, "run", false, "")
 	fs.BoolVar(&o.install, "install", false, "")
+	fs.BoolVar(&o.test, "test", false, "")
 	fs.BoolVar(&o.schema, "schema", false, "")
 	fs.BoolVar(&o.schemaView, "view", false, "")
 	fs.StringVar(&o.schemaSave, "save", "", "")
@@ -227,7 +228,7 @@ func parseOptions(args []string) (options, error) {
 		return o, errors.New("setup --list/task/workflow/run sind eigenständige Befehle; update/rollback/restore entfernen")
 	}
 	primary := 0
-	for _, b := range []bool{o.update, standaloneBackup, o.rollback, o.restore != "", o.history, o.cleanup, o.clean, o.init, o.upgrade, o.check, o.doctor, o.fix, o.status, o.list, o.verify, o.config, o.templatesMode, o.showHelp, o.showHowTo, o.showVersion, o.whatsNew, o.recover, o.unlock, o.run, o.install, o.schema, o.setupManifest != "", setupSelectorMode, setupManageMode} {
+	for _, b := range []bool{o.update, standaloneBackup, o.rollback, o.restore != "", o.history, o.cleanup, o.clean, o.init, o.upgrade, o.check, o.doctor, o.fix, o.status, o.list, o.verify, o.config, o.templatesMode, o.showHelp, o.showHowTo, o.showVersion, o.whatsNew, o.recover, o.unlock, o.run, o.install, o.test, o.schema, o.setupManifest != "", setupSelectorMode, setupManageMode} {
 		if b {
 			primary++
 		}
@@ -322,8 +323,8 @@ func parseOptions(args []string) (options, error) {
 	if o.wait && o.noWait {
 		return o, errors.New("--wait und --no-wait schließen sich aus")
 	}
-	if (o.wait || o.noWait) && !(o.check || o.update || o.setup || o.setupManifest != "" || o.setupTask != "" || o.setupWorkflow != "" || o.setupStep != "" || (o.rollback && o.setup)) {
-		return o, errors.New("--wait/--no-wait sind nur mit --check, --update oder Setup zulässig")
+	if (o.wait || o.noWait) && !(o.check || o.update || o.install || o.test || o.setup || o.setupManifest != "" || o.setupTask != "" || o.setupWorkflow != "" || o.setupStep != "" || (o.rollback && o.setup)) {
+		return o, errors.New("--wait/--no-wait sind nur mit --check, --update, --install, --test oder Setup zulässig")
 	}
 	if len(o.configSet) > 0 && !o.config {
 		return o, errors.New("--set ist nur mit config/--config zulässig")
@@ -528,6 +529,8 @@ func normalizeCommandArguments(args []string) []string {
 		return prepend("--run")
 	case "install":
 		return prepend("--install")
+	case "test":
+		return prepend("--test")
 	case "schema":
 		if len(rest) > 0 && !strings.HasPrefix(rest[0], "-") {
 			sub := strings.ToLower(strings.TrimSpace(rest[0]))

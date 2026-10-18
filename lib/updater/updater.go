@@ -62,6 +62,8 @@ type state struct {
 	fromVersion                                                                                                          string
 }
 
+type lifecycleUIContextKey struct{}
+
 func Run(ctx context.Context, buildVersion string, args []string) (retErr error) {
 	if len(args) == 0 {
 		return runNoParameter(ctx, buildVersion, false)
@@ -126,9 +128,15 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 		return nil
 	}
 	console := ui.New(o.noColor || o.jsonOutput)
+	sharedConsole, usingSharedConsole := ctx.Value(lifecycleUIContextKey{}).(*ui.Console)
+	if usingSharedConsole && sharedConsole != nil {
+		console = sharedConsole
+	}
 	console.SetApplicationVersion(buildVersion)
-	console.SuppressFinalStatus(o.jsonOutput || o.run)
-	defer console.PrintFinalStatus()
+	console.SuppressFinalStatus(o.jsonOutput || o.run || usingSharedConsole)
+	if !usingSharedConsole {
+		defer console.PrintFinalStatus()
+	}
 	console.SetDirect(o.noUI || o.debug)
 	console.SetDetails(o.details || o.noUI || o.debug)
 	if o.debug {
@@ -141,6 +149,8 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 		fullscreenTitle = fullscreenBase + " — Setup"
 	case o.install:
 		fullscreenTitle = fullscreenBase + " — Install"
+	case o.test:
+		fullscreenTitle = fullscreenBase + " — Test"
 	case o.check:
 		fullscreenTitle = fullscreenBase + " — Versionsprüfung"
 	case o.update && !o.plan && !o.dryRun:
@@ -155,6 +165,8 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 				console.SetFooter("RUN  Projekt-Setup läuft")
 			case strings.HasSuffix(fullscreenTitle, "— Install"):
 				console.SetFooter("RUN  Installation läuft")
+			case strings.HasSuffix(fullscreenTitle, "— Test"):
+				console.SetFooter("RUN  Tests laufen")
 			case strings.HasSuffix(fullscreenTitle, "— Versionsprüfung"):
 				console.SetFooter("RUN  Versionsprüfung läuft")
 			case strings.HasSuffix(fullscreenTitle, "— Update"):
@@ -162,7 +174,7 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 			}
 		}
 	}
-	if fullscreen {
+	if fullscreen && !usingSharedConsole {
 		defer func() {
 			if retErr != nil && !console.ErrorShown() {
 				console.ErrorNotice("Fehlerdetails", retErr.Error())
@@ -587,6 +599,9 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 	if o.templatesMode {
 		return runTemplates(ctx, console, root, o, buildVersion)
 	}
+	if o.test {
+		return projectsetup.RunJustTest(ctx, root, console)
+	}
 	if o.install {
 		installErr := projectsetup.RunJustInstall(ctx, root, console)
 		if installErr == nil {
@@ -775,7 +790,7 @@ func projectMigrationRequired(root string) bool {
 	return doctor.InspectMigrationRequirement(root).Required
 }
 
-func runNoParameter(ctx context.Context, buildVersion string, debug bool) error {
+func runNoParameter(ctx context.Context, buildVersion string, debug bool) (retErr error) {
 	root, err := config.ResolveRoot("")
 	if err != nil {
 		printHelp(buildVersion)
@@ -811,6 +826,19 @@ func runNoParameter(ctx context.Context, buildVersion string, debug bool) error 
 		}
 		return Run(ctx, buildVersion, args)
 	}
+	// Own one fullscreen TUI for the complete update -> bootstrap -> test -> install
+	// lifecycle; individual Run calls change its phase without closing the screen.
+	lifecycleConsole := ui.New(false)
+	if !debug && lifecycleConsole.StartFullscreen(fmt.Sprintf("Update CLI Version %s — Install", buildVersion)) {
+		ctx = context.WithValue(ctx, lifecycleUIContextKey{}, lifecycleConsole)
+		lifecycleConsole.SetApplicationVersion(buildVersion)
+		defer func() {
+			if retErr != nil && !lifecycleConsole.ErrorShown() {
+				lifecycleConsole.ErrorNotice("Fehlerdetails", retErr.Error())
+			}
+			lifecycleConsole.FinishFullscreen(retErr == nil, false)
+		}()
+	}
 	args := []string{"update", "--root", root}
 	if debug {
 		args = append(args, "--debug")
@@ -818,41 +846,43 @@ func runNoParameter(ctx context.Context, buildVersion string, debug bool) error 
 	if err := Run(ctx, buildVersion, args); err != nil {
 		return err
 	}
-	if !actions["no-bootstrap"] {
-		yes, err := confirmLifecycleStage("Bootstrap (just bootstrap) ausführen?")
-		if err != nil {
-			return err
-		}
-		if yes {
-			args := []string{"bootstrap", "--root", root}
-			if debug {
-				args = append(args, "--debug")
-			}
-			if err := Run(ctx, buildVersion, args); err != nil {
-				return fmt.Errorf("bootstrap fehlgeschlagen: %w", err)
-			}
-		}
+	stages := []struct {
+		name     string
+		excluded string
+		question string
+	}{
+		{"bootstrap", "no-bootstrap", "Bootstrap (just bootstrap) ausführen?"},
+		{"test", "no-test", "Tests (just test) ausführen?"},
+		{"install", "no-install", "Install (just install) ausführen?"},
 	}
-	if !actions["no-install"] {
-		yes, err := confirmLifecycleStage("Install (just install) ausführen?")
-		if err != nil {
-			return err
+	for _, stage := range stages {
+		if actions[stage.excluded] {
+			continue
 		}
-		if yes {
-			args := []string{"install", "--root", root}
-			if debug {
-				args = append(args, "--debug")
-			}
-			if err := Run(ctx, buildVersion, args); err != nil {
-				return fmt.Errorf("install fehlgeschlagen: %w", err)
-			}
+		yes, confirmErr := confirmLifecycleStage(lifecycleConsole, stage.question)
+		if confirmErr != nil {
+			return confirmErr
+		}
+		if !yes {
+			return nil
+		}
+		stageArgs := []string{stage.name, "--root", root}
+		if debug {
+			stageArgs = append(stageArgs, "--debug")
+		}
+		if runErr := Run(ctx, buildVersion, stageArgs); runErr != nil {
+			return fmt.Errorf("%s fehlgeschlagen: %w", stage.name, runErr)
 		}
 	}
 	return nil
 }
 
 // In headless mode optional lifecycle stages are skipped unless invoked explicitly.
-func confirmLifecycleStage(question string) (bool, error) {
+func confirmLifecycleStage(console *ui.Console, question string) (bool, error) {
+	if console != nil && console.Fullscreen() {
+		console.SetFooter("WAIT  Bestätigung erforderlich")
+		return console.Confirm(question, false)
+	}
 	fi, err := os.Stdin.Stat()
 	if err != nil {
 		return false, err
@@ -862,7 +892,7 @@ func confirmLifecycleStage(question string) (bool, error) {
 		fmt.Fprintf(os.Stderr, "SKIP  %s (keine interaktive Eingabe)\n", question)
 		return false, nil
 	}
-	console := ui.New(false)
+	console = ui.New(false)
 	console.StartFullscreen("Update CLI — Install")
 	console.SetInfoTitle("Optionale Projektphase")
 	console.InfoRow("Aktion", question)

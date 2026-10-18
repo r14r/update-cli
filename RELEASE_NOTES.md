@@ -1,3 +1,12 @@
+# 3.0.13
+
+## Lifecycle
+
+- No-argument workflow: update → bootstrap → test → install.
+- Confirm each optional stage in the fullscreen TUI; selecting No ends the workflow instead of continuing to later stages.
+- Respect no-bootstrap, no-test and no-install exclusions from no-parameter configuration.
+- Execute tests via `just test` with tracked output, and support `update-cli test` as an explicit command.
+
 # 3.0.11
 
 ## Fixed
