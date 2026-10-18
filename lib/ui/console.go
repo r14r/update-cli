@@ -832,7 +832,9 @@ func (c *Console) Step(ctx context.Context, done, total int, label string, actio
 		index := len(c.content)
 		counter := stepCounter(done+1, total)
 		c.stepOutputIndent = displayWidth(counter) + 1
+		c.content = append(c.content, screenLine{text: fmt.Sprintf("%s %s", counter, label), kind: "step-header"})
 		c.content = append(c.content, screenLine{text: fmt.Sprintf("%s %s", counter, label), kind: "run"})
+		index++
 		c.renderFullscreenLocked()
 		c.mu.Unlock()
 		stop := make(chan struct{})
@@ -929,7 +931,9 @@ func (c *Console) ProgressStep(ctx context.Context, done, total int, label strin
 	if c.Fullscreen() {
 		c.mu.Lock()
 		index := len(c.content)
+		c.content = append(c.content, screenLine{text: fmt.Sprintf("%s %s", stepCounter(done+1, total), label), kind: "step-header"})
 		c.content = append(c.content, screenLine{progress: true, step: done + 1, total: total, label: label, kind: "run"})
+		index++
 		c.renderFullscreenLocked()
 		c.mu.Unlock()
 
@@ -1528,7 +1532,7 @@ func progressBarText(step, total int, label string, available int) string {
 }
 
 func statusBoxLine(text, kind string, inner int, color bool) string {
-	if kind == "success-banner" {
+	if kind == "success-banner" || kind == "step-header" {
 		visible := padDisplay(truncateDisplay(" "+text, inner), inner)
 		if color {
 			return "│" + greenBackground + brightWhite + bold + visible + reset + "│"
