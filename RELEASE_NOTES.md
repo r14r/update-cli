@@ -1,3 +1,9 @@
+# 3.0.10
+
+## Fixed
+
+- Run bootstrap's Python dependency installation with `pip install -q` to suppress routine package-install output.
+
 # 3.0.9
 
 ## Consolidated release
