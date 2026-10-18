@@ -857,7 +857,8 @@ func confirmLifecycleStage(question string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if fi.Mode()&os.ModeCharDevice == 0 {
+	output, outputErr := os.Stdout.Stat()
+	if fi.Mode()&os.ModeCharDevice == 0 || outputErr != nil || output.Mode()&os.ModeCharDevice == 0 {
 		fmt.Fprintf(os.Stderr, "SKIP  %s (keine interaktive Eingabe)\n", question)
 		return false, nil
 	}
