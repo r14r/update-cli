@@ -69,8 +69,9 @@ type Console struct {
 }
 
 func New(noColor bool) *Console {
-	interactive := isTerminal(os.Stdout) && isTerminal(os.Stdin)
-	return &Console{color: !noColor && os.Getenv("NO_COLOR") == "" && isTerminal(os.Stdout), interactive: interactive}
+	terminalOutput := isTerminal(os.Stdout) || (os.Getenv("UPDATE_CLI_CAPTURE_TTY") == "1" && isTerminal(os.Stdin))
+	interactive := terminalOutput && isTerminal(os.Stdin)
+	return &Console{color: !noColor && os.Getenv("NO_COLOR") == "" && terminalOutput, interactive: interactive}
 }
 
 func (c *Console) style(s string) string {
