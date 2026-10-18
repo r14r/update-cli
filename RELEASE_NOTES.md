@@ -1,3 +1,11 @@
+# 3.0.7
+
+## Improved terminal UI
+
+- Display the active step title in the Content panel using the existing success-green background and white bold text.
+- Apply the visual treatment to both setup steps and update transaction phases without changing the four-window layout.
+- Preserve the existing step progress indicators and output rows.
+
 # 3.0.4
 
 ## Fixed
