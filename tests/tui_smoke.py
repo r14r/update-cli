@@ -322,7 +322,8 @@ def main() -> int:
             encoding="utf-8",
         )
         failure = run_pty(
-            binary, ["setup", "--manifest", str(failure_manifest), "--no-wait"], 1
+            binary, ["setup", "--manifest", str(failure_manifest), "--no-wait"], 1,
+            responses=[(b"Copy Error Message to Clipboard?", b"n\n")],
         )
         require(
             failure,
@@ -367,12 +368,7 @@ def main() -> int:
         require(
             prompt_output,
             {
-                "setup confirmation modal question": "Projekt-Setup ist verfügbar. Jetzt ausführen?".encode(
-                    "utf-8"
-                ),
-                "setup confirmation YES button": b"YES",
-                "setup confirmation NO button": b"NO",
-                "setup modal cursor hint": "←/→ = auswählen".encode("utf-8"),
+                "no implicit setup": "mit --no-setup deaktiviert".encode("utf-8"),
                 "aligned progress row": "[01/14] [".encode("utf-8"),
                 "transaction phase": b"Transaktions-Rollback vorbereiten",
                 "green completed-step icon": b"\x1b[32m\x1b[1m" + "✓".encode("utf-8"),
@@ -394,8 +390,8 @@ def main() -> int:
             or "Projekt-Setup ist verfügbar. Jetzt ausführen? [J/n]".encode("utf-8") in prompt_output
         ):
             raise SystemExit("fullscreen setup confirmation still uses an inline footer prompt")
-        if not (prompt_root / "current" / "setup-ran.txt").exists():
-            raise SystemExit("default-YES setup modal did not run project setup on Enter")
+        if (prompt_root / "current" / "setup-ran.txt").exists():
+            raise SystemExit("update unexpectedly ran setup without explicit --setup")
 
         # Re-selecting the currently installed release is a successful no-op.
         # It must not paint the version-policy step or footer as FAIL. Instead
@@ -471,7 +467,7 @@ def main() -> int:
         )
         clear_output = run_pty(
             binary,
-            ["update", "--archive", str(clear_archive), "--root", str(clear_root), "--no-wait"],
+            ["update", "--archive", str(clear_archive), "--root", str(clear_root), "--setup", "--no-wait"],
             0,
             input_data=b"\x1b[D\r",
         )
@@ -597,6 +593,7 @@ def main() -> int:
             binary,
             ["update", "--archive", str(v2), "--root", str(error_root), "--setup", "--no-wait"],
             1,
+            responses=[(b"Copy Error Message to Clipboard?", b"n\n")],
         )
         require(
             update_failure,

@@ -1,3 +1,20 @@
+# 3.0.9
+
+## Consolidated release
+
+- Add failure log capture and copy-to-clipboard modal for update, setup, install, bootstrap, and build.
+- Add full-width green/white step headers in the Content panel.
+- Include version 3.0.8 installation TUI and corrected setup and integration tests.
+
+# 3.0.8
+
+## Installation UI
+
+- Show `update-cli install` in the standard four-panel fullscreen TUI in interactive mode.
+- Show project details in the information panel and `just install` as a tracked step in the content panel.
+- Honor `--noui` for plain output. Preserve process exit codes and installation errors.
+- Include setup and test fixes from the 3.0.5 branch, not yet merged into main.
+
 # 3.0.5
 
 ## Fixed

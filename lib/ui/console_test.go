@@ -56,6 +56,23 @@ func TestStatusBoxLineUsesGreenSuccessIcon(t *testing.T) {
 	}
 }
 
+func TestStepHeaderUsesSuccessGreenBackgroundAndWhiteText(t *testing.T) {
+	line := statusBoxLine("[02/12] Go-Dateien formatieren", "step-header", 64, true)
+	if !strings.Contains(line, greenBackground+brightWhite+bold) {
+		t.Fatalf("step header does not use green background and white text: %q", line)
+	}
+	if !strings.Contains(line, "Go-Dateien formatieren") {
+		t.Fatalf("step title missing: %q", line)
+	}
+}
+
+func TestStepHeaderPlainModeRemainsReadable(t *testing.T) {
+	line := statusBoxLine("[01/04] Bootstrap", "step-header", 42, false)
+	if !strings.Contains(line, "Bootstrap") || strings.Contains(line, "\x1b[") {
+		t.Fatalf("unreadable uncolored step header: %q", line)
+	}
+}
+
 func TestProgressBarTextUsesFixedColumns(t *testing.T) {
 	first := progressBarText(3, 13, "Release-Inhalt und Archiv validieren", 96)
 	second := progressBarText(5, 13, "Transaktion vorbereiten und Snapshot erstellen", 96)

@@ -36,7 +36,22 @@ func main() {
 		fmt.Fprintf(os.Stderr, "\nERROR  %s\n", ui.DisplayText(err.Error()))
 		os.Exit(2)
 	}
-	if err := updater.Run(ctx, resolvedVersion(), os.Args[1:]); err != nil {
+	run := func() error { return updater.Run(ctx, resolvedVersion(), os.Args[1:]) }
+	var runErr error
+	if shouldRecordFailure(os.Args[1:]) {
+		var logPath string
+		var captureErr error
+		runErr, logPath, captureErr = captureCommandOutput(run)
+		if captureErr != nil {
+			fmt.Fprintln(os.Stderr, "WARN  Error log could not be saved:", captureErr)
+		}
+		if runErr != nil {
+			askCopyFailureLog(logPath)
+		}
+	} else {
+		runErr = run()
+	}
+	if err := runErr; err != nil {
 		var e *updater.ExitError
 		if errors.As(err, &e) {
 			if e.Err != nil {

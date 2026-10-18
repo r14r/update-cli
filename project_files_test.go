@@ -698,8 +698,8 @@ func TestReadmeCLIDemoTapesAndCanonicalSetupInstall(t *testing.T) {
 		t.Fatal(err)
 	}
 	setup, ok := manifest.Workflows["setup"]
-	if !ok || len(setup.Tasks) != 1 || setup.Tasks[0] != "install" {
-		t.Fatalf("setup workflow must use canonical install task: %#v", setup)
+	if !ok || len(setup.Tasks) != 1 || setup.Tasks[0] != "bootstrap" {
+		t.Fatalf("setup workflow must use bootstrap task: %#v", setup)
 	}
 	installTask, ok := manifest.Tasks["install"]
 	if !ok {
@@ -764,7 +764,7 @@ tasks:
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-	_, err = projectsetup.RunStandaloneSelected(context.Background(), filepath.Join(root, "update-cli.yaml"), ui.New(true), projectsetup.Selection{Workflow: "install"})
+	_, err := projectsetup.RunStandaloneSelected(context.Background(), filepath.Join(root, "update-cli.yaml"), ui.New(true), projectsetup.Selection{Workflow: "install"})
 	if err != nil {
 		t.Fatal(err)
 	}
