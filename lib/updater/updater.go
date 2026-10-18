@@ -1,12 +1,10 @@
 package updater
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
