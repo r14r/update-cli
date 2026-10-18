@@ -63,6 +63,7 @@ type state struct {
 }
 
 type lifecycleUIContextKey struct{}
+type lifecycleStageHeadersKey struct{}
 
 func Run(ctx context.Context, buildVersion string, args []string) (retErr error) {
 	if len(args) == 0 {
@@ -173,6 +174,22 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 				console.SetFooter("RUN  Update läuft")
 			}
 		}
+	}
+	// A green Content heading identifies the current *command* in a multi-stage
+	// lifecycle. Task rows keep their own labels without duplicate banners.
+	if fullscreen && usingSharedConsole && ctx.Value(lifecycleStageHeadersKey{}) == true {
+		stage := ""
+		switch {
+		case o.update:
+			stage = "Update"
+		case o.setupWorkflow == "bootstrap":
+			stage = "Bootstrap"
+		case o.test:
+			stage = "Test"
+		case o.install:
+			stage = "Install"
+		}
+		console.SetWorkflowStage(stage)
 	}
 	if fullscreen && !usingSharedConsole {
 		defer func() {
@@ -831,6 +848,8 @@ func runNoParameter(ctx context.Context, buildVersion string, debug bool) (retEr
 	lifecycleConsole := ui.New(false)
 	if !debug && lifecycleConsole.StartFullscreen(fmt.Sprintf("Update CLI Version %s — Install", buildVersion)) {
 		ctx = context.WithValue(ctx, lifecycleUIContextKey{}, lifecycleConsole)
+		multiStage := !actions["no-bootstrap"] || !actions["no-test"] || !actions["no-install"]
+		ctx = context.WithValue(ctx, lifecycleStageHeadersKey{}, multiStage)
 		lifecycleConsole.SetApplicationVersion(buildVersion)
 		defer func() {
 			if retErr != nil && !lifecycleConsole.ErrorShown() {
