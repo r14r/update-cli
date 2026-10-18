@@ -307,6 +307,19 @@ func (c *Console) SetFinishFooter(status string) {
 // Header, project/setup information and footer remain unchanged. This is used
 // when one interactive phase hands off to another (for example update -> setup)
 // so setup starts with a clean viewport without losing the surrounding context.
+// SetWorkflowStage separates high-level workflow phases from individual task rows.
+// It is intended for multi-command lifecycles; standalone commands never call it.
+func (c *Console) SetWorkflowStage(name string) {
+	name = strings.TrimSpace(DisplayText(name))
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.fullscreen || name == "" {
+		return
+	}
+	c.content = append(c.content, screenLine{text: name, kind: "step-header"})
+	c.renderFullscreenLocked()
+}
+
 func (c *Console) ClearContent() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -840,9 +853,7 @@ func (c *Console) Step(ctx context.Context, done, total int, label string, actio
 		index := len(c.content)
 		counter := stepCounter(done+1, total)
 		c.stepOutputIndent = displayWidth(counter) + 1
-		c.content = append(c.content, screenLine{text: fmt.Sprintf("%s %s", counter, label), kind: "step-header"})
 		c.content = append(c.content, screenLine{text: fmt.Sprintf("%s %s", counter, label), kind: "run"})
-		index++
 		c.renderFullscreenLocked()
 		c.mu.Unlock()
 		stop := make(chan struct{})
@@ -939,9 +950,7 @@ func (c *Console) ProgressStep(ctx context.Context, done, total int, label strin
 	if c.Fullscreen() {
 		c.mu.Lock()
 		index := len(c.content)
-		c.content = append(c.content, screenLine{text: fmt.Sprintf("%s %s", stepCounter(done+1, total), label), kind: "step-header"})
 		c.content = append(c.content, screenLine{progress: true, step: done + 1, total: total, label: label, kind: "run"})
-		index++
 		c.renderFullscreenLocked()
 		c.mu.Unlock()
 

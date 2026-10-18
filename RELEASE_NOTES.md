@@ -1,3 +1,9 @@
+# 3.0.15
+
+- Display a green Content heading only at high-level stage boundaries in multi-command lifecycles (Update, Bootstrap, Test, Install).
+- Remove duplicated green title banners for individual steps inside Setup, CI and other commands.
+- A standalone single-stage command renders its task progress without an additional green stage heading.
+
 # 3.0.14
 
 - Register `bootstrap`, `build`, `test`, `precommit`, and `ci` as public CLI commands.
