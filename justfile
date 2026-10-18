@@ -11,7 +11,7 @@ bootstrap:
     @command -v python3 >/dev/null || { echo "Python 3 required" >&2; exit 1; }
     @command -v go >/dev/null || { echo "Go required" >&2; exit 1; }
     python3 -m venv .venv
-    .venv/bin/python -m pip install --upgrade pip pre-commit
+    .venv/bin/python -m pip install -q --upgrade pip pre-commit
     go mod download
     just hooks-install
 
