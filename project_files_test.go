@@ -777,6 +777,40 @@ tasks:
 	}
 }
 
+func TestDefaultSetupWorkflowBootstrapsWithoutInstall(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell-based setup")
+	}
+	root := t.TempDir()
+	manifest, err := os.ReadFile("update-cli.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "update-cli.yaml"), manifest, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	bin := filepath.Join(root, "bin")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	result := filepath.Join(root, "just-called")
+	justScript := "#!/bin/sh\n" + "echo \"$*\" > " + result + "\n"
+	if err := os.WriteFile(filepath.Join(bin, "just"), []byte(justScript), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	if _, err := projectsetup.RunStandaloneSelected(context.Background(), filepath.Join(root, "update-cli.yaml"), ui.New(true), projectsetup.Selection{Workflow: "setup"}); err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(string(body)) != "bootstrap" {
+		t.Fatalf("setup unexpectedly performed installation: just %s", body)
+	}
+}
+
 func TestVersionIsSingleReleaseSource(t *testing.T) {
 	versionData, err := os.ReadFile("VERSION")
 	if err != nil {
