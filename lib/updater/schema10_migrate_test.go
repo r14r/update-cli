@@ -54,7 +54,7 @@ func TestMigrateCommandUpgradesSchemaNineAndDoctorReportsState(t *testing.T) {
 	if migrated.SchemaVersion != 10 || migrated.MigrationNeeded {
 		t.Fatalf("migration incomplete: %#v", migrated)
 	}
-	backups, err := filepath.Glob(path + ".bak*")
+	backups, err := filepath.Glob(path + ".backup-v9-*")
 	if err != nil {
 		t.Fatal(err)
 	}
