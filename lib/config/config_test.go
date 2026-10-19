@@ -683,7 +683,7 @@ func TestLoadResilientRepairsFutureSchemaAndLegacyFields(t *testing.T) {
 	if strings.Contains(string(data), `"defaultUser": "legacyuser"`) && !strings.Contains(string(data), `"source"`) {
 		t.Fatalf("legacy defaultUser remained top-level: %s", data)
 	}
-	if !strings.Contains(string(data), `"schemaVersion": 9`) {
+	if !strings.Contains(string(data), `"schemaVersion": 10`) {
 		t.Fatalf("schema not migrated: %s", data)
 	}
 }
