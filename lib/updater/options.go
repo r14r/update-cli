@@ -753,7 +753,7 @@ func normalizeFlagArguments(args []string) []string {
 			args[i] = "--create-setup-script"
 		}
 	}
-	value := map[string]bool{"--archive": true, "-a": true, "--downloads": true, "-d": true, "--mode": true, "--from": true, "--folder": true, "--url": true, "--repository": true, "--from-repository": true, "--root": true, "-r": true, "--restore": true, "--keep": true, "--limit": true, "--use-template": true, "--use": true, "--setup-manifest": true, "--setup-task": true, "--setup-workflow": true, "--setup-step": true, "--help-topic": true, "--command": true, "--manifest": true, "--task": true, "--workflow": true, "--project": true, "--rollback-version": true, "--snapshot": true, "--set": true, "--save": true}
+	value := map[string]bool{"--archive": true, "-a": true, "--downloads": true, "-d": true, "--mode": true, "--activation": true, "--from": true, "--folder": true, "--url": true, "--repository": true, "--from-repository": true, "--root": true, "-r": true, "--restore": true, "--keep": true, "--limit": true, "--use-template": true, "--use": true, "--setup-manifest": true, "--setup-task": true, "--setup-workflow": true, "--setup-step": true, "--help-topic": true, "--command": true, "--manifest": true, "--task": true, "--workflow": true, "--project": true, "--rollback-version": true, "--snapshot": true, "--set": true, "--save": true}
 	flags := []string{}
 	pos := []string{}
 	for i := 0; i < len(args); i++ {
