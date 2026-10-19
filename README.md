@@ -2,7 +2,7 @@
 
 **Transactional project updates from ZIP releases or Git repositories.**
 
-Current release: **3.3.0**
+Current release: **3.4.1**
 
 Update CLI separates installation defaults, local runtime state, and versioned project configuration/automation:
 
