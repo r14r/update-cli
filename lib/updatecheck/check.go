@@ -42,7 +42,15 @@ func Run(ctx context.Context, c config.Config) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	r := Result{ProjectName: c.ProjectName, Installed: installed, InstalledFound: found, InstalledSource: src, InstalledCommit: DetectInstalledCommit(c.CurrentDir)}
+	r := Result{ProjectName: c.ProjectName, Installed: installed, InstalledFound: found, InstalledSource: src, InstalledCommit: DetectInstalledCommit(c.CurrentDir), SourceType: c.Source.Type}
+	switch c.Source.Type {
+	case "repository":
+		r.SourceReference = c.Source.Repository
+	case "url":
+		r.SourceReference = c.Source.URL
+	case "download":
+		r.SourceReference = c.Source.Folder
+	}
 	if found {
 		r.InstalledVersion = installed.String()
 	}
