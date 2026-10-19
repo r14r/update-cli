@@ -1801,7 +1801,7 @@ startup file (`~/.zshrc`, `~/.bashrc` or `~/.cshrc`) and reload your shell.
 
 The local `.update-cli/config.json` schema is now **10** (the independent `update-cli.yaml` project manifest remains at its own schema version).
 
-`update-cli doctor` reports the installed runtime schema and migration requirement **without changing files**. `update-cli migrate` upgrades the runtime config and any outdated project manifests, creating backups before changes. Repeat migrations are safe. `update-cli upgrade` remains available for runtime-config-only migration.
+`update-cli doctor` reports the installed runtime schema and migration requirement **without changing files**. `update-cli migrate` upgrades the runtime config (with a backup) and is repeatable. `update-cli doctor --migrate` can additionally migrate outdated project manifests. The independent `update-cli.yaml` schema remains at version 2.
 
 ```bash
 update-cli doctor
