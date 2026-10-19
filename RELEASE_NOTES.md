@@ -2,7 +2,7 @@
 
 - Introduce runtime configuration schema **10** for `.update-cli/config.json` (independent of the project manifest schema).
 - `update-cli doctor` identifies outdated runtime configuration without modifying it and recommends `update-cli migrate`.
-- `update-cli migrate` now migrates both runtime config and project manifests using the existing backed-up doctor migration path; `update-cli upgrade` remains runtime-only.
+- `update-cli migrate` continues to upgrade runtime configuration with backups. `update-cli doctor --migrate` additionally handles project manifests.
 - Add regression coverage for schema-9 diagnosis, backed-up migration, and repeated migrations.
 
 # 3.2.0
