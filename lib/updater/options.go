@@ -507,11 +507,8 @@ func normalizeCommandArguments(args []string) []string {
 		return prepend("--clean")
 	case "init":
 		return prepend("--init")
-	case "upgrade":
+	case "upgrade", "migrate":
 		return prepend("--upgrade")
-	case "migrate":
-		// Migrate both runtime config.json and project manifests under doctor diagnostics.
-		return prepend("--doctor", "--migrate")
 	case "doctor":
 		if len(rest) > 0 && strings.EqualFold(strings.TrimSpace(rest[0]), "migrate") {
 			return append([]string{"--doctor", "--migrate"}, rest[1:]...)
