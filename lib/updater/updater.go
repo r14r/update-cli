@@ -69,6 +69,9 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 	if len(args) == 0 {
 		return runNoParameter(ctx, buildVersion, false)
 	}
+	if args[0] == "git" {
+		return RunGit(ctx, args[1:])
+	}
 	o, err := parseOptions(args)
 	if err != nil {
 		return &ExitError{Code: 2, Err: err}
