@@ -55,8 +55,12 @@ func TestInPlaceActivationKeepsCurrentDirectoryAndSynchronizesContents(t *testin
 		t.Fatal("in-place activation replaced the current directory inode")
 	}
 	cwd, err := os.Getwd()
-	if err != nil || cwd != cfg.CurrentDir {
-		t.Fatalf("working directory is no longer valid: %q, %v", cwd, err)
+	if err != nil {
+		t.Fatalf("working directory is no longer valid: %v", err)
+	}
+	cwdInfo, err := os.Stat(cwd)
+	if err != nil || !os.SameFile(after, cwdInfo) {
+		t.Fatalf("working directory changed identity: %q (%v)", cwd, err)
 	}
 	for _, tc := range []struct{ name, expected string }{
 		{"app.txt", "after"},
