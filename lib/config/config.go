@@ -20,7 +20,7 @@ const (
 	ConfigFileName        = "config.json"
 	ProjectFileName       = "update-cli.yaml"
 	TemplatesFileName     = "templates.json"
-	SchemaVersion         = 9
+	SchemaVersion         = 10
 	ModeUpdate            = "update"
 	ModePull              = "pull"
 	DefaultRepositoryUser = "r14r"

@@ -2,7 +2,7 @@
 
 **Transactional project updates from ZIP releases or Git repositories.**
 
-Current release: **3.2.0**
+Current release: **3.3.0**
 
 Update CLI separates installation defaults, local runtime state, and versioned project configuration/automation:
 
@@ -1796,3 +1796,15 @@ Shell wrapper installation and the `update-cli wrapper` command were removed.
 If you installed an older wrapper, remove its managed block from your shell
 startup file (`~/.zshrc`, `~/.bashrc` or `~/.cshrc`) and reload your shell.
 
+
+## Runtime configuration schema 10
+
+The local `.update-cli/config.json` schema is now **10** (the independent `update-cli.yaml` project manifest remains at its own schema version).
+
+`update-cli doctor` reports the installed runtime schema and migration requirement **without changing files**. `update-cli migrate` upgrades the runtime config (with a backup) and is repeatable. `update-cli doctor --migrate` can additionally migrate outdated project manifests. The independent `update-cli.yaml` schema remains at version 2.
+
+```bash
+update-cli doctor
+update-cli migrate
+update-cli doctor
+```

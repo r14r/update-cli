@@ -45,7 +45,7 @@ func TestLoadMigratesSchema5DefaultsInMemory(t *testing.T) {
 	}
 }
 
-func TestUpgradeWritesSchema9AndBackup(t *testing.T) {
+func TestUpgradeWritesSchema10AndBackup(t *testing.T) {
 	root := t.TempDir()
 	downloads := t.TempDir()
 	dir := filepath.Join(root, ConfigDirName)
@@ -69,7 +69,7 @@ func TestUpgradeWritesSchema9AndBackup(t *testing.T) {
 	if err := json.Unmarshal(b, &got); err != nil {
 		t.Fatal(err)
 	}
-	if int(got["schemaVersion"].(float64)) != 9 {
+	if int(got["schemaVersion"].(float64)) != 10 {
 		t.Fatalf("schema not upgraded: %v", got["schemaVersion"])
 	}
 }
@@ -683,7 +683,7 @@ func TestLoadResilientRepairsFutureSchemaAndLegacyFields(t *testing.T) {
 	if strings.Contains(string(data), `"defaultUser": "legacyuser"`) && !strings.Contains(string(data), `"source"`) {
 		t.Fatalf("legacy defaultUser remained top-level: %s", data)
 	}
-	if !strings.Contains(string(data), `"schemaVersion": 9`) {
+	if !strings.Contains(string(data), `"schemaVersion": 10`) {
 		t.Fatalf("schema not migrated: %s", data)
 	}
 }

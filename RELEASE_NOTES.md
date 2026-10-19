@@ -1,3 +1,10 @@
+# 3.3.0
+
+- Introduce runtime configuration schema **10** for `.update-cli/config.json` (independent of the project manifest schema).
+- `update-cli doctor` identifies outdated runtime configuration without modifying it and recommends `update-cli migrate`.
+- `update-cli migrate` continues to upgrade runtime configuration with backups. `update-cli doctor --migrate` additionally handles project manifests.
+- Add regression coverage for schema-9 diagnosis, backed-up migration, and repeated migrations.
+
 # 3.2.0
 
 - Use rsync to activate verified releases **in-place** by default while retaining the `current/` directory identity. Updates can now be launched from `current/` directly.
