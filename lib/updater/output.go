@@ -134,6 +134,36 @@ var commandHelpDetails = map[string]commandHelp{
 		Description: "Repariert bekannte Legacy-Felder und sicher normalisierbare Konfigurations-/Manifestfehler mit Backup.",
 		Examples:    []string{"update-cli fix"},
 	},
+	"bootstrap": {
+		Usage: []string{"update-cli bootstrap [--no-ui]"},
+		Description: "Führt den bootstrap-Workflow aus update-cli.yaml aus.",
+		Examples: []string{"update-cli bootstrap"},
+	},
+	"test": {
+		Usage: []string{"update-cli test [--no-ui]"},
+		Description: "Führt Tests und Prüfungen für das Projekt aus.",
+		Examples: []string{"update-cli test"},
+	},
+	"build": {
+		Usage: []string{"update-cli build [--no-ui]"},
+		Description: "Führt den build-Workflow des Projektmanifests aus.",
+		Examples: []string{"update-cli build"},
+	},
+	"ci": {
+		Usage: []string{"update-cli ci [--no-ui]"},
+		Description: "Führt den CI-Workflow des Projektmanifests aus.",
+		Examples: []string{"update-cli ci"},
+	},
+	"precommit": {
+		Usage: []string{"update-cli precommit [--no-ui]"},
+		Description: "Führt den Pre-Commit-Workflow des Projektmanifests aus.",
+		Examples: []string{"update-cli precommit"},
+	},
+	"git": {
+		Usage: []string{"update-cli git status", "update-cli git add", "update-cli git commit <message>", "update-cli git push"},
+		Description: "Führt die unterstützten Git-Befehle im aktuellen Repository aus.",
+		Examples: []string{"update-cli git status", "update-cli git add", "update-cli git commit \"Update documentation\"", "update-cli git push"},
+	},
 	"install": {
 		Usage:       []string{"update-cli install"},
 		Description: "Führt exakt `just install` im aktiven current/ bzw. Source-Projekt aus.",
