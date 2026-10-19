@@ -257,7 +257,7 @@ func checkRuntimeConfig(root string, migrate bool, r *Report) RuntimeConfigStatu
 	status.CurrentSchema = res.CurrentSchema
 	status.MigrationNeeded = res.MigrationNeeded
 	if res.MigrationNeeded {
-		status.Suggestions = append(status.Suggestions, "'update-cli migrate' ausführen (migriert Runtime-Konfiguration und Projektmanifeste)")
+		status.Suggestions = append(status.Suggestions, "'update-cli migrate' ausführen (Runtime-Konfiguration); 'update-cli doctor --migrate' migriert zusätzlich Manifeste")
 		r.Add("Runtime config.json", LevelWarning, fmt.Sprintf("Schema %d ist veraltet; aktuell %d", res.SchemaVersion, res.CurrentSchema))
 	} else {
 		r.Add("Runtime config.json", LevelOK, fmt.Sprintf("Schema %d ist aktuell: %s", res.SchemaVersion, res.ConfigFile))
