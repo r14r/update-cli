@@ -1,3 +1,9 @@
+# 3.1.2
+
+- Introduce `update-cli wrapper` interactive shell setup for bash, zsh, and csh/tcsh.
+- Back up startup scripts before first modification and avoid duplicate installation blocks.
+- Add sourceable wrapper scripts under `scripts/` supporting all Update CLI commands.
+
 # 3.1.1
 
 - Guard against running a mutating update from inside `current/` or its subdirectories, where replacing `current/` would strand the invoking shell in an obsolete directory.
