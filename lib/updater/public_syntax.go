@@ -34,6 +34,9 @@ func ValidatePublicSyntax(args []string) error {
 		return nil
 	}
 	command := strings.ToLower(strings.TrimSpace(args[0]))
+	if command == "show-alias" && len(args) != 1 {
+		return fmt.Errorf("show-alias akzeptiert keine Parameter")
+	}
 	if command == "git" {
 		return validateGitArguments(args[1:])
 	}
