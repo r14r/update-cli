@@ -9,7 +9,7 @@ import (
 )
 
 type options struct {
-	archive, downloadDir, mode, sourceType, sourceFolder, sourceURL, repository, fromRepository, rootDir, projectName, setupManifest, setupTask, setupWorkflow, setupStep, helpTopic, initialGitDir, whatsNewVersion                                                                                                                                                                                                                                                                                                                                        string
+	archive, downloadDir, mode, sourceType, sourceFolder, sourceURL, repository, fromRepository, rootDir, projectName, setupManifest, setupTask, setupWorkflow, setupStep, helpTopic, initialGitDir, whatsNewVersion, activation                                                                                                                                                                                                                                                                                                                                        string
 	dryRun, plan, allowDowngrade, jsonOutput, update, backup, rollback, history, cleanup, clean, init, upgrade, check, doctor, fix, status, list, verify, setup, noSetup, config, configList, configCheck, configMigrate, templatesMode, templatesList, setupList, convertYAML, createYAML, createSetupScript, withAI, details, debug, edit, force, noColor, noUI, noAsk, wait, noWait, showHelp, showHowTo, showVersion, whatsNew, recover, unlock, run, install, test, schema, schemaView, schemaVersion, doctorMigrate, doctorFix, noParameterInvocation bool
 	rollbackVersion, restore, useTemplate, templateUse, templateName, schemaSave                                                                                                                                                                                                                                                                                                                                                                                                                                                                            string
 	keep, limit                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             int
@@ -33,6 +33,7 @@ func parseOptions(args []string) (options, error) {
 	fs.StringVar(&o.rollbackVersion, "rollback-version", "", "")
 	fs.StringVar(&o.restore, "snapshot", "", "")
 	fs.StringVar(&o.rootDir, "root", "", "")
+	fs.StringVar(&o.activation, "activation", "in-place", "")
 	fs.StringVar(&o.rootDir, "r", "", "")
 	fs.BoolVar(&o.dryRun, "dry-run", false, "")
 	fs.BoolVar(&o.dryRun, "n", false, "")
@@ -137,6 +138,10 @@ func parseOptions(args []string) (options, error) {
 	// Public parameter aliases are translated after flag parsing.
 	if o.rollback && o.showVersion {
 		return o, errors.New("rollback --version benötigt einen Versionswert")
+	}
+	o.activation = strings.ToLower(strings.TrimSpace(o.activation))
+	if o.activation != "in-place" && o.activation != "atomic" {
+		return o, fmt.Errorf("unbekannte Aktivierungsstrategie %q (erlaubt: in-place, atomic)", o.activation)
 	}
 	o.mode = strings.ToLower(strings.TrimSpace(o.mode))
 	if strings.TrimSpace(o.fromRepository) != "" {
