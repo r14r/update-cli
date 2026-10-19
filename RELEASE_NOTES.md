@@ -1,4 +1,4 @@
-# 3.4.2
+# 3.4.3
 
 - Introduce runtime configuration schema **10** for `.update-cli/config.json` (independent of the project manifest schema).
 - `update-cli doctor` identifies outdated runtime configuration without modifying it and recommends `update-cli migrate`.
