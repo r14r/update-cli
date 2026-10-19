@@ -1,3 +1,10 @@
+# 3.4.6
+
+- Rename the Bash update helper emitted by `update-cli show-alias` from `uupdate` to `u`.
+- Unset an existing Bash alias named `u` before defining the function.
+- Keep the safe root-directory update behavior and lossless `"$@"` parameter forwarding.
+- Update command help, README and regression tests.
+
 # 3.4.5
 
 - Introduce runtime configuration schema **10** for `.update-cli/config.json` (independent of the project manifest schema).
