@@ -5,14 +5,24 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
-	"github.com/r14r/update-cli/lib/buildconfig"
-	"github.com/r14r/update-cli/lib/ui"
-	"github.com/r14r/update-cli/lib/updater"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
+
+	"github.com/r14r/update-cli/lib/buildconfig"
+	"github.com/r14r/update-cli/lib/ui"
+	"github.com/r14r/update-cli/lib/updater"
 )
+
+//go:embed scripts/wrapper-bash.sh
+var wrapperBash string
+
+//go:embed scripts/wrapper-zsh.sh
+var wrapperZsh string
+
+//go:embed scripts/wrapper-csh.csh
+var wrapperCsh string
 
 //go:embed VERSION
 var embeddedVersion string
@@ -21,6 +31,14 @@ var embeddedVersion string
 var embeddedBuildConfig []byte
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "wrapper" {
+		if err := installShellWrapper(os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, "ERROR ", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	c, err := buildconfig.Parse(embeddedBuildConfig)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "ERROR", ui.DisplayText(err.Error()))
