@@ -159,6 +159,11 @@ var commandHelpDetails = map[string]commandHelp{
 		Description: "Führt den Pre-Commit-Workflow des Projektmanifests aus.",
 		Examples: []string{"update-cli precommit"},
 	},
+	"show-alias": {
+		Usage: []string{"update-cli show-alias"},
+		Description: "Zeigt eine Bash-Funktion, die Updates sicher aus current/ ausführt und das ursprüngliche Verzeichnis wiederherstellt.",
+		Examples: []string{"update-cli show-alias", "eval \"$(update-cli show-alias)\""},
+	},
 	"git": {
 		Usage: []string{"update-cli git status", "update-cli git add", "update-cli git commit <message>", "update-cli git push"},
 		Description: "Führt die unterstützten Git-Befehle im aktuellen Repository aus.",
