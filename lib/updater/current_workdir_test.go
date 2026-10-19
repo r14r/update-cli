@@ -21,8 +21,8 @@ func TestEnsureSafeUpdateWorkingDirectory(t *testing.T) {
 	t.Cleanup(func() { _ = os.Chdir(old) })
 
 	for _, tc := range []struct {
-		name string
-		cwd string
+		name      string
+		cwd       string
 		wantError bool
 	}{
 		{"root", root, false},
