@@ -2,7 +2,7 @@
 
 **Transactional project updates from ZIP releases or Git repositories.**
 
-Current release: **3.1.1**
+Current release: **3.1.2**
 
 Update CLI separates installation defaults, local runtime state, and versioned project configuration/automation:
 
@@ -1797,3 +1797,9 @@ uupdate() {
 
 Use `uupdate --noui`. Direct `update-cli update` from inside `current/`
 is rejected before changes occur; plan/dry-run remain available.
+
+## Install universal shell wrapper
+
+Run `update-cli wrapper` and choose `bash`, `zsh` or `csh` (also supports `tcsh`). This installs the respective script from `scripts/` into `~/.local/share/update-cli/wrappers/` and adds a source/alias block to `~/.bashrc`, `~/.zshrc` or `~/.cshrc`. Existing blocks are not duplicated. Existing startup files are backed up before modification. Reload the shell to activate `u`.
+
+The wrapper forwards **every CLI command**. When invoked from a managed `current/`, update and parameterless lifecycle calls run from the project root and return to the new `current/` on success; other commands are passed through unchanged.
