@@ -1,3 +1,8 @@
+# 3.1.0
+
+- Promote the current Update CLI feature set to minor release 3.1.0.
+- Includes the four-stage lifecycle workflow, TUI confirmation modals, public workflow commands, and Docker isolation for updates without setup from the 3.0.x series.
+
 # 3.0.16
 
 - A pure `update-cli update` / `--no-setup` no longer stops, starts or restarts Docker Compose services.
