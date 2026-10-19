@@ -23,10 +23,20 @@ new_patch="${BASH_REMATCH[3]}"
 old_major="${BASH_REMATCH[1]}"
 old_minor="${BASH_REMATCH[2]}"
 old_patch="${BASH_REMATCH[3]}"
-[[ "$new_major" == "$old_major" && "$new_minor" == "$old_minor" ]] || { echo "Only patch bumps are allowed: $previous -> $current" >&2; exit 1; }
-if [[ "$mode" == "--staged" ]]; then
-  (( 10#$new_patch == 10#$old_patch + 1 )) || { echo "Each commit must bump patch by exactly 1: $previous -> $current" >&2; exit 1; }
+# Allow sequential patch, minor and major releases. The staged hook requires
+# a single version increment; a PR may contain several patch increments.
+if (( 10#$new_major == 10#$old_major && 10#$new_minor == 10#$old_minor )); then
+  if [[ "$mode" == "--staged" ]]; then
+    (( 10#$new_patch == 10#$old_patch + 1 )) || { echo "Patch must increase exactly once: $previous -> $current" >&2; exit 1; }
+  else
+    (( 10#$new_patch > 10#$old_patch )) || { echo "Patch must increase: $previous -> $current" >&2; exit 1; }
+  fi
+elif (( 10#$new_major == 10#$old_major && 10#$new_minor == 10#$old_minor + 1 && 10#$new_patch == 0 )); then
+  :
+elif (( 10#$new_major == 10#$old_major + 1 && 10#$new_minor == 0 && 10#$new_patch == 0 )); then
+  :
 else
-  (( 10#$new_patch > 10#$old_patch )) || { echo "PR must increase patch version: $previous -> $current" >&2; exit 1; }
+  echo "Invalid semantic version increment: $previous -> $current" >&2
+  exit 1
 fi
-echo "Patch version validated: $previous -> $current"
+echo "Semantic version validated: $previous -> $current"
