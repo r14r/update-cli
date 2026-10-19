@@ -1,3 +1,11 @@
+# 3.2.0
+
+- Use rsync to activate verified releases **in-place** by default while retaining the `current/` directory identity. Updates can now be launched from `current/` directly.
+- Preserve protected files and directories under existing synchronization rules; remove obsolete unprotected entries.
+- Take an exact rollback snapshot before in-place activation and validate the resulting current tree.
+- Keep atomic directory swaps as explicit `--activation atomic` option.
+- Remove obsolete `update-cli wrapper`, bash/zsh/csh shell scripts, and installation tests.
+
 # 3.1.2
 
 - Introduce `update-cli wrapper` interactive shell setup for bash, zsh, and csh/tcsh.
