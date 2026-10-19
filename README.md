@@ -2,7 +2,7 @@
 
 **Transactional project updates from ZIP releases or Git repositories.**
 
-Current release: **3.1.2**
+Current release: **3.2.0**
 
 Update CLI separates installation defaults, local runtime state, and versioned project configuration/automation:
 
@@ -1763,43 +1763,36 @@ Source: https://github.com/r14r/update-cli
 
 GitHub Pages: https://r14r.github.io/update-cli/
 
-## Updating safely from `current/`
+## Update activation: in-place by default
 
-`current/` is replaced atomically during an update. A shell whose working
-directory is inside the old `current/` will remain attached to the obsolete
-directory and can appear to show an empty directory. Run updates from the
-project root instead:
+`update-cli update` synchronizes the fully staged and verified release into the
+**existing** `current/` directory with rsync (including deletion of obsolete,
+unprotected files). Its inode stays intact, so the terminal remains in
+`current/` and no shell wrapper is required.
+
+```bash
+cd current
+update-cli update --noui
+```
+
+Update CLI maintains the versioned `release/<VERSION>/` directory, runs a
+pre-activation exact rollback snapshot, applies existing `sync.preserve`
+rules, and verifies the installation after the copy. An interrupted or failed
+rsync triggers transaction recovery from the snapshot where possible.
+The copy is **not atomic**: other programs may observe a partially updated
+tree until the copy finishes, and a hard power failure requires recovery.
+
+Production services that require atomic file replacement can opt in:
 
 ```bash
 cd ..
-update-cli update
-cd current
+update-cli update --activation atomic
 ```
 
-To preserve the workflow from any subdirectory of `current/`, define this
-**zsh/bash shell function** (e.g. in `~/.zshrc`):
+The atomic mode still swaps the `current/` directory and must not be launched
+while the invoking shell is inside it. `--activation in-place` is the default.
 
-```bash
-uupdate() {
-  local root
-  root="$(pwd -P)"
-  while [[ "$root" != "/" && ! -f "$root/.update-cli/config.json" ]]; do
-    root="$(dirname "$root")"
-  done
-  if [[ ! -f "$root/.update-cli/config.json" ]]; then
-    echo "No update-cli project root found" >&2
-    return 1
-  fi
-  ( cd "$root" && update-cli update "$@" ) || return $?
-  cd "$root/current"
-}
-```
+Shell wrapper installation and the `update-cli wrapper` command were removed.
+If you installed an older wrapper, remove its managed block from your shell
+startup file (`~/.zshrc`, `~/.bashrc` or `~/.cshrc`) and reload your shell.
 
-Use `uupdate --noui`. Direct `update-cli update` from inside `current/`
-is rejected before changes occur; plan/dry-run remain available.
-
-## Install universal shell wrapper
-
-Run `update-cli wrapper` and choose `bash`, `zsh` or `csh` (also supports `tcsh`). This installs the respective script from `scripts/` into `~/.local/share/update-cli/wrappers/` and adds a source/alias block to `~/.bashrc`, `~/.zshrc` or `~/.cshrc`. Existing blocks are not duplicated. Existing startup files are backed up before modification. Reload the shell to activate `u`.
-
-The wrapper forwards **every CLI command**. When invoked from a managed `current/`, update and parameterless lifecycle calls run from the project root and return to the new `current/` on success; other commands are passed through unchanged.

@@ -11,7 +11,7 @@ var publicCommands = map[string]struct{}{
 	"clean": {}, "init": {}, "upgrade": {}, "migrate": {}, "whatsnew": {}, "recover": {}, "doctor": {}, "fix": {}, "status": {},
 	"releases": {}, "verify": {}, "unlock": {}, "run": {}, "install": {},
 	"bootstrap": {}, "build": {}, "test": {}, "precommit": {}, "ci": {},
-	"schema": {}, "setup": {}, "config": {}, "templates": {}, "wrapper": {},
+	"schema": {}, "setup": {}, "config": {}, "templates": {},
 	"convert-yaml": {}, "create-yaml": {}, "create-setup-script": {},
 }
 
@@ -21,7 +21,7 @@ var publicValueParameters = map[string]struct{}{
 	"--from-repository": {}, "--root": {}, "-r": {}, "--keep": {}, "--limit": {},
 	"--use-template": {}, "--use": {}, "--manifest": {}, "--task": {},
 	"--workflow": {}, "--command": {}, "--set": {}, "--save": {},
-	"--project": {}, "--snapshot": {},
+	"--project": {}, "--snapshot": {}, "--activation": {},
 }
 
 // ValidatePublicSyntax enforces the single public CLI grammar:

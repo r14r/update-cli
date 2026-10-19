@@ -1004,7 +1004,7 @@ func ensureSafeUpdateWorkingDirectory(currentDir string) error {
 }
 
 func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o options) (retErr error) {
-	if !o.plan && !o.dryRun {
+	if !o.plan && !o.dryRun && o.activation == "atomic" {
 		if err := ensureSafeUpdateWorkingDirectory(cfg.CurrentDir); err != nil {
 			return err
 		}
@@ -1121,6 +1121,16 @@ func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o op
 		return failUpdateWithRecovery(console, cfg, s, tx, "transaction-journal", err, nil, nil)
 	}
 
+	// In-place activation needs an exact snapshot: release-based recovery cannot
+	// restore local modifications and partially overwritten files safely.
+	if o.activation != "atomic" && tx.currentExisted {
+		if _, snapshotErr := rsyncutil.TransactionSnapshot(ctx, cfg.CurrentDir, tx.snapshotCurrent, filepath.Join(s.workDir, "in-place-rollback-snapshot.log")); snapshotErr != nil {
+			return failUpdateWithRecovery(console, cfg, s, tx, "snapshot-in-place", snapshotErr, nil, nil)
+		}
+		tx.rollbackRelease = ""
+		tx.rollbackVersion = ""
+	}
+
 	backupPath := ""
 	phase = "backup"
 	if err := tx.setPhase(phase); err != nil {
@@ -1230,7 +1240,35 @@ func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o op
 	if err := tx.setPhase(phase); err != nil {
 		return recoverOnError(err)
 	}
-	if err := progress.run("Gestagten current-Zustand atomar aktivieren", func() error {
+	activationLabel := "Gestagten current-Zustand per rsync aktivieren"
+	if o.activation == "atomic" {
+		activationLabel = "Gestagten current-Zustand atomar aktivieren"
+	}
+	if err := progress.run(activationLabel, func() error {
+		if o.activation != "atomic" {
+			// Write the activation journal before mutating current so any partial
+			// rsync failure triggers exact snapshot recovery.
+			if err := tx.markActivated(); err != nil {
+				return err
+			}
+			if _, err := rsyncutil.Current(ctx, s.currentStageDir, cfg.CurrentDir, filepath.Join(s.workDir, "activate-in-place.log"), false, cfg.Preserve); err != nil {
+				return err
+			}
+			// Setup can add generated files to the staged tree. Compare the
+			// activated destination against the staged state, not the raw
+			// release which intentionally precedes setup.
+			if err := verifyMarker(cfg.CurrentDir, s.version.String()); err != nil {
+				return err
+			}
+			verification, err := rsyncutil.Current(ctx, s.currentStageDir, cfg.CurrentDir, filepath.Join(s.workDir, "verify-in-place.log"), true, cfg.Preserve)
+			if err != nil {
+				return err
+			}
+			if verification.Changes != 0 {
+				return fmt.Errorf("aktiviertes current stimmt nicht mit dem gestagten Zustand überein: %d Änderungen", verification.Changes)
+			}
+			return nil
+		}
 		backupPath := tx.journal.BackupCurrent
 		var swapErr error
 		currentSwap, swapErr = tools.SwapDirectoryWithBackup(s.currentStageDir, cfg.CurrentDir, backupPath)
@@ -1274,6 +1312,13 @@ func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o op
 		return recoverOnError(err)
 	}
 	if err := progress.run("Status schreiben und Transaktion abschließen", func() error {
+		if o.activation != "atomic" && s.currentStageDir != "" {
+			if err := tools.RemoveTree(s.currentStageDir); err != nil {
+				return err
+			}
+			s.currentStageDir = ""
+		}
+
 		if err := writeReleaseState(s); err != nil {
 			return err
 		}
