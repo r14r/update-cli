@@ -18,7 +18,7 @@ func TestInPlaceActivationKeepsCurrentDirectoryAndSynchronizesContents(t *testin
 		t.Fatal(err)
 	}
 	v1 := releaseZip(t, downloads, "demo", "1.0.0", map[string]string{
-		"app.txt": "before",
+		"app.txt":      "before",
 		"obsolete.txt": "remove",
 	})
 	if err := Run(context.Background(), "3.2.0", []string{"update", v1, "--root", root, "--no-setup", "--no-ui"}); err != nil {
