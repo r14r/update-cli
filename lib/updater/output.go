@@ -478,6 +478,8 @@ func printStatus(c *ui.Console, r projectstatus.Result) {
 	c.Row("Quelle", r.SourceType+" — "+r.SourceReference)
 	c.Row("Installiert", empty(r.InstalledVersion))
 	c.Row("Verfügbar", empty(r.AvailableVersion))
+	c.Row("Quellentyp", checkSourceKind(r.SourceType))
+	c.Row("Quelle", empty(r.SourceReference))
 	c.Row("Setup", fmt.Sprintf("%t %s", r.SetupAvailable, r.SetupPath))
 	c.Row("Docker lifecycle", r.DockerLifecycle)
 	c.Row("Backups", fmt.Sprint(r.BackupCount))
@@ -511,6 +513,8 @@ func printCheck(c *ui.Console, r updatecheck.Result) {
 		c.InfoRow("Projekt", r.ProjectName)
 		c.InfoRow("Installiert", empty(r.InstalledVersion))
 		c.InfoRow("Verfügbar", empty(r.AvailableVersion))
+		c.InfoRow("Quellentyp", checkSourceKind(r.SourceType))
+		c.InfoRow("Quelle", empty(r.SourceReference))
 		if r.AvailableCommit != "" {
 			c.InfoRow("Commit", shortCommit(r.InstalledCommit)+" → "+shortCommit(r.AvailableCommit))
 		}
@@ -534,6 +538,19 @@ func printCheck(c *ui.Console, r updatecheck.Result) {
 	}
 	c.StatusRow("Status", string(r.Status))
 }
+func checkSourceKind(sourceType string) string {
+	switch sourceType {
+	case "repository", "repo", "git":
+		return "REPO"
+	case "download", "file", "archive":
+		return "FILE"
+	case "url":
+		return "URL"
+	default:
+		return empty(sourceType)
+	}
+}
+
 func printDoctor(c *ui.Console, r doctor.Report) {
 	c.Header("Update CLI Doctor")
 	if r.WorkingDirectory != "" {
