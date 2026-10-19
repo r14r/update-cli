@@ -162,7 +162,7 @@ var commandHelpDetails = map[string]commandHelp{
 	"show-alias": {
 		Usage: []string{"update-cli show-alias"},
 		Description: "Zeigt eine Bash-Funktion, die Updates sicher aus current/ ausführt und das ursprüngliche Verzeichnis wiederherstellt.",
-		Examples: []string{"update-cli show-alias", "eval \"$(update-cli show-alias)\""},
+		Examples: []string{"update-cli show-alias", "eval \"$(update-cli show-alias)\"", "u --setup --noui"},
 	},
 	"git": {
 		Usage: []string{"update-cli git status", "update-cli git add", "update-cli git commit <message>", "update-cli git push"},
