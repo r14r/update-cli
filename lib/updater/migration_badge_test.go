@@ -37,7 +37,7 @@ func TestProjectMigrationRequiredFalseForCurrentConfigAndValidManifest(t *testin
 	if err := os.MkdirAll(stateDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	cfg := `{"schemaVersion":9,"projectName":"demo","mode":"update","source":{"type":"download","folder":"$HOME/Downloads"},"releaseDir":"release","currentDir":"current","backup":{"directory":"backup","keep":3},"retention":{"releases":5},"sync":{"preserve":[".env"]},"security":{"allowHttp":false,"maxArchiveBytes":2147483648,"maxUncompressedBytes":8589934592,"maxFileBytes":2147483648,"maxEntries":100000,"maxCompressionRatio":200},"docker":{"lifecycle":"auto"},"healthcheck":{}}`
+	cfg := `{"schemaVersion":10,"projectName":"demo","mode":"update","source":{"type":"download","folder":"$HOME/Downloads"},"releaseDir":"release","currentDir":"current","backup":{"directory":"backup","keep":3},"retention":{"releases":5},"sync":{"preserve":[".env"]},"security":{"allowHttp":false,"maxArchiveBytes":2147483648,"maxUncompressedBytes":8589934592,"maxFileBytes":2147483648,"maxEntries":100000,"maxCompressionRatio":200},"docker":{"lifecycle":"auto"},"healthcheck":{}}`
 	if err := os.WriteFile(filepath.Join(stateDir, "config.json"), []byte(cfg), 0o600); err != nil {
 		t.Fatal(err)
 	}
