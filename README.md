@@ -2,7 +2,19 @@
 
 **Transactional project updates from ZIP releases or Git repositories.**
 
-Current release: **3.4.5**
+Current release: **3.4.6**
+
+### Bash update function `u`
+
+Use `update-cli show-alias` to print the Bash helper, or load it into the current Bash session:
+
+```bash
+eval "$(update-cli show-alias)"
+u --setup --noui
+```
+
+The function temporarily runs the update from the project root when invoked from `current/` or a descendant, forwards every parameter unchanged and preserves the calling shell's working directory. It replaces an existing Bash alias named `u`.
+
 
 Update CLI separates installation defaults, local runtime state, and versioned project configuration/automation:
 
