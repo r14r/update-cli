@@ -21,7 +21,7 @@ var publicValueParameters = map[string]struct{}{
 	"--from-repository": {}, "--root": {}, "-r": {}, "--keep": {}, "--limit": {},
 	"--use-template": {}, "--use": {}, "--manifest": {}, "--task": {},
 	"--workflow": {}, "--command": {}, "--set": {}, "--save": {},
-	"--project": {}, "--snapshot": {},
+	"--project": {}, "--snapshot": {}, "--activation": {},
 }
 
 // ValidatePublicSyntax enforces the single public CLI grammar:
