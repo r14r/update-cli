@@ -1254,7 +1254,20 @@ func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o op
 			if _, err := rsyncutil.Current(ctx, s.currentStageDir, cfg.CurrentDir, filepath.Join(s.workDir, "activate-in-place.log"), false, cfg.Preserve); err != nil {
 				return err
 			}
-			return verifyCurrent(ctx, s)
+			// Setup can add generated files to the staged tree. Compare the
+			// activated destination against the staged state, not the raw
+			// release which intentionally precedes setup.
+			if err := verifyMarker(cfg.CurrentDir, s.version.String()); err != nil {
+				return err
+			}
+			verification, err := rsyncutil.Current(ctx, s.currentStageDir, cfg.CurrentDir, filepath.Join(s.workDir, "verify-in-place.log"), true, cfg.Preserve)
+			if err != nil {
+				return err
+			}
+			if verification.Changes != 0 {
+				return fmt.Errorf("aktiviertes current stimmt nicht mit dem gestagten Zustand überein: %d Änderungen", verification.Changes)
+			}
+			return nil
 		}
 		backupPath := tx.journal.BackupCurrent
 		var swapErr error
