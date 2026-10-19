@@ -11,7 +11,7 @@ var publicCommands = map[string]struct{}{
 	"clean": {}, "init": {}, "upgrade": {}, "migrate": {}, "whatsnew": {}, "recover": {}, "doctor": {}, "fix": {}, "status": {},
 	"releases": {}, "verify": {}, "unlock": {}, "run": {}, "install": {},
 	"bootstrap": {}, "build": {}, "test": {}, "precommit": {}, "ci": {},
-	"schema": {}, "setup": {}, "config": {}, "templates": {},
+	"schema": {}, "setup": {}, "config": {}, "templates": {}, "git": {},
 	"convert-yaml": {}, "create-yaml": {}, "create-setup-script": {},
 }
 
@@ -34,6 +34,9 @@ func ValidatePublicSyntax(args []string) error {
 		return nil
 	}
 	command := strings.ToLower(strings.TrimSpace(args[0]))
+	if command == "git" {
+		return validateGitArguments(args[1:])
+	}
 	if strings.HasPrefix(command, "-") {
 		return fmt.Errorf("das erste Argument muss ein Kommando ohne '--' sein; verwenden Sie z. B. 'update-cli version' statt 'update-cli --version'")
 	}
