@@ -2,7 +2,7 @@
 
 **Transactional project updates from ZIP releases or Git repositories.**
 
-Current release: **3.1.0**
+Current release: **3.1.1**
 
 Update CLI separates installation defaults, local runtime state, and versioned project configuration/automation:
 
@@ -1762,3 +1762,38 @@ update-cli help --json
 Source: https://github.com/r14r/update-cli
 
 GitHub Pages: https://r14r.github.io/update-cli/
+
+## Updating safely from `current/`
+
+`current/` is replaced atomically during an update. A shell whose working
+directory is inside the old `current/` will remain attached to the obsolete
+directory and can appear to show an empty directory. Run updates from the
+project root instead:
+
+```bash
+cd ..
+update-cli update
+cd current
+```
+
+To preserve the workflow from any subdirectory of `current/`, define this
+**zsh/bash shell function** (e.g. in `~/.zshrc`):
+
+```bash
+uupdate() {
+  local root
+  root="$(pwd -P)"
+  while [[ "$root" != "/" && ! -f "$root/.update-cli/config.json" ]]; do
+    root="$(dirname "$root")"
+  done
+  if [[ ! -f "$root/.update-cli/config.json" ]]; then
+    echo "No update-cli project root found" >&2
+    return 1
+  fi
+  ( cd "$root" && update-cli update "$@" ) || return $?
+  cd "$root/current"
+}
+```
+
+Use `uupdate --noui`. Direct `update-cli update` from inside `current/`
+is rejected before changes occur; plan/dry-run remain available.

@@ -977,7 +977,38 @@ func runBackup(ctx context.Context, console *ui.Console, cfg config.Config, json
 	return nil
 }
 
+func ensureSafeUpdateWorkingDirectory(currentDir string) error {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("Arbeitsverzeichnis ist nicht verfügbar: %w", err)
+	}
+	current, err := filepath.Abs(currentDir)
+	if err != nil {
+		return err
+	}
+	// Physical paths avoid false negatives when users enter current via symlinks.
+	if physical, evalErr := filepath.EvalSymlinks(cwd); evalErr == nil {
+		cwd = physical
+	}
+	if physical, evalErr := filepath.EvalSymlinks(current); evalErr == nil {
+		current = physical
+	}
+	relative, err := filepath.Rel(current, cwd)
+	if err != nil {
+		return err
+	}
+	if relative == "." || (relative != ".." && !strings.HasPrefix(relative, ".."+string(os.PathSeparator))) {
+		return fmt.Errorf("Update aus current/ oder einem Unterordner nicht sicher: Das Verzeichnis wird beim atomaren Update ersetzt. In der Shell zuerst 'cd %s' ausführen, dann 'update-cli update' und anschließend 'cd current' (oder die Shell-Funktion aus README verwenden)", filepath.Dir(current))
+	}
+	return nil
+}
+
 func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o options) (retErr error) {
+	if !o.plan && !o.dryRun {
+		if err := ensureSafeUpdateWorkingDirectory(cfg.CurrentDir); err != nil {
+			return err
+		}
+	}
 	if cfg.Mode == config.ModePull && strings.TrimSpace(o.archive) != "" {
 		return errors.New("mode pull verwendet ein Git-Repository und akzeptiert kein ZIP-Archiv; für ZIP-Dateien --mode update verwenden")
 	}

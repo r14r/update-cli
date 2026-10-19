@@ -1,3 +1,8 @@
+# 3.1.1
+
+- Guard against running a mutating update from inside `current/` or its subdirectories, where replacing `current/` would strand the invoking shell in an obsolete directory.
+- Document a shell helper to run updates from the project root and return to the new `current/`.
+
 # 3.1.0
 
 - Promote the current Update CLI feature set to minor release 3.1.0.
