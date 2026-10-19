@@ -31,10 +31,10 @@ func TestInstallShellWrapperBackupsAndIdempotence(t *testing.T) {
 			}
 			t.Cleanup(func() { os.Stdin = savedStdin; _ = r.Close(); _ = w.Close() })
 			os.Stdin = r
-			if _, err := w.WriteString("\n\n"); err != nil {
-				t.Fatal(err)
-			}
 			for i := 0; i < 2; i++ {
+				if _, err := w.WriteString("\n"); err != nil {
+					t.Fatal(err)
+				}
 				if err := installShellWrapper(nil); err != nil {
 					t.Fatalf("attempt %d: %v", i, err)
 				}
