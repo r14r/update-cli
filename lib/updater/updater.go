@@ -977,6 +977,16 @@ func runBackup(ctx context.Context, console *ui.Console, cfg config.Config, json
 	return nil
 }
 
+// UnsafeWorkingDirectoryError indicates that an atomic activation would replace
+// the shell's current working directory.
+type UnsafeWorkingDirectoryError struct {
+	ProjectRoot string
+}
+
+func (e *UnsafeWorkingDirectoryError) Error() string {
+	return "Ausführung aus current/ oder einem Unterordner nicht sicher: Das Verzeichnis wird beim atomaren Update ersetzt."
+}
+
 func ensureSafeUpdateWorkingDirectory(currentDir string) error {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -998,7 +1008,7 @@ func ensureSafeUpdateWorkingDirectory(currentDir string) error {
 		return err
 	}
 	if relative == "." || (relative != ".." && !strings.HasPrefix(relative, ".."+string(os.PathSeparator))) {
-		return fmt.Errorf("Update aus current/ oder einem Unterordner nicht sicher: Das Verzeichnis wird beim atomaren Update ersetzt. In der Shell zuerst 'cd %s' ausführen, dann 'update-cli update' und anschließend 'cd current' (oder die Shell-Funktion aus README verwenden)", filepath.Dir(current))
+		return &UnsafeWorkingDirectoryError{ProjectRoot: filepath.Dir(current)}
 	}
 	return nil
 }
