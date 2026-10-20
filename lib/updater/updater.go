@@ -2200,18 +2200,22 @@ func initialize(ctx context.Context, console *ui.Console, root string, o options
 
 	repository := strings.TrimSpace(o.repository)
 	if strings.TrimSpace(o.fromRepository) != "" {
+		repository = strings.TrimSpace(o.fromRepository)
+	}
+	if repository != "" {
 		defaultUser := config.DefaultRepositoryUser
 		if configExists {
 			if existing, loadErr := config.Load(root, ""); loadErr == nil && strings.TrimSpace(existing.Source.DefaultUser) != "" {
 				defaultUser = existing.Source.DefaultUser
 			}
 		}
-		repository, err = config.NormalizeRepositorySpec(o.fromRepository, defaultUser)
+		input := repository
+		repository, err = config.NormalizeRepositorySpec(repository, defaultUser)
 		if err != nil {
 			return err
 		}
 		if o.debug {
-			console.Row("Repository Eingabe", o.fromRepository)
+			console.Row("Repository Eingabe", input)
 			console.Row("Repository DefaultUser", defaultUser)
 			console.Row("Repository normalisiert", repository)
 		}
