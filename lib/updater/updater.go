@@ -69,6 +69,32 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 	if len(args) == 0 {
 		return runNoParameter(ctx, buildVersion, false)
 	}
+	if args[0] == "workflow" {
+		root := ""
+		debug := false
+		noUI := false
+		for i := 1; i < len(args); i++ {
+			switch args[i] {
+			case "--root", "-r":
+				if i+1 >= len(args) {
+					return &ExitError{Code: 2, Err: fmt.Errorf("--root benötigt einen Pfad")}
+				}
+				i++
+				root = args[i]
+			case "--debug":
+				debug = true
+			case "--noui", "--no-ui":
+				noUI = true
+			default:
+				return &ExitError{Code: 2, Err: fmt.Errorf("workflow unterstützt nur --root, --debug und --noui")}
+			}
+		}
+		resolved, err := config.ResolveRoot(root)
+		if err != nil {
+			return err
+		}
+		return runDefaultWorkflow(ctx, buildVersion, resolved, debug, noUI)
+	}
 	if args[0] == "generate-config" {
 		if len(args) != 1 {
 			return &ExitError{Code: 2, Err: fmt.Errorf("generate-config akzeptiert keine Parameter")}
@@ -857,7 +883,7 @@ func runNoParameter(ctx context.Context, buildVersion string, debug bool) (retEr
 		actions[strings.ToLower(strings.TrimSpace(action))] = true
 	}
 	if actions["workflow"] {
-		return runDefaultWorkflow(ctx, buildVersion, root, debug)
+		return runDefaultWorkflow(ctx, buildVersion, root, debug, true)
 	}
 	if actions["help"] && len(actions) == 1 {
 		printHelp(buildVersion)
@@ -926,14 +952,23 @@ func runNoParameter(ctx context.Context, buildVersion string, debug bool) (retEr
 // runDefaultWorkflow executes an explicit, unattended release lifecycle.
 // The candidate is updated before bootstrap, quality checks, build and install.
 // Run starts the deployed application only after a successful install.
-func runDefaultWorkflow(ctx context.Context, buildVersion, root string, debug bool) error {
-	stages := []string{"update", "bootstrap", "test", "build", "install", "run"}
+func runDefaultWorkflow(ctx context.Context, buildVersion, root string, debug, noUI bool) error {
+	stages := []string{"update", "bootstrap", "precommit", "test", "build", "run"}
 	for _, stage := range stages {
-		args := []string{stage, "--root", root, "--noui"}
+		fmt.Printf("\n==> Workflow: %s\n", stage)
+		args := []string{stage, "--root", root}
+		if noUI {
+			args = append(args, "--noui")
+		}
 		if debug {
 			args = append(args, "--debug")
 		}
 		if err := Run(ctx, buildVersion, args); err != nil {
+			var already *VersionAlreadyInstalledError
+			if stage == "update" && errors.As(err, &already) {
+				fmt.Printf("SKIP  %s; lokales Release bereits vorhanden\n", already.Error())
+				continue
+			}
 			return fmt.Errorf("Workflow-Phase %s fehlgeschlagen: %w", stage, err)
 		}
 	}
