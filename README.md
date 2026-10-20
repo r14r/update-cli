@@ -4,6 +4,34 @@
 
 Current release: **3.4.18**
 
+## Documentation website
+
+The complete documentation source is maintained under [`doc/`](doc/), including:
+
+- [Getting started](doc/getting-started.md) with initialization, update and setup screenshots
+- [CLI commands](doc/commands.md), [configuration](doc/configuration.md) and [walkthrough](doc/tutorials.md)
+- [Setup schema](doc/setup-schema.md), [precommit](doc/precommit.md) and [lifecycle](doc/lifecycle.md)
+- [Terminal demos](doc/terminal-demos.md) and [VHS scripts](doc/tapes/README.md)
+
+The Jekyll website is deployed by [GitHub Actions](.github/workflows/pages.yml) from `doc/` to **https://r14r.github.io/update-cli/** once GitHub Pages is configured to use GitHub Actions.
+
+To preview locally:
+
+```bash
+cd doc
+bundle install
+bundle exec jekyll serve
+```
+
+To generate terminal animations from the repository root (requires VHS and a working local build):
+
+```bash
+just build
+just tapes
+```
+
+This generates recordings under `doc/assets/terminal/`. Review output for secrets and accuracy before publishing.
+
 ### Bash update function `u`
 
 Use `update-cli generate-alias` to print the Bash helper, or load it into the current Bash session:
