@@ -2203,12 +2203,7 @@ func initialize(ctx context.Context, console *ui.Console, root string, o options
 		repository = strings.TrimSpace(o.fromRepository)
 	}
 	if repository != "" {
-		defaultUser := config.DefaultRepositoryUser
-		if configExists {
-			if existing, loadErr := config.Load(root, ""); loadErr == nil && strings.TrimSpace(existing.Source.DefaultUser) != "" {
-				defaultUser = existing.Source.DefaultUser
-			}
-		}
+		defaultUser := initRepositoryDefaultUser(root, configExists)
 		input := repository
 		repository, err = config.NormalizeRepositorySpec(repository, defaultUser)
 		if err != nil {
@@ -2287,6 +2282,37 @@ func initialize(ctx context.Context, console *ui.Console, root string, o options
 		noWait:        o.noWait,
 		initialGitDir: initialGitDir,
 	})
+}
+
+// initRepositoryDefaultUser prefers the effective project setting. When a
+// project has not yet been initialized, read the global config.json override.
+func initRepositoryDefaultUser(root string, configExists bool) string {
+	if configExists {
+		if existing, err := config.Load(root, ""); err == nil && strings.TrimSpace(existing.Source.DefaultUser) != "" {
+			return existing.Source.DefaultUser
+		}
+	}
+	directory, err := config.GlobalConfigDir()
+	if err == nil {
+		data, readErr := os.ReadFile(filepath.Join(directory, config.ConfigFileName))
+		if readErr == nil {
+			var settings struct {
+				Source struct {
+					DefaultUser string `json:"defaultUser"`
+				} `json:"source"`
+				DefaultUser string `json:"defaultUser"`
+			}
+			if json.Unmarshal(data, &settings) == nil {
+				if user := strings.TrimSpace(settings.Source.DefaultUser); user != "" {
+					return user
+				}
+				if user := strings.TrimSpace(settings.DefaultUser); user != "" {
+					return user
+				}
+			}
+		}
+	}
+	return config.DefaultRepositoryUser
 }
 
 func initSourceDescription(cfg config.Config) string {
