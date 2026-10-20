@@ -1,3 +1,7 @@
+# 3.4.13
+
+- Disable interactive clipboard-copy prompts when --noui, --no-ui, --no-ask, or --json is specified, retaining failure logs and exit codes.
+
 # 3.4.12
 
 - Fix Go formatting in repository initialization tests and help output; unblock fmt-check during install.
