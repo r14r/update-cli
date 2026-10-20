@@ -2,14 +2,14 @@
 
 **Transactional project updates from ZIP releases or Git repositories.**
 
-Current release: **3.4.17**
+Current release: **3.4.18**
 
 ### Bash update function `u`
 
-Use `update-cli show-alias` to print the Bash helper, or load it into the current Bash session:
+Use `update-cli generate-alias` to print the Bash helper, or load it into the current Bash session:
 
 ```bash
-eval "$(update-cli show-alias)"
+eval "$(update-cli generate-alias)"
 u --setup --noui
 ```
 
