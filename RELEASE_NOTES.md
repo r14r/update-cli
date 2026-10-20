@@ -1,3 +1,10 @@
+# 3.4.7
+
+- Add `update-cli show-requirements` to print a copyable ChatGPT integration prompt covering update-cli.yaml, justfile, VERSION and SOURCE.md.
+- Document project workflow, root-based execution, validation, build, install and run expectations.
+- Fix previously unformatted Go sources that caused `just fmt-check` to fail during installation.
+- Add a regression test for the new command.
+
 # 3.4.6
 
 - Rename the Bash update helper emitted by `update-cli show-alias` from `uupdate` to `u`.
