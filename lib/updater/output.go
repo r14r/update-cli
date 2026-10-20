@@ -170,10 +170,10 @@ var commandHelpDetails = map[string]commandHelp{
 		Description: "Zeigt kopierbare Anforderungen für update-cli.yaml und justfile in neuen Projekten.",
 		Examples:    []string{"update-cli show-requirements"},
 	},
-	"show-alias": {
-		Usage:       []string{"update-cli show-alias"},
+	"generate-alias": {
+		Usage:       []string{"update-cli generate-alias"},
 		Description: "Zeigt eine Bash-Funktion, die Updates sicher aus current/ ausführt und das ursprüngliche Verzeichnis wiederherstellt.",
-		Examples:    []string{"update-cli show-alias", "eval \"$(update-cli show-alias)\"", "u --setup --noui"},
+		Examples:    []string{"update-cli generate-alias", "eval \"$(update-cli generate-alias)\"", "u --setup --noui"},
 	},
 	"git": {
 		Usage:       []string{"update-cli git status", "update-cli git add", "update-cli git commit <message>", "update-cli git push"},
