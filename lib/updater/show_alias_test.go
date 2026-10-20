@@ -15,10 +15,10 @@ func TestBashUpdateAlias(t *testing.T) {
 	if strings.Contains(script, "uupdate()") {
 		t.Fatal("legacy name uupdate must not be defined")
 	}
-	if err := ValidatePublicSyntax([]string{"show-alias"}); err != nil {
+	if err := ValidatePublicSyntax([]string{"generate-alias"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := ValidatePublicSyntax([]string{"show-alias", "--root", "/tmp"}); err == nil {
-		t.Fatal("show-alias should reject extra arguments")
+	if err := ValidatePublicSyntax([]string{"generate-alias", "--root", "/tmp"}); err == nil {
+		t.Fatal("generate-alias should reject extra arguments")
 	}
 }
