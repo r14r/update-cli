@@ -39,11 +39,11 @@ behavior. Do not invent commands that the project does not support.
 - Do not run destructive migrations or Docker shutdowns as bootstrap tasks.
 - If Docker Compose is used, make the compose file/project directory explicit,
   preserve volumes, and add healthchecks when applicable.
-- Validate using `update-cli doctor` and `update-cli setup --list`.
+- Validate using 'update-cli doctor' and 'update-cli setup --list'.
 
 Minimal structural example (replace with verified project-specific steps):
 
-```yaml
+~~~yaml
 schemaVersion: 2
 project:
   name: Example App
@@ -79,7 +79,7 @@ tasks:
         shell: just build
 run:
   command: just run
-```
+~~~
 
 ## justfile requirements
 
@@ -91,20 +91,20 @@ run:
 - Install creates or activates artifacts safely; run starts the application.
 - Avoid recreating Python virtual environments on every invocation.
 - Use shell quoting correctly. In a justfile with Bash recipes, use
-  normal shell variables (for example `"$HOME"`, not `"$$HOME"`).
+  normal shell variables (for example '"$HOME"', not '"$$HOME"').
 - For Docker applications, expose compose build/up/down/ps/logs recipes
   using an explicit project name and compose file.
 - Provide helpful errors when a required command is unavailable.
-- Never hide test failures with `|| true`.
+- Never hide test failures with '|| true'.
 
 ## Verification / expected deliverables
 
 - Show the complete updated update-cli.yaml and justfile.
 - Identify requirements that do not apply to this project.
 - Run format checks, tests and build; report each actual result.
-- Check `update-cli bootstrap`, `update-cli setup`,
-  `update-cli test`, `update-cli build`, `update-cli install`,
-  and `update-cli run` (or explain non-applicable stages).
+- Check 'update-cli bootstrap', 'update-cli setup',
+  'update-cli test', 'update-cli build', 'update-cli install',
+  and 'update-cli run' (or explain non-applicable stages).
 - Keep all operations runnable from the project root via Update CLI.
 - Do not claim a command or workflow is implemented unless verified.
 
