@@ -1,4 +1,4 @@
-# 3.4.8
+# 3.4.9
 
 - Accept `init --repository travelguide`, `init --repository r14r/travelguide`, and `init --repository https://github.com/r14r/travelguide`.
 - For bare repository names, read `source.defaultUser` from the project config.json or, for new projects, the global config.json. Fall back to r14r if unset.
