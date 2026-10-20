@@ -1,3 +1,7 @@
+# 3.4.18
+
+- Rename `show-alias` to `generate-alias` for Bash function generation; update help, examples and tests.
+
 # 3.4.17
 
 - Rename the starter manifest output command from `show-starter` to `generate-config`.
