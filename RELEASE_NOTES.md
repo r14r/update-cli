@@ -1,3 +1,8 @@
+# 3.4.10
+
+- Fix Go syntax in lib/updater/requirements.go by avoiding Markdown backticks inside its raw string.
+- Keep the copyable show-requirements prompt with tilde-fenced YAML examples.
+
 # 3.4.9
 
 - Accept `init --repository travelguide`, `init --repository r14r/travelguide`, and `init --repository https://github.com/r14r/travelguide`.
