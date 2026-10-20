@@ -1,3 +1,10 @@
+# 3.4.8
+
+- Accept `init --repository travelguide`, `init --repository r14r/travelguide`, and `init --repository https://github.com/r14r/travelguide`.
+- For bare repository names, read `source.defaultUser` from the project config.json or, for new projects, the global config.json. Fall back to r14r if unset.
+- Preserve explicitly provided owner for USER/REPO and URL forms.
+- Add regression tests covering repository forms and global defaultUser.
+
 # 3.4.7
 
 - Add `update-cli show-requirements` to print a copyable ChatGPT integration prompt covering update-cli.yaml, justfile, VERSION and SOURCE.md.
