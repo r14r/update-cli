@@ -849,6 +849,9 @@ func runNoParameter(ctx context.Context, buildVersion string, debug bool) (retEr
 	for _, action := range cfg.NoParameterActions {
 		actions[strings.ToLower(strings.TrimSpace(action))] = true
 	}
+	if actions["workflow"] {
+		return runDefaultWorkflow(ctx, buildVersion, root, debug)
+	}
 	if actions["help"] && len(actions) == 1 {
 		printHelp(buildVersion)
 		return nil
@@ -908,6 +911,23 @@ func runNoParameter(ctx context.Context, buildVersion string, debug bool) (retEr
 		}
 		if runErr := Run(ctx, buildVersion, stageArgs); runErr != nil {
 			return fmt.Errorf("%s fehlgeschlagen: %w", stage.name, runErr)
+		}
+	}
+	return nil
+}
+
+// runDefaultWorkflow executes an explicit, unattended release lifecycle.
+// The candidate is updated before bootstrap, quality checks, build and install.
+// Run starts the deployed application only after a successful install.
+func runDefaultWorkflow(ctx context.Context, buildVersion, root string, debug bool) error {
+	stages := []string{"update", "bootstrap", "test", "build", "install", "run"}
+	for _, stage := range stages {
+		args := []string{stage, "--root", root, "--noui"}
+		if debug {
+			args = append(args, "--debug")
+		}
+		if err := Run(ctx, buildVersion, args); err != nil {
+			return fmt.Errorf("Workflow-Phase %s fehlgeschlagen: %w", stage, err)
 		}
 	}
 	return nil
