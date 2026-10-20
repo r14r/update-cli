@@ -1,4 +1,4 @@
-Output docs/videos/quickstart.gif
+Output doc/assets/terminal/quickstart.gif
 
 Set Shell "bash"
 Set FontSize 18
