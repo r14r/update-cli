@@ -1,3 +1,7 @@
+# 3.4.15
+
+- Fix Go formatting in main.go that blocked fmt-check and just install.
+
 # 3.4.14
 
 - Fix `show-alias` so `u version` and other explicit commands forward unchanged while bare `u` defaults to update.
