@@ -1,3 +1,8 @@
+# 3.4.14
+
+- Add a backward-compatible fallback for the optional bootstrap phase of no-argument updates: when a schemaVersion-2 manifest lacks workflow 'bootstrap' and the project has a Justfile, execute 'just bootstrap'.
+- Keep unknown workflow names and genuine bootstrap failures as errors; add focused regression tests.
+
 # 3.4.13
 
 - Disable interactive clipboard-copy prompts when --noui, --no-ui, --no-ask, or --json is specified, retaining failure logs and exit codes.
