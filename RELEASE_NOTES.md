@@ -1,3 +1,9 @@
+# 3.4.20
+
+- Introduce `update-cli workflow`: update → bootstrap → precommit → test → build → run.
+- Continue after update when the target version is already installed; abort on other update or phase failures.
+- Support `workflow --noui`, `--root` and `--debug`; keep the no-parameter workflow configuration working.
+
 # 3.4.19
 
 - Consolidate existing docs, screenshots and VHS tapes under `doc/`; remove the old `docs/` files.
