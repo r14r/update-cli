@@ -11,7 +11,7 @@ var publicCommands = map[string]struct{}{
 	"clean": {}, "init": {}, "upgrade": {}, "migrate": {}, "whatsnew": {}, "recover": {}, "doctor": {}, "fix": {}, "status": {},
 	"releases": {}, "verify": {}, "unlock": {}, "run": {}, "install": {},
 	"bootstrap": {}, "build": {}, "test": {}, "precommit": {}, "ci": {},
-	"schema": {}, "setup": {}, "config": {}, "templates": {}, "git": {}, "show-alias": {},
+	"schema": {}, "setup": {}, "config": {}, "templates": {}, "git": {}, "show-alias": {}, "show-requirements": {},
 	"convert-yaml": {}, "create-yaml": {}, "create-setup-script": {},
 }
 
@@ -34,7 +34,7 @@ func ValidatePublicSyntax(args []string) error {
 		return nil
 	}
 	command := strings.ToLower(strings.TrimSpace(args[0]))
-	if command == "show-alias" && len(args) != 1 {
+	if (command == "show-alias" || command == "show-requirements") && len(args) != 1 {
 		return fmt.Errorf("show-alias akzeptiert keine Parameter")
 	}
 	if command == "git" {
