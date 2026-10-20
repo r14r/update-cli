@@ -1,3 +1,9 @@
+# 3.4.11
+
+- Add standalone `"no parameter": ["workflow"]` configuration.
+- Bare Update CLI invocation runs update, bootstrap, test, build, install, and run in sequence.
+- Preserve workflow setting during configuration repair; reject combinations with other no-parameter actions.
+
 # 3.4.10
 
 - Fix Go syntax in lib/updater/requirements.go by avoiding Markdown backticks inside its raw string.
