@@ -2,6 +2,10 @@ package updater
 
 import (
 	"fmt"
+	"os"
+	"sort"
+	"strings"
+
 	"github.com/r14r/update-cli/lib/backup"
 	"github.com/r14r/update-cli/lib/cleanup"
 	"github.com/r14r/update-cli/lib/config"
@@ -14,9 +18,6 @@ import (
 	rsyncutil "github.com/r14r/update-cli/lib/rsync"
 	"github.com/r14r/update-cli/lib/ui"
 	"github.com/r14r/update-cli/lib/updatecheck"
-	"os"
-	"sort"
-	"strings"
 )
 
 type fixResult struct {
@@ -158,6 +159,11 @@ var commandHelpDetails = map[string]commandHelp{
 		Usage: []string{"update-cli precommit [--no-ui]"},
 		Description: "Führt den Pre-Commit-Workflow des Projektmanifests aus.",
 		Examples: []string{"update-cli precommit"},
+	},
+	"show-requirements": {
+		Usage:       []string{"update-cli show-requirements"},
+		Description: "Zeigt kopierbare Anforderungen für update-cli.yaml und justfile in neuen Projekten.",
+		Examples:    []string{"update-cli show-requirements"},
 	},
 	"show-alias": {
 		Usage: []string{"update-cli show-alias"},
