@@ -1,3 +1,8 @@
+# 3.4.16
+
+- Add `update-cli show-starter` to output a schemaVersion 2 starter manifest that maps supported project workflows to `just` recipes and defines `run.command: just run`.
+- Add help entry and regression test for generated YAML structure.
+
 # 3.4.15
 
 - Fix Go formatting in main.go that blocked fmt-check and just install.
