@@ -10,7 +10,7 @@ Use `update-cli generate-alias` to print the Bash helper, or load it into the cu
 
 ```bash
 eval "$(update-cli generate-alias)"
-u --setup --noui
+u update --setup --noui
 ```
 
 The function temporarily runs the update from the project root when invoked from `current/` or a descendant, forwards every parameter unchanged and preserves the calling shell's working directory. It replaces an existing Bash alias named `u`.
@@ -85,7 +85,7 @@ The standalone `update-cli update` command remains fetch/activate-only.
 - `update-cli run` starts the application using the manifest's run definition.
 - `update-cli install` remains a separate deployment action.
 
-These lifecycle changes are a major version milestone. See `docs/lifecycle.md` and `lib/whatsnew/releases/3.0.0.md`.
+These lifecycle changes are a major version milestone. See `doc/lifecycle.md` and `lib/whatsnew/releases/3.0.0.md`.
 
 ## What changed in 2.17.0
 
@@ -510,8 +510,8 @@ The previous recovery `WARN` lines shown by `lib/updater` tests are expected out
 Two VHS tapes now document the main onboarding paths:
 
 ```text
-docs/tapes/install.tape
-docs/tapes/quickstart.tape
+doc/tapes/install.tape
+doc/tapes/quickstart.tape
 ```
 
 Render both with:
@@ -520,7 +520,7 @@ Render both with:
 just tapes
 ```
 
-Generated recordings are written to `docs/videos/`. The INSTALL tape uses `UPDATE_CLI_INSTALL_BIN_DIR` so it installs into a disposable project-local demo prefix instead of modifying `/usr/local`.
+Generated recordings are written to `doc/assets/terminal/`. The INSTALL tape uses `UPDATE_CLI_INSTALL_BIN_DIR` so it installs into a disposable project-local demo prefix instead of modifying `/usr/local`.
 
 ## What changed in 2.13.1
 
@@ -944,15 +944,15 @@ UPDATE_CLI_INSTALL_BIN_DIR="$PWD/.demo-install/bin" just install
 .demo-install/bin/update-cli version
 ```
 
-The matching VHS recording is defined in [`docs/tapes/install.tape`](docs/tapes/install.tape). Render it with:
+The matching VHS recording is defined in [`doc/tapes/install.tape`](doc/tapes/install.tape). Render it with:
 
 ```bash
-vhs docs/tapes/install.tape
+vhs doc/tapes/install.tape
 # or
 just tape-install
 ```
 
-The generated recording is written to `docs/videos/install.gif`.
+The generated recording is written to `doc/assets/terminal/install.gif`.
 
 ## QUICKSTART
 
@@ -1011,15 +1011,15 @@ A different download folder can be supplied explicitly:
 update-cli init --project demo-app --downloads /srv/releases
 ```
 
-The downloadable quickstart recording is reproducibly generated from [`docs/tapes/quickstart.tape`](docs/tapes/quickstart.tape). It creates its own local demo ZIP and project tree, so it does not depend on external services:
+The downloadable quickstart recording is reproducibly generated from [`doc/tapes/quickstart.tape`](doc/tapes/quickstart.tape). It creates its own local demo ZIP and project tree, so it does not depend on external services:
 
 ```bash
-vhs docs/tapes/quickstart.tape
+vhs doc/tapes/quickstart.tape
 # or
 just tape-quickstart
 ```
 
-The recording is written to `docs/videos/quickstart.gif`.
+The recording is written to `doc/assets/terminal/quickstart.gif`.
 
 ### Bootstrap from a Git repository
 
