@@ -1,3 +1,7 @@
+# 3.4.14
+
+- Fix `show-alias` so `u version` and other explicit commands forward unchanged while bare `u` defaults to update.
+
 # 3.4.13
 
 - Disable interactive clipboard-copy prompts when --noui, --no-ui, --no-ask, or --json is specified, retaining failure logs and exit codes.
