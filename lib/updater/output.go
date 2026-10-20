@@ -135,6 +135,11 @@ var commandHelpDetails = map[string]commandHelp{
 		Description: "Repariert bekannte Legacy-Felder und sicher normalisierbare Konfigurations-/Manifestfehler mit Backup.",
 		Examples:    []string{"update-cli fix"},
 	},
+	"workflow": {
+		Usage:       []string{"update-cli workflow [--noui] [--root PATH]"},
+		Description: "Führt update, bootstrap, precommit, test, build und run nacheinander aus. Wenn das Release bereits installiert ist, wird nach update fortgesetzt.",
+		Examples:    []string{"update-cli workflow", "update-cli workflow --noui"},
+	},
 	"bootstrap": {
 		Usage:       []string{"update-cli bootstrap [--no-ui]"},
 		Description: "Führt den bootstrap-Workflow aus update-cli.yaml aus.",
