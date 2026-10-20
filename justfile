@@ -256,10 +256,10 @@ create-setup-script *args:
 # -----------------------------------------------------------------------------
 
 tape-install:
-    ./scripts/render-tapes.sh docs/tapes/install.tape
+    ./scripts/render-tapes.sh doc/tapes/install.tape
 
 tape-quickstart:
-    ./scripts/render-tapes.sh docs/tapes/quickstart.tape
+    ./scripts/render-tapes.sh doc/tapes/quickstart.tape
 
 tapes: tape-install tape-quickstart
 
