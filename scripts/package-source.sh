@@ -20,7 +20,7 @@ rsync -a \
   --exclude='/dist/' \
   --exclude='/.demo-install/' \
   --exclude='/.demo-quickstart/' \
-  --exclude='/docs/videos/' \
+  --exclude='/doc/assets/terminal/' \
   --exclude='/update-cli' \
   --exclude='/update-cli-*' \
   --exclude='/*.zip' \
@@ -30,7 +30,7 @@ rsync -a \
 required=(
   VERSION README.md RELEASE_NOTES.md go.mod main.go update-cli.yaml
   defaults/config.json defaults/templates.json
-  docs/tapes/install.tape docs/tapes/quickstart.tape scripts/render-tapes.sh scripts/validate-version.sh
+  doc/tapes/install.tape doc/tapes/quickstart.tape scripts/render-tapes.sh scripts/validate-version.sh
   lib/backup/backup.go lib/config/config.go lib/updater/updater.go lib/rsync/rsync.go
 )
 for rel in "${required[@]}"; do
