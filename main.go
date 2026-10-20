@@ -73,6 +73,7 @@ func main() {
 		os.Exit(1)
 	}
 }
+
 // nonInteractiveOutput selects commands that must never open a follow-up prompt.
 func nonInteractiveOutput(args []string) bool {
 	for _, arg := range args {
