@@ -1,9 +1,9 @@
 package updater
 
 import (
-	"testing"
 	"os"
 	"path/filepath"
+	"testing"
 
 	"github.com/r14r/update-cli/lib/config"
 )
