@@ -49,7 +49,11 @@ func TestMissingBootstrapWorkflowFallsBackToJustRecipe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasSuffix(strings.TrimSpace(string(result)), ":bootstrap") || !strings.HasPrefix(string(result), workdir+":") {
+	canonicalDir, err := filepath.EvalSymlinks(workdir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(strings.TrimSpace(string(result)), ":bootstrap") || !strings.HasPrefix(string(result), canonicalDir+":") {
 		t.Fatalf("unexpected fallback command: %s", result)
 	}
 }
