@@ -2,7 +2,7 @@
 
 **Transactional project updates from ZIP releases or Git repositories.**
 
-Current release: **3.4.14**
+Current release: **3.4.15**
 
 ### Bash update function `u`
 
