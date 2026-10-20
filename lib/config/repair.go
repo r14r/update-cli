@@ -885,6 +885,11 @@ func positiveNumber(value any) bool {
 }
 
 func normalizeNoParameterRepair(values []string) []string {
+	for _, value := range values {
+		if strings.EqualFold(strings.TrimSpace(value), "workflow") {
+			return []string{"workflow"}
+		}
+	}
 	seen := map[string]bool{}
 	for _, value := range values {
 		value = strings.ToLower(strings.TrimSpace(value))
