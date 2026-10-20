@@ -1,3 +1,7 @@
+# 3.4.12
+
+- Fix Go formatting in repository initialization tests and help output; unblock fmt-check during install.
+
 # 3.4.11
 
 - Add standalone `"no parameter": ["workflow"]` configuration.
