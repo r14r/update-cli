@@ -160,6 +160,11 @@ var commandHelpDetails = map[string]commandHelp{
 		Description: "Führt den Pre-Commit-Workflow des Projektmanifests aus.",
 		Examples:    []string{"update-cli precommit"},
 	},
+	"show-starter": {
+		Usage:       []string{"update-cli show-starter"},
+		Description: "Gibt ein vollständiges Schema-2-Startermanifest mit just-basierten Projekt-Workflows auf stdout aus.",
+		Examples:    []string{"update-cli show-starter", "update-cli show-starter > update-cli.yaml"},
+	},
 	"show-requirements": {
 		Usage:       []string{"update-cli show-requirements"},
 		Description: "Zeigt kopierbare Anforderungen für update-cli.yaml und justfile in neuen Projekten.",
