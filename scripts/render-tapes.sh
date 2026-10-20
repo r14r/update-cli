@@ -10,7 +10,7 @@ command -v vhs >/dev/null 2>&1 || {
 
 mkdir -p "$ROOT_DIR/docs/videos"
 if [[ $# -eq 0 ]]; then
-  set -- "$ROOT_DIR/docs/tapes/install.tape" "$ROOT_DIR/docs/tapes/quickstart.tape"
+  set -- "$ROOT_DIR/doc/tapes/install.tape" "$ROOT_DIR/doc/tapes/quickstart.tape"
 fi
 for tape in "$@"; do
   [[ "$tape" = /* ]] || tape="$ROOT_DIR/$tape"
