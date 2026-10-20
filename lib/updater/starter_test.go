@@ -18,10 +18,10 @@ func TestStarterManifest(t *testing.T) {
 			t.Errorf("starter manifest missing %q", part)
 		}
 	}
-	if err := ValidatePublicSyntax([]string{"show-starter"}); err != nil {
+	if err := ValidatePublicSyntax([]string{"generate-config"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := ValidatePublicSyntax([]string{"show-starter", "--root", "/tmp"}); err == nil {
-		t.Fatal("show-starter should reject parameters")
+	if err := ValidatePublicSyntax([]string{"generate-config", "--root", "/tmp"}); err == nil {
+		t.Fatal("generate-config should reject parameters")
 	}
 }
