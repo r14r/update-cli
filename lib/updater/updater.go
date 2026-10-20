@@ -2203,7 +2203,13 @@ func initialize(ctx context.Context, console *ui.Console, root string, o options
 		repository = strings.TrimSpace(o.fromRepository)
 	}
 	if repository != "" {
-		defaultUser := initRepositoryDefaultUser(root, configExists)
+		defaultUser := ""
+		if !strings.Contains(repository, "/") && !strings.Contains(repository, "://") {
+			defaultUser = initRepositoryDefaultUser(root, configExists)
+			if defaultUser == "" {
+				return fmt.Errorf("Repository %q enthält keinen Benutzernamen: source.defaultUser fehlt in der lokalen und globalen config.json; bitte source.defaultUser konfigurieren oder USER/REPO bzw. die vollständige GitHub-URL angeben", repository)
+			}
+		}
 		input := repository
 		repository, err = config.NormalizeRepositorySpec(repository, defaultUser)
 		if err != nil {
@@ -2312,7 +2318,7 @@ func initRepositoryDefaultUser(root string, configExists bool) string {
 			}
 		}
 	}
-	return config.DefaultRepositoryUser
+	return ""
 }
 
 func initSourceDescription(cfg config.Config) string {
