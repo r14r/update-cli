@@ -1,3 +1,7 @@
+# 3.4.17
+
+- Rename the starter manifest output command from `show-starter` to `generate-config`.
+
 # 3.4.16
 
 - Add `update-cli show-starter` to output a schemaVersion 2 starter manifest that maps supported project workflows to `just` recipes and defines `run.command: just run`.
