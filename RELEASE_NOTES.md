@@ -1,3 +1,10 @@
+# 3.4.19
+
+- Consolidate existing docs, screenshots and VHS tapes under `doc/`; remove the old `docs/` files.
+- Add a Jekyll documentation site with GitHub Pages Actions deployment from `doc/`.
+- Document project onboarding, commands, configuration, complete lifecycle and screenshot walkthroughs.
+- Update tape rendering paths, packaging, documentation links and tests.
+
 # 3.4.18
 
 - Rename `show-alias` to `generate-alias` for Bash function generation; update help, examples and tests.
