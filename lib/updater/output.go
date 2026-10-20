@@ -136,29 +136,29 @@ var commandHelpDetails = map[string]commandHelp{
 		Examples:    []string{"update-cli fix"},
 	},
 	"bootstrap": {
-		Usage: []string{"update-cli bootstrap [--no-ui]"},
+		Usage:       []string{"update-cli bootstrap [--no-ui]"},
 		Description: "Führt den bootstrap-Workflow aus update-cli.yaml aus.",
-		Examples: []string{"update-cli bootstrap"},
+		Examples:    []string{"update-cli bootstrap"},
 	},
 	"test": {
-		Usage: []string{"update-cli test [--no-ui]"},
+		Usage:       []string{"update-cli test [--no-ui]"},
 		Description: "Führt Tests und Prüfungen für das Projekt aus.",
-		Examples: []string{"update-cli test"},
+		Examples:    []string{"update-cli test"},
 	},
 	"build": {
-		Usage: []string{"update-cli build [--no-ui]"},
+		Usage:       []string{"update-cli build [--no-ui]"},
 		Description: "Führt den build-Workflow des Projektmanifests aus.",
-		Examples: []string{"update-cli build"},
+		Examples:    []string{"update-cli build"},
 	},
 	"ci": {
-		Usage: []string{"update-cli ci [--no-ui]"},
+		Usage:       []string{"update-cli ci [--no-ui]"},
 		Description: "Führt den CI-Workflow des Projektmanifests aus.",
-		Examples: []string{"update-cli ci"},
+		Examples:    []string{"update-cli ci"},
 	},
 	"precommit": {
-		Usage: []string{"update-cli precommit [--no-ui]"},
+		Usage:       []string{"update-cli precommit [--no-ui]"},
 		Description: "Führt den Pre-Commit-Workflow des Projektmanifests aus.",
-		Examples: []string{"update-cli precommit"},
+		Examples:    []string{"update-cli precommit"},
 	},
 	"show-requirements": {
 		Usage:       []string{"update-cli show-requirements"},
@@ -166,14 +166,14 @@ var commandHelpDetails = map[string]commandHelp{
 		Examples:    []string{"update-cli show-requirements"},
 	},
 	"show-alias": {
-		Usage: []string{"update-cli show-alias"},
+		Usage:       []string{"update-cli show-alias"},
 		Description: "Zeigt eine Bash-Funktion, die Updates sicher aus current/ ausführt und das ursprüngliche Verzeichnis wiederherstellt.",
-		Examples: []string{"update-cli show-alias", "eval \"$(update-cli show-alias)\"", "u --setup --noui"},
+		Examples:    []string{"update-cli show-alias", "eval \"$(update-cli show-alias)\"", "u --setup --noui"},
 	},
 	"git": {
-		Usage: []string{"update-cli git status", "update-cli git add", "update-cli git commit <message>", "update-cli git push"},
+		Usage:       []string{"update-cli git status", "update-cli git add", "update-cli git commit <message>", "update-cli git push"},
 		Description: "Führt die unterstützten Git-Befehle im aktuellen Repository aus.",
-		Examples: []string{"update-cli git status", "update-cli git add", "update-cli git commit \"Update documentation\"", "update-cli git push"},
+		Examples:    []string{"update-cli git status", "update-cli git add", "update-cli git commit \"Update documentation\"", "update-cli git push"},
 	},
 	"install": {
 		Usage:       []string{"update-cli install"},
