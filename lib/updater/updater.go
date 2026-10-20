@@ -77,7 +77,9 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 		return nil
 	}
 	if args[0] == "show-alias" {
-		if len(args) != 1 { return &ExitError{Code: 2, Err: fmt.Errorf("show-alias akzeptiert keine Parameter")} }
+		if len(args) != 1 {
+			return &ExitError{Code: 2, Err: fmt.Errorf("show-alias akzeptiert keine Parameter")}
+		}
 		fmt.Print(BashUpdateAlias())
 		return nil
 	}
