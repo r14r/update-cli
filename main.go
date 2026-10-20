@@ -49,7 +49,7 @@ func main() {
 		}
 		if runErr != nil {
 			var unsafe *updater.UnsafeWorkingDirectoryError
-			if !errors.As(runErr, &unsafe) {
+			if !errors.As(runErr, &unsafe) && !nonInteractiveOutput(os.Args[1:]) {
 				askCopyFailureLog(logPath)
 			}
 		}
