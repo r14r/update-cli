@@ -952,12 +952,31 @@ func runNoParameter(ctx context.Context, buildVersion string, debug bool) (retEr
 // runDefaultWorkflow executes an explicit, unattended release lifecycle.
 // The candidate is updated before bootstrap, quality checks, build and install.
 // Run starts the deployed application only after a successful install.
-func runDefaultWorkflow(ctx context.Context, buildVersion, root string, debug, noUI bool) error {
+func runDefaultWorkflow(ctx context.Context, buildVersion, root string, debug, noUI bool) (retErr error) {
 	stages := []string{"update", "bootstrap", "install", "precommit", "test", "build", "run"}
-	for _, stage := range stages {
-		fmt.Printf("\n==> Workflow: %s\n", stage)
-		args := []string{stage, "--root", root}
-		if noUI {
+	console := ui.New(false)
+	shared := !noUI && !debug && console.StartFullscreen(fmt.Sprintf("Update CLI Version %s — Workflow", buildVersion))
+	if shared {
+		ctx = context.WithValue(ctx, lifecycleUIContextKey{}, console)
+		defer func() {
+			if retErr != nil && !console.ErrorShown() {
+				console.ErrorNotice("Workflow fehlgeschlagen", retErr.Error())
+			}
+			console.FinishFullscreen(retErr == nil, false)
+		}()
+	}
+	for index, stage := range stages {
+		title := fmt.Sprintf("Update CLI Version %s — Workflow [%d/%d] %s", buildVersion, index+1, len(stages), strings.ToUpper(stage))
+		if shared {
+			// Reuse one alternate screen. Changing the title resets the
+			// previous phase's content while keeping the current step visible.
+			console.StartFullscreen(title)
+			console.SetFooter("RUN  " + stage)
+		} else {
+			fmt.Printf("\n==> Workflow [%d/%d]: %s\n", index+1, len(stages), stage)
+		}
+		args := []string{stage, "--root", root, "--no-wait"}
+		if noUI || debug {
 			args = append(args, "--noui")
 		}
 		if debug {
@@ -966,7 +985,11 @@ func runDefaultWorkflow(ctx context.Context, buildVersion, root string, debug, n
 		if err := Run(ctx, buildVersion, args); err != nil {
 			var already *VersionAlreadyInstalledError
 			if stage == "update" && errors.As(err, &already) {
-				fmt.Printf("SKIP  %s; lokales Release bereits vorhanden\n", already.Error())
+				if shared {
+					console.Info("Bereits installiert: " + already.Error())
+				} else {
+					fmt.Printf("SKIP  %s; lokales Release bereits vorhanden\n", already.Error())
+				}
 				continue
 			}
 			return fmt.Errorf("Workflow-Phase %s fehlgeschlagen: %w", stage, err)
