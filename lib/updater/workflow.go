@@ -7,15 +7,16 @@ import (
 	"strings"
 
 	"github.com/r14r/update-cli/lib/ui"
+	"github.com/r14r/update-cli/lib/config"
 )
 
 // parseWorkflowArguments isolates CLI parsing from the lifecycle executor.
-func parseWorkflowArguments(args []string) (root string, debug, noUI bool, err error) {
+func parseWorkflowArguments(args []string) (root string, debug, noUI, pipeline, plan bool, err error) {
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
 		if value, ok := strings.CutPrefix(arg, "--root="); ok {
 			if strings.TrimSpace(value) == "" {
-				return "", false, false, fmt.Errorf("--root benötigt einen Pfad")
+				return "", false, false, false, false, fmt.Errorf("--root benötigt einen Pfad")
 			}
 			root = value
 			continue
@@ -23,10 +24,14 @@ func parseWorkflowArguments(args []string) (root string, debug, noUI bool, err e
 		switch arg {
 		case "--root", "-r":
 			if i+1 >= len(args) || strings.TrimSpace(args[i+1]) == "" || strings.HasPrefix(args[i+1], "-") {
-				return "", false, false, fmt.Errorf("--root benötigt einen gültigen Pfad")
+				return "", false, false, false, false, fmt.Errorf("--root benötigt einen gültigen Pfad")
 			}
 			i++
 			root = args[i]
+		case "--pipeline":
+			pipeline = true
+		case "--plan":
+			plan = true
 		case "--no-wait":
 			// No prompts are shown between workflow phases.
 		case "--debug":
@@ -34,10 +39,10 @@ func parseWorkflowArguments(args []string) (root string, debug, noUI bool, err e
 		case "--noui", "--no-ui":
 			noUI = true
 		default:
-			return "", false, false, fmt.Errorf("workflow unterstützt nur --root, --debug, --noui und --no-wait")
+			return "", false, false, false, false, fmt.Errorf("workflow unterstützt nur --root, --debug, --noui und --no-wait")
 		}
 	}
-	return root, debug, noUI, nil
+	return root, debug, noUI, pipeline, plan, nil
 }
 
 // workflowStages returns a fresh slice so callers cannot mutate the sequence.
@@ -45,8 +50,32 @@ func workflowStages() []string {
 	return []string{"update", "bootstrap", "install", "precommit", "test", "build", "run"}
 }
 
-func runDefaultWorkflow(ctx context.Context, buildVersion, root string, debug, noUI bool) (retErr error) {
+// deploymentStages performs quality checks before installation and verifies health after startup.
+// Note: update activation remains governed by the existing transaction layer.
+func deploymentStages() []string {
+	return []string{"update", "bootstrap", "precommit", "test", "build", "install", "run", "healthcheck"}
+}
+
+func runWorkflowHealthcheck(ctx context.Context, root string) error {
+	cfg, err := config.Load(root)
+	if err != nil {
+		return fmt.Errorf("Healthcheck-Konfiguration: %w", err)
+	}
+	if cfg.Healthcheck.Type == "" || cfg.Healthcheck.Type == "none" {
+		return fmt.Errorf("Deployment-Workflow benötigt einen konfigurierten Healthcheck")
+	}
+	return runHealthcheck(ctx, cfg)
+}
+
+func runDefaultWorkflow(ctx context.Context, buildVersion, root string, debug, noUI bool) error {
+	return executeWorkflow(ctx, buildVersion, root, debug, noUI, false)
+}
+
+func executeWorkflow(ctx context.Context, buildVersion, root string, debug, noUI, pipeline bool) (retErr error) {
 	stages := workflowStages()
+	if pipeline {
+		stages = deploymentStages()
+	}
 	console := ui.New(false)
 	shared := !noUI && !debug && console.StartFullscreen(fmt.Sprintf("Update CLI Version %s — Workflow", buildVersion))
 	if shared {
@@ -75,7 +104,13 @@ func runDefaultWorkflow(ctx context.Context, buildVersion, root string, debug, n
 		if debug {
 			args = append(args, "--debug")
 		}
-		if err := Run(ctx, buildVersion, args); err != nil {
+		var err error
+		if stage == "healthcheck" {
+			err = runWorkflowHealthcheck(ctx, root)
+		} else {
+			err = Run(ctx, buildVersion, args)
+		}
+		if err != nil {
 			var already *VersionAlreadyInstalledError
 			if stage == "update" && errors.As(err, &already) {
 				if shared {
