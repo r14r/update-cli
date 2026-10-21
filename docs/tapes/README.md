@@ -9,8 +9,8 @@ just tapes
 or render one recording directly:
 
 ```bash
-vhs doc/tapes/install.tape
-vhs doc/tapes/quickstart.tape
+vhs docs/tapes/install.tape
+vhs docs/tapes/quickstart.tape
 ```
 
-Outputs are written to `doc/assets/terminal/`. The install recording sets `UPDATE_CLI_INSTALL_BIN_DIR` to `.demo-install/bin`, so it never writes to `/usr/local`. The quickstart recording creates its release ZIP and project below `.demo-quickstart/`. Both directories are disposable.
+Outputs are written to `docs/assets/terminal/`. The install recording sets `UPDATE_CLI_INSTALL_BIN_DIR` to `.demo-install/bin`, so it never writes to `/usr/local`. The quickstart recording creates its release ZIP and project below `.demo-quickstart/`. Both directories are disposable.
