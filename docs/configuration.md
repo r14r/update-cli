@@ -82,4 +82,4 @@ update-cli schema --view
 update-cli setup --list
 ```
 
-See also [schema documentation]({{ '/setup-schema/' | relative_url }}) and [real manifests](https://github.com/r14r/update-cli/tree/main/doc/examples).
+See also [schema documentation]({{ '/setup-schema/' | relative_url }}) and [real manifests](https://github.com/r14r/update-cli/tree/main/docs/examples).
