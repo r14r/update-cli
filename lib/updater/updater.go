@@ -70,7 +70,7 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 		return runNoParameter(ctx, buildVersion, false)
 	}
 	if args[0] == "workflow" {
-		rootArg, debug, noUI, parseErr := parseWorkflowArguments(args[1:])
+		rootArg, debug, noUI, pipeline, plan, parseErr := parseWorkflowArguments(args[1:])
 		if parseErr != nil {
 			return &ExitError{Code: 2, Err: parseErr}
 		}
@@ -78,7 +78,17 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 		if err != nil {
 			return err
 		}
-		return runDefaultWorkflow(ctx, buildVersion, root, debug, noUI)
+				if plan {
+			stages := workflowStages()
+			if pipeline {
+				stages = deploymentStages()
+			}
+			for i, stage := range stages {
+				fmt.Printf("[%d/%d] %s\n", i+1, len(stages), stage)
+			}
+			return nil
+		}
+		return executeWorkflow(ctx, buildVersion, root, debug, noUI, pipeline)
 	}
 	if args[0] == "generate-config" {
 		if len(args) != 1 {
