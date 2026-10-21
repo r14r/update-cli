@@ -72,6 +72,15 @@ func runDefaultWorkflow(ctx context.Context, buildVersion, root string, debug, n
 }
 
 func executeWorkflow(ctx context.Context, buildVersion, root string, debug, noUI, pipeline bool) (retErr error) {
+	if pipeline {
+		cfg, err := config.Load(root, "")
+		if err != nil {
+			return fmt.Errorf("Deployment-Konfiguration: %w", err)
+		}
+		if cfg.Healthcheck.Type == "" || cfg.Healthcheck.Type == "none" {
+			return fmt.Errorf("Deployment-Pipeline benötigt einen konfigurierten Healthcheck (healthcheck.type)")
+		}
+	}
 	stages := workflowStages()
 	if pipeline {
 		stages = deploymentStages()
