@@ -1,3 +1,9 @@
+# 3.4.23
+
+- Reuse a single workflow fullscreen interface across stages; update the stage title and clear previous output automatically.
+- Disable ENTER confirmation between workflow stages using shared screen and no-wait phase execution.
+- Preserve noninteractive --noui terminal output.
+
 # 3.4.22
 
 - Fix stale terminal tape assertions in project_files_test.go after docs/ to doc/ migration.
