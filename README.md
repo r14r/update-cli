@@ -2,11 +2,15 @@
 
 **Transactional project updates from ZIP releases or Git repositories.**
 
-Current release: **3.4.24**
+Current release: **3.4.25**
 
 ## Latest code review
 
 See [Code Review 2026-10-21](docs/code-review-2026-10-21.md) for prioritized safety, architecture and workflow recommendations.
+
+## Optional deployment pipeline
+
+`update-cli workflow --pipeline --plan` previews an opt-in sequence: update, bootstrap, precommit, test, build, install, run, healthcheck. Run with `--pipeline` only after configuring a healthcheck. The update command still activates before validation; this is **not yet** a fully staged or automatically rollback-capable deployment. See [pipeline documentation](docs/deployment-pipeline.md).
 
 ## Documentation website
 
