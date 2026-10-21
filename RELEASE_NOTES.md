@@ -1,3 +1,7 @@
+# 3.4.21
+
+- Insert install immediately before precommit in the workflow sequence: update, bootstrap, install, precommit, test, build, run.
+
 # 3.4.20
 
 - Introduce `update-cli workflow`: update → bootstrap → precommit → test → build → run.
