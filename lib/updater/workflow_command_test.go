@@ -23,8 +23,17 @@ func TestWorkflowPublicSyntax(t *testing.T) {
 }
 
 func TestWorkflowStageOrderInSource(t *testing.T) {
-	stages := []string{"update", "bootstrap", "install", "precommit", "test", "build", "run"}
+	stages := workflowStages()
 	if strings.Join(stages, ",") != "update,bootstrap,install,precommit,test,build,run" {
 		t.Fatal("unexpected workflow order")
+	}
+}
+
+func TestWorkflowStagesAreNotShared(t *testing.T) {
+	first := workflowStages()
+	first[0] = "corrupted"
+	second := workflowStages()
+	if second[0] != "update" {
+		t.Fatal("workflow stages must be independent")
 	}
 }
