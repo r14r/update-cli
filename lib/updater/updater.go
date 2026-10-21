@@ -70,42 +70,15 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 		return runNoParameter(ctx, buildVersion, false)
 	}
 	if args[0] == "workflow" {
-		root := ""
-		debug := false
-		noUI := false
-		for i := 1; i < len(args); i++ {
-			if value, ok := strings.CutPrefix(args[i], "--root="); ok {
-				if strings.TrimSpace(value) == "" {
-					return &ExitError{Code: 2, Err: fmt.Errorf("--root benötigt einen Pfad")}
-				}
-				root = value
-				continue
-			}
-			switch args[i] {
-			case "--root", "-r":
-				if i+1 >= len(args) {
-					return &ExitError{Code: 2, Err: fmt.Errorf("--root benötigt einen Pfad")}
-				}
-				if strings.HasPrefix(args[i+1], "-") {
-					return &ExitError{Code: 2, Err: fmt.Errorf("--root benötigt einen gültigen Pfad")}
-				}
-				i++
-				root = args[i]
-			case "--no-wait":
-				// Workflow stages already advance automatically.
-			case "--debug":
-				debug = true
-			case "--noui", "--no-ui":
-				noUI = true
-			default:
-				return &ExitError{Code: 2, Err: fmt.Errorf("workflow unterstützt nur --root, --debug und --noui")}
-			}
+		rootArg, debug, noUI, parseErr := parseWorkflowArguments(args[1:])
+		if parseErr != nil {
+			return &ExitError{Code: 2, Err: parseErr}
 		}
-		resolved, err := config.ResolveRoot(root)
+		root, err := config.ResolveRoot(rootArg)
 		if err != nil {
 			return err
 		}
-		return runDefaultWorkflow(ctx, buildVersion, resolved, debug, noUI)
+		return runDefaultWorkflow(ctx, buildVersion, root, debug, noUI)
 	}
 	if args[0] == "generate-config" {
 		if len(args) != 1 {
@@ -967,57 +940,6 @@ func runNoParameter(ctx context.Context, buildVersion string, debug bool) (retEr
 // runDefaultWorkflow executes an explicit, unattended release lifecycle.
 // The candidate is updated before bootstrap, quality checks, build and install.
 // Run starts the deployed application only after a successful install.
-// workflowStages returns a fresh slice so callers cannot mutate the sequence.
-func workflowStages() []string {
-	return []string{"update", "bootstrap", "install", "precommit", "test", "build", "run"}
-}
-
-func runDefaultWorkflow(ctx context.Context, buildVersion, root string, debug, noUI bool) (retErr error) {
-	stages := workflowStages()
-	console := ui.New(false)
-	shared := !noUI && !debug && console.StartFullscreen(fmt.Sprintf("Update CLI Version %s — Workflow", buildVersion))
-	if shared {
-		ctx = context.WithValue(ctx, lifecycleUIContextKey{}, console)
-		defer func() {
-			if retErr != nil && !console.ErrorShown() {
-				console.ErrorNotice("Workflow fehlgeschlagen", retErr.Error())
-			}
-			console.FinishFullscreen(retErr == nil, false)
-		}()
-	}
-	for index, stage := range stages {
-		title := fmt.Sprintf("Update CLI Version %s — Workflow [%d/%d] %s", buildVersion, index+1, len(stages), strings.ToUpper(stage))
-		if shared {
-			// Reuse one alternate screen. Changing the title resets the
-			// previous phase's content while keeping the current step visible.
-			console.StartFullscreen(title)
-			console.SetFooter("RUN  " + stage)
-		} else {
-			fmt.Printf("\n==> Workflow [%d/%d]: %s\n", index+1, len(stages), stage)
-		}
-		args := []string{stage, "--root", root, "--no-wait"}
-		if noUI || debug {
-			args = append(args, "--noui")
-		}
-		if debug {
-			args = append(args, "--debug")
-		}
-		if err := Run(ctx, buildVersion, args); err != nil {
-			var already *VersionAlreadyInstalledError
-			if stage == "update" && errors.As(err, &already) {
-				if shared {
-					console.Info("Bereits installiert: " + already.Error())
-				} else {
-					fmt.Printf("SKIP  %s; lokales Release bereits vorhanden\n", already.Error())
-				}
-				continue
-			}
-			return fmt.Errorf("Workflow-Phase %s fehlgeschlagen: %w", stage, err)
-		}
-	}
-	return nil
-}
-
 // In headless mode optional lifecycle stages are skipped unless invoked explicitly.
 func confirmLifecycleStage(console *ui.Console, question string) (bool, error) {
 	if console != nil && console.Fullscreen() {
