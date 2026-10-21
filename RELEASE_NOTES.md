@@ -1,3 +1,8 @@
+# 3.4.22
+
+- Fix stale terminal tape assertions in project_files_test.go after docs/ to doc/ migration.
+- Keep integration setup tests intact; their console output is emitted when the overall package test fails.
+
 # 3.4.21
 
 - Insert install immediately before precommit in the workflow sequence: update, bootstrap, install, precommit, test, build, run.
