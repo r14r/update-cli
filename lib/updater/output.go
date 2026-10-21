@@ -137,7 +137,7 @@ var commandHelpDetails = map[string]commandHelp{
 	},
 	"workflow": {
 		Usage:       []string{"update-cli workflow [--noui] [--root PATH]"},
-		Description: "Führt update, bootstrap, precommit, test, build und run nacheinander aus. Wenn das Release bereits installiert ist, wird nach update fortgesetzt.",
+		Description: "Führt update, bootstrap, install, precommit, test, build und run nacheinander aus. Wenn das Release bereits installiert ist, wird nach update fortgesetzt.",
 		Examples:    []string{"update-cli workflow", "update-cli workflow --noui"},
 	},
 	"bootstrap": {
