@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'doc/**'
+      - 'docs/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -29,10 +29,10 @@ jobs:
         with:
           ruby-version: '3.3'
           bundler-cache: true
-          working-directory: doc
+          working-directory: docs
       - uses: actions/configure-pages@v5
       - name: Build Jekyll from doc
-        working-directory: doc
+        working-directory: docs
         run: bundle exec jekyll build --destination ../_site
       - uses: actions/upload-pages-artifact@v3
         with:
