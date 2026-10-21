@@ -2,7 +2,11 @@
 
 **Transactional project updates from ZIP releases or Git repositories.**
 
-Current release: **3.4.23**
+Current release: **3.4.24**
+
+## Latest code review
+
+See [Code Review 2026-10-21](doc/code-review-2026-10-21.md) for prioritized safety, architecture and workflow recommendations.
 
 ## Documentation website
 
