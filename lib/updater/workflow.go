@@ -57,7 +57,7 @@ func deploymentStages() []string {
 }
 
 func runWorkflowHealthcheck(ctx context.Context, root string) error {
-	cfg, err := config.Load(root)
+	cfg, err := config.Load(root, "")
 	if err != nil {
 		return fmt.Errorf("Healthcheck-Konfiguration: %w", err)
 	}
