@@ -719,7 +719,7 @@ func TestReadmeCLIDemoTapesAndCanonicalSetupInstall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, marker := range []string{"## INSTALL", "## QUICKSTART", "doc/tapes/install.tape", "doc/tapes/quickstart.tape", "just tapes"} {
+	for _, marker := range []string{"## INSTALL", "## QUICKSTART", "docs/tapes/install.tape", "docs/tapes/quickstart.tape", "just tapes"} {
 		if !strings.Contains(string(readme), marker) {
 			t.Fatalf("README missing %q", marker)
 		}
