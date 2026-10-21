@@ -1,6 +1,7 @@
 package updater
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
@@ -10,6 +11,8 @@ func TestWorkflowPublicSyntax(t *testing.T) {
 		{"workflow"},
 		{"workflow", "--noui"},
 		{"workflow", "--root", "/tmp/project"},
+		{"workflow", "--root=/tmp/project"},
+		{"workflow", "--no-wait"},
 		{"workflow", "--debug", "--no-ui"},
 	}
 	for _, args := range valid {
@@ -35,5 +38,18 @@ func TestWorkflowStagesAreNotShared(t *testing.T) {
 	second := workflowStages()
 	if second[0] != "update" {
 		t.Fatal("workflow stages must be independent")
+	}
+}
+
+func TestWorkflowMissingRootArgument(t *testing.T) {
+	for _, args := range [][]string{
+		{"workflow", "--root"},
+		{"workflow", "--root="},
+		{"workflow", "--root", "--noui"},
+	} {
+		err := Run(context.Background(), "test", args)
+		if err == nil {
+			t.Errorf("%v: expected missing root error", args)
+		}
 	}
 }
