@@ -79,6 +79,9 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 				if i+1 >= len(args) {
 					return &ExitError{Code: 2, Err: fmt.Errorf("--root benötigt einen Pfad")}
 				}
+				if strings.HasPrefix(args[i+1], "-") {
+					return &ExitError{Code: 2, Err: fmt.Errorf("--root benötigt einen gültigen Pfad")}
+				}
 				i++
 				root = args[i]
 			case "--debug":
@@ -955,8 +958,13 @@ func runNoParameter(ctx context.Context, buildVersion string, debug bool) (retEr
 // runDefaultWorkflow executes an explicit, unattended release lifecycle.
 // The candidate is updated before bootstrap, quality checks, build and install.
 // Run starts the deployed application only after a successful install.
+// workflowStages returns a fresh slice so callers cannot mutate the sequence.
+func workflowStages() []string {
+	return []string{"update", "bootstrap", "install", "precommit", "test", "build", "run"}
+}
+
 func runDefaultWorkflow(ctx context.Context, buildVersion, root string, debug, noUI bool) (retErr error) {
-	stages := []string{"update", "bootstrap", "install", "precommit", "test", "build", "run"}
+	stages := workflowStages()
 	console := ui.New(false)
 	shared := !noUI && !debug && console.StartFullscreen(fmt.Sprintf("Update CLI Version %s — Workflow", buildVersion))
 	if shared {
