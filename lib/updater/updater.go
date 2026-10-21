@@ -207,6 +207,9 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 	case o.update && !o.plan && !o.dryRun:
 		fullscreenTitle = fullscreenBase + " — Update"
 	}
+	if usingSharedConsole && sharedConsole != nil && sharedConsole.Fullscreen() {
+		fullscreenTitle = sharedConsole.Title()
+	}
 	fullscreen := false
 	if fullscreenTitle != "" && !o.jsonOutput {
 		fullscreen = console.StartFullscreen(fullscreenTitle)
