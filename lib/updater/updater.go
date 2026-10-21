@@ -953,7 +953,7 @@ func runNoParameter(ctx context.Context, buildVersion string, debug bool) (retEr
 // The candidate is updated before bootstrap, quality checks, build and install.
 // Run starts the deployed application only after a successful install.
 func runDefaultWorkflow(ctx context.Context, buildVersion, root string, debug, noUI bool) error {
-	stages := []string{"update", "bootstrap", "precommit", "test", "build", "run"}
+	stages := []string{"update", "bootstrap", "install", "precommit", "test", "build", "run"}
 	for _, stage := range stages {
 		fmt.Printf("\n==> Workflow: %s\n", stage)
 		args := []string{stage, "--root", root}
