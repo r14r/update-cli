@@ -53,3 +53,30 @@ func TestWorkflowMissingRootArgument(t *testing.T) {
 		}
 	}
 }
+
+func TestParseWorkflowArguments(t *testing.T) {
+	cases := []struct {
+		args []string
+		root string
+		debug bool
+		noUI bool
+	}{
+		{args: nil},
+		{args: []string{"--root", "/tmp/project"}, root: "/tmp/project"},
+		{args: []string{"--root=/tmp/project", "--no-ui"}, root: "/tmp/project", noUI: true},
+		{args: []string{"--debug", "--noui", "--no-wait"}, debug: true, noUI: true},
+	}
+	for _, tc := range cases {
+		root, debug, noUI, err := parseWorkflowArguments(tc.args)
+		if err != nil || root != tc.root || debug != tc.debug || noUI != tc.noUI {
+			t.Errorf("%v: got root=%q debug=%v noUI=%v err=%v", tc.args, root, debug, noUI, err)
+		}
+	}
+	for _, args := range [][]string{
+		{"--root"}, {"--root="}, {"--root", "--noui"}, {"--invalid"},
+	} {
+		if _, _, _, err := parseWorkflowArguments(args); err == nil {
+			t.Errorf("%v: expected argument error", args)
+		}
+	}
+}
