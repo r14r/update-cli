@@ -89,3 +89,18 @@ func TestDeploymentStageOrder(t *testing.T) {
 		t.Fatalf("deployment pipeline = %q, want %q", got, want)
 	}
 }
+
+func TestParseDeploymentOptions(t *testing.T) {
+	_, _, _, pipeline, plan, err := parseWorkflowArguments([]string{"--pipeline", "--plan"})
+	if err != nil || !pipeline || !plan {
+		t.Fatalf("pipeline=%v plan=%v err=%v", pipeline, plan, err)
+	}
+}
+
+func TestDeploymentStagesAreIndependent(t *testing.T) {
+	first := deploymentStages()
+	first[0] = "unexpected"
+	if deploymentStages()[0] != "update" {
+		t.Fatal("deploymentStages returned shared storage")
+	}
+}
