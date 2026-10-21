@@ -1,3 +1,10 @@
+# 3.4.24
+
+- Extract workflow execution and CLI parsing into lib/updater/workflow.go.
+- Improve argument validation for --root and support --root=PATH with independent regression tests.
+- Replace the placeholder workflow-order test with a check of the actual stage sequence.
+- Publish a prioritized architecture, safety and feature-gap review in doc/code-review-2026-10-21.md.
+
 # 3.4.23
 
 - Reuse a single workflow fullscreen interface across stages; update the stage title and clear previous output automatically.
