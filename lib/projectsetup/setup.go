@@ -134,6 +134,13 @@ func runManifestSelected(ctx context.Context, c config.Config, console *ui.Conso
 		m.ProjectType = strings.TrimSpace(c.ProjectType)
 	}
 	if m.Version == 2 {
+		// Older manifests may provide a bootstrap just recipe without the
+		// newer bootstrap workflow. Only this missing workflow can fall back.
+		if selection.Workflow == "bootstrap" {
+			if _, exists := m.Workflows["bootstrap"]; !exists && hasJustfile(c.CurrentDir) {
+				return runBootstrapJustFallback(ctx, c.CurrentDir, path, console)
+			}
+		}
 		return runManifestV2(ctx, c.CurrentDir, m, console, path, selection)
 	}
 	if selection.Task != "" || selection.Workflow != "" {
