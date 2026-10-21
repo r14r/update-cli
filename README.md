@@ -2,15 +2,51 @@
 
 **Transactional project updates from ZIP releases or Git repositories.**
 
-Current release: **3.4.14**
+Current release: **3.4.25**
+
+## Latest code review
+
+See [Code Review 2026-10-21](docs/code-review-2026-10-21.md) for prioritized safety, architecture and workflow recommendations.
+
+## Optional deployment pipeline
+
+`update-cli workflow --pipeline --plan` previews an opt-in sequence: update, bootstrap, precommit, test, build, install, run, healthcheck. Run with `--pipeline` only after configuring a healthcheck. The update command still activates before validation; this is **not yet** a fully staged or automatically rollback-capable deployment. See [pipeline documentation](docs/deployment-pipeline.md).
+
+## Documentation website
+
+The complete documentation source is maintained under [`docs/`](docs/), including:
+
+- [Getting started](docs/getting-started.md) with initialization, update and setup screenshots
+- [CLI commands](docs/commands.md), [configuration](docs/configuration.md) and [walkthrough](docs/tutorials.md)
+- [Setup schema](docs/setup-schema.md), [precommit](docs/precommit.md) and [lifecycle](docs/lifecycle.md)
+- [Terminal demos](docs/terminal-demos.md) and [VHS scripts](docs/tapes/README.md)
+
+The Jekyll website is deployed by [GitHub Actions](.github/workflows/pages.yml) from `docs/` to **https://r14r.github.io/update-cli/** once GitHub Pages is configured to use GitHub Actions.
+
+To preview locally:
+
+```bash
+cd docs
+bundle install
+bundle exec jekyll serve
+```
+
+To generate terminal animations from the repository root (requires VHS and a working local build):
+
+```bash
+just build
+just tapes
+```
+
+This generates recordings under `docs/assets/terminal/`. Review output for secrets and accuracy before publishing.
 
 ### Bash update function `u`
 
-Use `update-cli show-alias` to print the Bash helper, or load it into the current Bash session:
+Use `update-cli generate-alias` to print the Bash helper, or load it into the current Bash session:
 
 ```bash
-eval "$(update-cli show-alias)"
-u --setup --noui
+eval "$(update-cli generate-alias)"
+u update --setup --noui
 ```
 
 The function temporarily runs the update from the project root when invoked from `current/` or a descendant, forwards every parameter unchanged and preserves the calling shell's working directory. It replaces an existing Bash alias named `u`.
@@ -520,7 +556,7 @@ Render both with:
 just tapes
 ```
 
-Generated recordings are written to `docs/videos/`. The INSTALL tape uses `UPDATE_CLI_INSTALL_BIN_DIR` so it installs into a disposable project-local demo prefix instead of modifying `/usr/local`.
+Generated recordings are written to `docs/assets/terminal/`. The INSTALL tape uses `UPDATE_CLI_INSTALL_BIN_DIR` so it installs into a disposable project-local demo prefix instead of modifying `/usr/local`.
 
 ## What changed in 2.13.1
 
@@ -952,7 +988,7 @@ vhs docs/tapes/install.tape
 just tape-install
 ```
 
-The generated recording is written to `docs/videos/install.gif`.
+The generated recording is written to `docs/assets/terminal/install.gif`.
 
 ## QUICKSTART
 
@@ -1019,7 +1055,7 @@ vhs docs/tapes/quickstart.tape
 just tape-quickstart
 ```
 
-The recording is written to `docs/videos/quickstart.gif`.
+The recording is written to `docs/assets/terminal/quickstart.gif`.
 
 ### Bootstrap from a Git repository
 

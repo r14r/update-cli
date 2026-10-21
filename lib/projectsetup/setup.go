@@ -134,16 +134,6 @@ func runManifestSelected(ctx context.Context, c config.Config, console *ui.Conso
 		m.ProjectType = strings.TrimSpace(c.ProjectType)
 	}
 	if m.Version == 2 {
-		// The default no-argument update lifecycle invokes a bootstrap phase.
-		// Older setup manifests may not declare that workflow even though the
-		// project already provides the conventional "just bootstrap" recipe.
-		// Fall back only for that exact missing workflow, never for arbitrary
-		// unknown workflow names or for a declared (but failing) bootstrap.
-		if selection.Workflow == "bootstrap" {
-			if _, exists := m.Workflows["bootstrap"]; !exists && hasJustfile(c.CurrentDir) {
-				return runBootstrapJustFallback(ctx, c.CurrentDir, path, console)
-			}
-		}
 		return runManifestV2(ctx, c.CurrentDir, m, console, path, selection)
 	}
 	if selection.Task != "" || selection.Workflow != "" {

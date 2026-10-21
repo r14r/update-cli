@@ -135,6 +135,11 @@ var commandHelpDetails = map[string]commandHelp{
 		Description: "Repariert bekannte Legacy-Felder und sicher normalisierbare Konfigurations-/Manifestfehler mit Backup.",
 		Examples:    []string{"update-cli fix"},
 	},
+	"workflow": {
+		Usage:       []string{"update-cli workflow [--noui] [--root PATH] [--plan] [--pipeline]"},
+		Description: "Führt update, bootstrap, install, precommit, test, build und run nacheinander aus. Wenn das Release bereits installiert ist, wird nach update fortgesetzt.",
+		Examples:    []string{"update-cli workflow", "update-cli workflow --plan", "update-cli workflow --pipeline --plan", "update-cli workflow --pipeline --noui"},
+	},
 	"bootstrap": {
 		Usage:       []string{"update-cli bootstrap [--no-ui]"},
 		Description: "Führt den bootstrap-Workflow aus update-cli.yaml aus.",
@@ -160,15 +165,20 @@ var commandHelpDetails = map[string]commandHelp{
 		Description: "Führt den Pre-Commit-Workflow des Projektmanifests aus.",
 		Examples:    []string{"update-cli precommit"},
 	},
+	"generate-config": {
+		Usage:       []string{"update-cli generate-config"},
+		Description: "Gibt ein vollständiges Schema-2-Startermanifest mit just-basierten Projekt-Workflows auf stdout aus.",
+		Examples:    []string{"update-cli generate-config", "update-cli generate-config > update-cli.yaml"},
+	},
 	"show-requirements": {
 		Usage:       []string{"update-cli show-requirements"},
 		Description: "Zeigt kopierbare Anforderungen für update-cli.yaml und justfile in neuen Projekten.",
 		Examples:    []string{"update-cli show-requirements"},
 	},
-	"show-alias": {
-		Usage:       []string{"update-cli show-alias"},
+	"generate-alias": {
+		Usage:       []string{"update-cli generate-alias"},
 		Description: "Zeigt eine Bash-Funktion, die Updates sicher aus current/ ausführt und das ursprüngliche Verzeichnis wiederherstellt.",
-		Examples:    []string{"update-cli show-alias", "eval \"$(update-cli show-alias)\"", "u --setup --noui"},
+		Examples:    []string{"update-cli generate-alias", "eval \"$(update-cli generate-alias)\"", "u --setup --noui"},
 	},
 	"git": {
 		Usage:       []string{"update-cli git status", "update-cli git add", "update-cli git commit <message>", "update-cli git push"},

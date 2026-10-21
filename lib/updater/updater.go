@@ -69,6 +69,34 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 	if len(args) == 0 {
 		return runNoParameter(ctx, buildVersion, false)
 	}
+	if args[0] == "workflow" {
+		rootArg, debug, noUI, pipeline, plan, parseErr := parseWorkflowArguments(args[1:])
+		if parseErr != nil {
+			return &ExitError{Code: 2, Err: parseErr}
+		}
+		root, err := config.ResolveRoot(rootArg)
+		if err != nil {
+			return err
+		}
+		if plan {
+			stages := workflowStages()
+			if pipeline {
+				stages = deploymentStages()
+			}
+			for i, stage := range stages {
+				fmt.Printf("[%d/%d] %s\n", i+1, len(stages), stage)
+			}
+			return nil
+		}
+		return executeWorkflow(ctx, buildVersion, root, debug, noUI, pipeline)
+	}
+	if args[0] == "generate-config" {
+		if len(args) != 1 {
+			return &ExitError{Code: 2, Err: fmt.Errorf("generate-config akzeptiert keine Parameter")}
+		}
+		fmt.Print(StarterManifest())
+		return nil
+	}
 	if args[0] == "show-requirements" {
 		if len(args) != 1 {
 			return &ExitError{Code: 2, Err: fmt.Errorf("show-requirements akzeptiert keine Parameter")}
@@ -76,9 +104,9 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 		fmt.Print(ProjectRequirements())
 		return nil
 	}
-	if args[0] == "show-alias" {
+	if args[0] == "generate-alias" {
 		if len(args) != 1 {
-			return &ExitError{Code: 2, Err: fmt.Errorf("show-alias akzeptiert keine Parameter")}
+			return &ExitError{Code: 2, Err: fmt.Errorf("generate-alias akzeptiert keine Parameter")}
 		}
 		fmt.Print(BashUpdateAlias())
 		return nil
@@ -173,6 +201,9 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 		fullscreenTitle = fullscreenBase + " — Versionsprüfung"
 	case o.update && !o.plan && !o.dryRun:
 		fullscreenTitle = fullscreenBase + " — Update"
+	}
+	if usingSharedConsole && sharedConsole != nil && sharedConsole.Fullscreen() {
+		fullscreenTitle = sharedConsole.Title()
 	}
 	fullscreen := false
 	if fullscreenTitle != "" && !o.jsonOutput {
@@ -850,7 +881,7 @@ func runNoParameter(ctx context.Context, buildVersion string, debug bool) (retEr
 		actions[strings.ToLower(strings.TrimSpace(action))] = true
 	}
 	if actions["workflow"] {
-		return runDefaultWorkflow(ctx, buildVersion, root, debug)
+		return runDefaultWorkflow(ctx, buildVersion, root, debug, true)
 	}
 	if actions["help"] && len(actions) == 1 {
 		printHelp(buildVersion)
@@ -919,20 +950,6 @@ func runNoParameter(ctx context.Context, buildVersion string, debug bool) (retEr
 // runDefaultWorkflow executes an explicit, unattended release lifecycle.
 // The candidate is updated before bootstrap, quality checks, build and install.
 // Run starts the deployed application only after a successful install.
-func runDefaultWorkflow(ctx context.Context, buildVersion, root string, debug bool) error {
-	stages := []string{"update", "bootstrap", "test", "build", "install", "run"}
-	for _, stage := range stages {
-		args := []string{stage, "--root", root, "--noui"}
-		if debug {
-			args = append(args, "--debug")
-		}
-		if err := Run(ctx, buildVersion, args); err != nil {
-			return fmt.Errorf("Workflow-Phase %s fehlgeschlagen: %w", stage, err)
-		}
-	}
-	return nil
-}
-
 // In headless mode optional lifecycle stages are skipped unless invoked explicitly.
 func confirmLifecycleStage(console *ui.Console, question string) (bool, error) {
 	if console != nil && console.Fullscreen() {

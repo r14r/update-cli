@@ -10,8 +10,8 @@ var publicCommands = map[string]struct{}{
 	"backup": {}, "rollback": {}, "restore": {}, "history": {}, "cleanup": {},
 	"clean": {}, "init": {}, "upgrade": {}, "migrate": {}, "whatsnew": {}, "recover": {}, "doctor": {}, "fix": {}, "status": {},
 	"releases": {}, "verify": {}, "unlock": {}, "run": {}, "install": {},
-	"bootstrap": {}, "build": {}, "test": {}, "precommit": {}, "ci": {},
-	"schema": {}, "setup": {}, "config": {}, "templates": {}, "git": {}, "show-alias": {}, "show-requirements": {},
+	"bootstrap": {}, "build": {}, "test": {}, "precommit": {}, "ci": {}, "workflow": {},
+	"schema": {}, "setup": {}, "config": {}, "templates": {}, "git": {}, "generate-alias": {}, "show-requirements": {}, "generate-config": {},
 	"convert-yaml": {}, "create-yaml": {}, "create-setup-script": {},
 }
 
@@ -34,8 +34,8 @@ func ValidatePublicSyntax(args []string) error {
 		return nil
 	}
 	command := strings.ToLower(strings.TrimSpace(args[0]))
-	if (command == "show-alias" || command == "show-requirements") && len(args) != 1 {
-		return fmt.Errorf("show-alias akzeptiert keine Parameter")
+	if (command == "generate-alias" || command == "show-requirements" || command == "generate-config") && len(args) != 1 {
+		return fmt.Errorf("%s akzeptiert keine Parameter", command)
 	}
 	if command == "git" {
 		return validateGitArguments(args[1:])

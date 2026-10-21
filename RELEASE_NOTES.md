@@ -1,7 +1,65 @@
+# 3.4.25
+
+- Migrate the complete Jekyll website and its assets back into docs/ and build GitHub Pages from docs/.
+- Update scripts, tapes, README and test paths to docs/.
+- Introduce an opt-in deployment workflow --pipeline with validation before install and post-run healthcheck, plus --plan.
+- Document limits: update activation still precedes checks; automatic rollback on healthcheck failure not implemented.
+
+# 3.4.24
+
+- Extract workflow execution and CLI parsing into lib/updater/workflow.go.
+- Improve argument validation for --root and support --root=PATH with independent regression tests.
+- Replace the placeholder workflow-order test with a check of the actual stage sequence.
+- Publish a prioritized architecture, safety and feature-gap review in doc/code-review-2026-10-21.md.
+
+# 3.4.23
+
+- Reuse a single workflow fullscreen interface across stages; update the stage title and clear previous output automatically.
+- Disable ENTER confirmation between workflow stages using shared screen and no-wait phase execution.
+- Preserve noninteractive --noui terminal output.
+
+# 3.4.22
+
+- Fix stale terminal tape assertions in project_files_test.go after docs/ to doc/ migration.
+- Keep integration setup tests intact; their console output is emitted when the overall package test fails.
+
+# 3.4.21
+
+- Insert install immediately before precommit in the workflow sequence: update, bootstrap, install, precommit, test, build, run.
+
+# 3.4.20
+
+- Introduce `update-cli workflow`: update → bootstrap → precommit → test → build → run.
+- Continue after update when the target version is already installed; abort on other update or phase failures.
+- Support `workflow --noui`, `--root` and `--debug`; keep the no-parameter workflow configuration working.
+
+# 3.4.19
+
+- Consolidate existing docs, screenshots and VHS tapes under `doc/`; remove the old `docs/` files.
+- Add a Jekyll documentation site with GitHub Pages Actions deployment from `doc/`.
+- Document project onboarding, commands, configuration, complete lifecycle and screenshot walkthroughs.
+- Update tape rendering paths, packaging, documentation links and tests.
+
+# 3.4.18
+
+- Rename `show-alias` to `generate-alias` for Bash function generation; update help, examples and tests.
+
+# 3.4.17
+
+- Rename the starter manifest output command from `show-starter` to `generate-config`.
+
+# 3.4.16
+
+- Add `update-cli show-starter` to output a schemaVersion 2 starter manifest that maps supported project workflows to `just` recipes and defines `run.command: just run`.
+- Add help entry and regression test for generated YAML structure.
+
+# 3.4.15
+
+- Fix Go formatting in main.go that blocked fmt-check and just install.
+
 # 3.4.14
 
-- Add a backward-compatible fallback for the optional bootstrap phase of no-argument updates: when a schemaVersion-2 manifest lacks workflow 'bootstrap' and the project has a Justfile, execute 'just bootstrap'.
-- Keep unknown workflow names and genuine bootstrap failures as errors; add focused regression tests.
+- Fix `show-alias` so `u version` and other explicit commands forward unchanged while bare `u` defaults to update.
 
 # 3.4.13
 
