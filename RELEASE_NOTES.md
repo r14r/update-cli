@@ -1,3 +1,10 @@
+# 3.4.25
+
+- Migrate the complete Jekyll website and its assets back into docs/ and build GitHub Pages from docs/.
+- Update scripts, tapes, README and test paths to docs/.
+- Introduce an opt-in deployment workflow --pipeline with validation before install and post-run healthcheck, plus --plan.
+- Document limits: update activation still precedes checks; automatic rollback on healthcheck failure not implemented.
+
 # 3.4.24
 
 - Extract workflow execution and CLI parsing into lib/updater/workflow.go.
