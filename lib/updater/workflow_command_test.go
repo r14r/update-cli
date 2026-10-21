@@ -13,6 +13,7 @@ func TestWorkflowPublicSyntax(t *testing.T) {
 		{"workflow", "--root", "/tmp/project"},
 		{"workflow", "--root=/tmp/project"},
 		{"workflow", "--no-wait"},
+		{"workflow", "--pipeline", "--plan"},
 		{"workflow", "--debug", "--no-ui"},
 	}
 	for _, args := range valid {
@@ -67,7 +68,7 @@ func TestParseWorkflowArguments(t *testing.T) {
 		{args: []string{"--debug", "--noui", "--no-wait"}, debug: true, noUI: true},
 	}
 	for _, tc := range cases {
-		root, debug, noUI, err := parseWorkflowArguments(tc.args)
+		root, debug, noUI, _, _, err := parseWorkflowArguments(tc.args)
 		if err != nil || root != tc.root || debug != tc.debug || noUI != tc.noUI {
 			t.Errorf("%v: got root=%q debug=%v noUI=%v err=%v", tc.args, root, debug, noUI, err)
 		}
@@ -75,8 +76,16 @@ func TestParseWorkflowArguments(t *testing.T) {
 	for _, args := range [][]string{
 		{"--root"}, {"--root="}, {"--root", "--noui"}, {"--invalid"},
 	} {
-		if _, _, _, err := parseWorkflowArguments(args); err == nil {
+		if _, _, _, _, _, err := parseWorkflowArguments(args); err == nil {
 			t.Errorf("%v: expected argument error", args)
 		}
+	}
+}
+
+func TestDeploymentStageOrder(t *testing.T) {
+	got := strings.Join(deploymentStages(), ",")
+	want := "update,bootstrap,precommit,test,build,install,run,healthcheck"
+	if got != want {
+		t.Fatalf("deployment pipeline = %q, want %q", got, want)
 	}
 }
