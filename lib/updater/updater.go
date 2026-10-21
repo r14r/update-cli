@@ -78,7 +78,7 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 		if err != nil {
 			return err
 		}
-				if plan {
+		if plan {
 			stages := workflowStages()
 			if pipeline {
 				stages = deploymentStages()
