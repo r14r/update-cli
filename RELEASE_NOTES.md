@@ -1,3 +1,7 @@
+# 3.5.0
+
+- Establish minor release baseline on top of 3.4.25, preserving all recent workflow and documentation changes.
+
 # 3.4.25
 
 - Migrate the complete Jekyll website and its assets back into docs/ and build GitHub Pages from docs/.
