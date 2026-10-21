@@ -69,6 +69,48 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 	if len(args) == 0 {
 		return runNoParameter(ctx, buildVersion, false)
 	}
+	if args[0] == "workflow" {
+		rootArg, debug, noUI, pipeline, plan, parseErr := parseWorkflowArguments(args[1:])
+		if parseErr != nil {
+			return &ExitError{Code: 2, Err: parseErr}
+		}
+		root, err := config.ResolveRoot(rootArg)
+		if err != nil {
+			return err
+		}
+		if plan {
+			stages := workflowStages()
+			if pipeline {
+				stages = deploymentStages()
+			}
+			for i, stage := range stages {
+				fmt.Printf("[%d/%d] %s\n", i+1, len(stages), stage)
+			}
+			return nil
+		}
+		return executeWorkflow(ctx, buildVersion, root, debug, noUI, pipeline)
+	}
+	if args[0] == "generate-config" {
+		if len(args) != 1 {
+			return &ExitError{Code: 2, Err: fmt.Errorf("generate-config akzeptiert keine Parameter")}
+		}
+		fmt.Print(StarterManifest())
+		return nil
+	}
+	if args[0] == "show-requirements" {
+		if len(args) != 1 {
+			return &ExitError{Code: 2, Err: fmt.Errorf("show-requirements akzeptiert keine Parameter")}
+		}
+		fmt.Print(ProjectRequirements())
+		return nil
+	}
+	if args[0] == "generate-alias" {
+		if len(args) != 1 {
+			return &ExitError{Code: 2, Err: fmt.Errorf("generate-alias akzeptiert keine Parameter")}
+		}
+		fmt.Print(BashUpdateAlias())
+		return nil
+	}
 	if args[0] == "git" {
 		return RunGit(ctx, args[1:])
 	}
@@ -159,6 +201,9 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 		fullscreenTitle = fullscreenBase + " — Versionsprüfung"
 	case o.update && !o.plan && !o.dryRun:
 		fullscreenTitle = fullscreenBase + " — Update"
+	}
+	if usingSharedConsole && sharedConsole != nil && sharedConsole.Fullscreen() {
+		fullscreenTitle = sharedConsole.Title()
 	}
 	fullscreen := false
 	if fullscreenTitle != "" && !o.jsonOutput {
@@ -835,6 +880,9 @@ func runNoParameter(ctx context.Context, buildVersion string, debug bool) (retEr
 	for _, action := range cfg.NoParameterActions {
 		actions[strings.ToLower(strings.TrimSpace(action))] = true
 	}
+	if actions["workflow"] {
+		return runDefaultWorkflow(ctx, buildVersion, root, debug, true)
+	}
 	if actions["help"] && len(actions) == 1 {
 		printHelp(buildVersion)
 		return nil
@@ -899,6 +947,9 @@ func runNoParameter(ctx context.Context, buildVersion string, debug bool) (retEr
 	return nil
 }
 
+// runDefaultWorkflow executes an explicit, unattended release lifecycle.
+// The candidate is updated before bootstrap, quality checks, build and install.
+// Run starts the deployed application only after a successful install.
 // In headless mode optional lifecycle stages are skipped unless invoked explicitly.
 func confirmLifecycleStage(console *ui.Console, question string) (bool, error) {
 	if console != nil && console.Fullscreen() {
@@ -2186,18 +2237,23 @@ func initialize(ctx context.Context, console *ui.Console, root string, o options
 
 	repository := strings.TrimSpace(o.repository)
 	if strings.TrimSpace(o.fromRepository) != "" {
-		defaultUser := config.DefaultRepositoryUser
-		if configExists {
-			if existing, loadErr := config.Load(root, ""); loadErr == nil && strings.TrimSpace(existing.Source.DefaultUser) != "" {
-				defaultUser = existing.Source.DefaultUser
+		repository = strings.TrimSpace(o.fromRepository)
+	}
+	if repository != "" {
+		defaultUser := ""
+		if !strings.Contains(repository, "/") && !strings.Contains(repository, "://") {
+			defaultUser = initRepositoryDefaultUser(root, configExists)
+			if defaultUser == "" {
+				return fmt.Errorf("Repository %q enthält keinen Benutzernamen: source.defaultUser fehlt in der lokalen und globalen config.json; bitte source.defaultUser konfigurieren oder USER/REPO bzw. die vollständige GitHub-URL angeben", repository)
 			}
 		}
-		repository, err = config.NormalizeRepositorySpec(o.fromRepository, defaultUser)
+		input := repository
+		repository, err = config.NormalizeRepositorySpec(repository, defaultUser)
 		if err != nil {
 			return err
 		}
 		if o.debug {
-			console.Row("Repository Eingabe", o.fromRepository)
+			console.Row("Repository Eingabe", input)
 			console.Row("Repository DefaultUser", defaultUser)
 			console.Row("Repository normalisiert", repository)
 		}
@@ -2269,6 +2325,37 @@ func initialize(ctx context.Context, console *ui.Console, root string, o options
 		noWait:        o.noWait,
 		initialGitDir: initialGitDir,
 	})
+}
+
+// initRepositoryDefaultUser prefers the effective project setting. When a
+// project has not yet been initialized, read the global config.json override.
+func initRepositoryDefaultUser(root string, configExists bool) string {
+	if configExists {
+		if existing, err := config.Load(root, ""); err == nil && strings.TrimSpace(existing.Source.DefaultUser) != "" {
+			return existing.Source.DefaultUser
+		}
+	}
+	directory, err := config.GlobalConfigDir()
+	if err == nil {
+		data, readErr := os.ReadFile(filepath.Join(directory, config.ConfigFileName))
+		if readErr == nil {
+			var settings struct {
+				Source struct {
+					DefaultUser string `json:"defaultUser"`
+				} `json:"source"`
+				DefaultUser string `json:"defaultUser"`
+			}
+			if json.Unmarshal(data, &settings) == nil {
+				if user := strings.TrimSpace(settings.Source.DefaultUser); user != "" {
+					return user
+				}
+				if user := strings.TrimSpace(settings.DefaultUser); user != "" {
+					return user
+				}
+			}
+		}
+	}
+	return ""
 }
 
 func initSourceDescription(cfg config.Config) string {

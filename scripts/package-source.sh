@@ -20,7 +20,7 @@ rsync -a \
   --exclude='/dist/' \
   --exclude='/.demo-install/' \
   --exclude='/.demo-quickstart/' \
-  --exclude='/docs/videos/' \
+  --exclude='/docs/assets/terminal/' \
   --exclude='/update-cli' \
   --exclude='/update-cli-*' \
   --exclude='/*.zip' \

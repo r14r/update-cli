@@ -683,8 +683,8 @@ func TestSourcePackagingExcludesRuntimeStateAndRequiresCorePackages(t *testing.T
 
 func TestReadmeCLIDemoTapesAndCanonicalSetupInstall(t *testing.T) {
 	for _, name := range []string{
-		filepath.Join("docs", "tapes", "install.tape"),
-		filepath.Join("docs", "tapes", "quickstart.tape"),
+		filepath.Join("doc", "tapes", "install.tape"),
+		filepath.Join("doc", "tapes", "quickstart.tape"),
 		filepath.Join("scripts", "render-tapes.sh"),
 		filepath.Join("scripts", "tapes", "create-demo-release.sh"),
 	} {

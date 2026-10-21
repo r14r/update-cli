@@ -49,7 +49,7 @@ func main() {
 		}
 		if runErr != nil {
 			var unsafe *updater.UnsafeWorkingDirectoryError
-			if !errors.As(runErr, &unsafe) {
+			if !errors.As(runErr, &unsafe) && !nonInteractiveOutput(os.Args[1:]) {
 				askCopyFailureLog(logPath)
 			}
 		}
@@ -73,6 +73,18 @@ func main() {
 		os.Exit(1)
 	}
 }
+
+// nonInteractiveOutput selects commands that must never open a follow-up prompt.
+func nonInteractiveOutput(args []string) bool {
+	for _, arg := range args {
+		switch arg {
+		case "--noui", "--no-ui", "--no-ask", "--json":
+			return true
+		}
+	}
+	return false
+}
+
 func resolvedVersion() string {
 	// VERSION is the single canonical source for the update-cli release version.
 	if v := strings.TrimSpace(embeddedVersion); v != "" && !strings.Contains(v, "{{") {
