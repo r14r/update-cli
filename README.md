@@ -6,23 +6,23 @@ Current release: **3.4.24**
 
 ## Latest code review
 
-See [Code Review 2026-10-21](doc/code-review-2026-10-21.md) for prioritized safety, architecture and workflow recommendations.
+See [Code Review 2026-10-21](docs/code-review-2026-10-21.md) for prioritized safety, architecture and workflow recommendations.
 
 ## Documentation website
 
-The complete documentation source is maintained under [`doc/`](doc/), including:
+The complete documentation source is maintained under [`docs/`](docs/), including:
 
-- [Getting started](doc/getting-started.md) with initialization, update and setup screenshots
-- [CLI commands](doc/commands.md), [configuration](doc/configuration.md) and [walkthrough](doc/tutorials.md)
-- [Setup schema](doc/setup-schema.md), [precommit](doc/precommit.md) and [lifecycle](doc/lifecycle.md)
-- [Terminal demos](doc/terminal-demos.md) and [VHS scripts](doc/tapes/README.md)
+- [Getting started](docs/getting-started.md) with initialization, update and setup screenshots
+- [CLI commands](docs/commands.md), [configuration](docs/configuration.md) and [walkthrough](docs/tutorials.md)
+- [Setup schema](docs/setup-schema.md), [precommit](docs/precommit.md) and [lifecycle](docs/lifecycle.md)
+- [Terminal demos](docs/terminal-demos.md) and [VHS scripts](docs/tapes/README.md)
 
-The Jekyll website is deployed by [GitHub Actions](.github/workflows/pages.yml) from `doc/` to **https://r14r.github.io/update-cli/** once GitHub Pages is configured to use GitHub Actions.
+The Jekyll website is deployed by [GitHub Actions](.github/workflows/pages.yml) from `docs/` to **https://r14r.github.io/update-cli/** once GitHub Pages is configured to use GitHub Actions.
 
 To preview locally:
 
 ```bash
-cd doc
+cd docs
 bundle install
 bundle exec jekyll serve
 ```
@@ -34,7 +34,7 @@ just build
 just tapes
 ```
 
-This generates recordings under `doc/assets/terminal/`. Review output for secrets and accuracy before publishing.
+This generates recordings under `docs/assets/terminal/`. Review output for secrets and accuracy before publishing.
 
 ### Bash update function `u`
 
@@ -117,7 +117,7 @@ The standalone `update-cli update` command remains fetch/activate-only.
 - `update-cli run` starts the application using the manifest's run definition.
 - `update-cli install` remains a separate deployment action.
 
-These lifecycle changes are a major version milestone. See `doc/lifecycle.md` and `lib/whatsnew/releases/3.0.0.md`.
+These lifecycle changes are a major version milestone. See `docs/lifecycle.md` and `lib/whatsnew/releases/3.0.0.md`.
 
 ## What changed in 2.17.0
 
@@ -542,8 +542,8 @@ The previous recovery `WARN` lines shown by `lib/updater` tests are expected out
 Two VHS tapes now document the main onboarding paths:
 
 ```text
-doc/tapes/install.tape
-doc/tapes/quickstart.tape
+docs/tapes/install.tape
+docs/tapes/quickstart.tape
 ```
 
 Render both with:
@@ -552,7 +552,7 @@ Render both with:
 just tapes
 ```
 
-Generated recordings are written to `doc/assets/terminal/`. The INSTALL tape uses `UPDATE_CLI_INSTALL_BIN_DIR` so it installs into a disposable project-local demo prefix instead of modifying `/usr/local`.
+Generated recordings are written to `docs/assets/terminal/`. The INSTALL tape uses `UPDATE_CLI_INSTALL_BIN_DIR` so it installs into a disposable project-local demo prefix instead of modifying `/usr/local`.
 
 ## What changed in 2.13.1
 
@@ -976,15 +976,15 @@ UPDATE_CLI_INSTALL_BIN_DIR="$PWD/.demo-install/bin" just install
 .demo-install/bin/update-cli version
 ```
 
-The matching VHS recording is defined in [`doc/tapes/install.tape`](doc/tapes/install.tape). Render it with:
+The matching VHS recording is defined in [`docs/tapes/install.tape`](docs/tapes/install.tape). Render it with:
 
 ```bash
-vhs doc/tapes/install.tape
+vhs docs/tapes/install.tape
 # or
 just tape-install
 ```
 
-The generated recording is written to `doc/assets/terminal/install.gif`.
+The generated recording is written to `docs/assets/terminal/install.gif`.
 
 ## QUICKSTART
 
@@ -1043,15 +1043,15 @@ A different download folder can be supplied explicitly:
 update-cli init --project demo-app --downloads /srv/releases
 ```
 
-The downloadable quickstart recording is reproducibly generated from [`doc/tapes/quickstart.tape`](doc/tapes/quickstart.tape). It creates its own local demo ZIP and project tree, so it does not depend on external services:
+The downloadable quickstart recording is reproducibly generated from [`docs/tapes/quickstart.tape`](docs/tapes/quickstart.tape). It creates its own local demo ZIP and project tree, so it does not depend on external services:
 
 ```bash
-vhs doc/tapes/quickstart.tape
+vhs docs/tapes/quickstart.tape
 # or
 just tape-quickstart
 ```
 
-The recording is written to `doc/assets/terminal/quickstart.gif`.
+The recording is written to `docs/assets/terminal/quickstart.gif`.
 
 ### Bootstrap from a Git repository
 
