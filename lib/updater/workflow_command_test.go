@@ -1,6 +1,9 @@
 package updater
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestWorkflowPublicSyntax(t *testing.T) {
 	valid := [][]string{
@@ -16,5 +19,12 @@ func TestWorkflowPublicSyntax(t *testing.T) {
 	}
 	if err := ValidatePublicSyntax([]string{"workflow", "unexpected"}); err == nil {
 		t.Fatal("bare workflow positional argument should fail")
+	}
+}
+
+func TestWorkflowStageOrderInSource(t *testing.T) {
+	stages := []string{"update", "bootstrap", "install", "precommit", "test", "build", "run"}
+	if strings.Join(stages, ",") != "update,bootstrap,install,precommit,test,build,run" {
+		t.Fatal("unexpected workflow order")
 	}
 }
