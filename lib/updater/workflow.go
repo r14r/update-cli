@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/r14r/update-cli/lib/ui"
 	"github.com/r14r/update-cli/lib/config"
+	"github.com/r14r/update-cli/lib/ui"
 )
 
 // parseWorkflowArguments isolates CLI parsing from the lifecycle executor.
@@ -39,7 +39,7 @@ func parseWorkflowArguments(args []string) (root string, debug, noUI, pipeline, 
 		case "--noui", "--no-ui":
 			noUI = true
 		default:
-			return "", false, false, false, false, fmt.Errorf("workflow unterstützt nur --root, --debug, --noui und --no-wait")
+			return "", false, false, false, false, fmt.Errorf("workflow unterstützt --root, --debug, --noui, --no-wait, --plan und --pipeline")
 		}
 	}
 	return root, debug, noUI, pipeline, plan, nil
