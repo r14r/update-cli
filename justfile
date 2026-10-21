@@ -155,7 +155,7 @@ install: build
     install -m 0755 dist/update-cli "$destination/update-cli"; \
     install -m 0755 setup-template.sh "$config_path/setup-template.sh"; \
     install -m 0644 prompts/setup-script-to-yaml.txt "$config_path/prompts/setup-script-to-yaml.txt"; \
-    install -m 0644 doc/examples/ai.json "$config_path/ai.json.example"; \
+    install -m 0644 docs/examples/ai.json "$config_path/ai.json.example"; \
     test -f "$config_path/config.json" || install -m 0644 defaults/config.json "$config_path/config.json"; \
     test -f "$config_path/templates.json" || install -m 0644 defaults/templates.json "$config_path/templates.json"; \
     echo "Installed $destination/update-cli"
@@ -256,10 +256,10 @@ create-setup-script *args:
 # -----------------------------------------------------------------------------
 
 tape-install:
-    ./scripts/render-tapes.sh doc/tapes/install.tape
+    ./scripts/render-tapes.sh docs/tapes/install.tape
 
 tape-quickstart:
-    ./scripts/render-tapes.sh doc/tapes/quickstart.tape
+    ./scripts/render-tapes.sh docs/tapes/quickstart.tape
 
 tapes: tape-install tape-quickstart
 
