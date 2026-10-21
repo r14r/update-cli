@@ -1,4 +1,4 @@
-Output doc/assets/terminal/install.gif
+Output docs/assets/terminal/install.gif
 
 Set Shell "bash"
 Set FontSize 18
