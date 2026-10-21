@@ -74,6 +74,13 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 		debug := false
 		noUI := false
 		for i := 1; i < len(args); i++ {
+			if value, ok := strings.CutPrefix(args[i], "--root="); ok {
+				if strings.TrimSpace(value) == "" {
+					return &ExitError{Code: 2, Err: fmt.Errorf("--root benötigt einen Pfad")}
+				}
+				root = value
+				continue
+			}
 			switch args[i] {
 			case "--root", "-r":
 				if i+1 >= len(args) {
@@ -84,6 +91,8 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 				}
 				i++
 				root = args[i]
+			case "--no-wait":
+				// Workflow stages already advance automatically.
 			case "--debug":
 				debug = true
 			case "--noui", "--no-ui":
