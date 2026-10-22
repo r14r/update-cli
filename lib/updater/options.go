@@ -29,6 +29,7 @@ func parseOptions(args []string) (options, error) {
 	fs.StringVar(&o.sourceFolder, "folder", "", "")
 	fs.StringVar(&o.sourceURL, "url", "", "")
 	fs.StringVar(&o.repository, "repository", "", "")
+	fs.StringVar(&o.repository, "repo", "", "")
 	fs.StringVar(&o.projectName, "project", "", "")
 	fs.StringVar(&o.rollbackVersion, "rollback-version", "", "")
 	fs.StringVar(&o.restore, "snapshot", "", "")
