@@ -215,6 +215,7 @@ func ValidateTree(ctx context.Context, root string, limits Limits) (Stats, error
 	})
 	return s, err
 }
+
 // validateInternalSymlink accepts only links resolving to an existing target
 // within the same release tree. Absolute links, escapes and dangling links
 // are never accepted as part of a release.
