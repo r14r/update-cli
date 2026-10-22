@@ -2,7 +2,7 @@
 
 **Transactional project updates from ZIP releases or Git repositories.**
 
-Current release: **3.4.29**
+Current release: **3.4.30**
 
 ## Latest code review
 
@@ -16,7 +16,7 @@ update-cli workflow --view --details
 update-cli workflow --pipeline --view --details
 ```
 
-The `--view` option lists stages without running them; `--details` also reports the manifest-defined task operations and shell commands when available. The existing `--plan` option remains an alias for a stage preview.
+The `--view` option lists stages without running them; `--details` also reports manifest-defined tasks, shell commands, step metadata, retries, timeouts and working directories (environment values are hidden). The existing `--plan` option remains an alias for a stage preview.
 
 ## Optional deployment pipeline
 
