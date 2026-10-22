@@ -5,11 +5,11 @@ import (
 	"os"
 	"sort"
 
-	"github.com/r14r/update-cli/lib/config"
-	"github.com/r14r/update-cli/lib/inventory"
-	"github.com/r14r/update-cli/lib/tools"
-	"github.com/r14r/update-cli/lib/updatecheck"
-	versionutil "github.com/r14r/update-cli/lib/version"
+	"github.com/r14r/update-cli/src/lib/config"
+	"github.com/r14r/update-cli/src/lib/inventory"
+	"github.com/r14r/update-cli/src/lib/tools"
+	"github.com/r14r/update-cli/src/lib/updatecheck"
+	versionutil "github.com/r14r/update-cli/src/lib/version"
 )
 
 type Result struct {

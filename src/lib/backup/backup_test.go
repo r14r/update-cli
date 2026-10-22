@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/r14r/update-cli/lib/config"
+	"github.com/r14r/update-cli/src/lib/config"
 )
 
 func TestResolveRejectsSymlinkBackup(t *testing.T) {

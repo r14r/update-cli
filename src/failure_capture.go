@@ -11,8 +11,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/r14r/update-cli/lib/config"
-	"github.com/r14r/update-cli/lib/ui"
+	"github.com/r14r/update-cli/src/lib/config"
+	"github.com/r14r/update-cli/src/lib/ui"
 )
 
 // captureCommandOutput transparently mirrors stdout/stderr and records the

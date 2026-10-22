@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/r14r/update-cli/lib/buildconfig"
+	"github.com/r14r/update-cli/src/lib/buildconfig"
 	"os"
 )
 
