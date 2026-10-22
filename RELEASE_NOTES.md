@@ -1,3 +1,9 @@
+# 3.4.30
+
+- Allow relative repository-content symlinks when they resolve to existing files within the release tree (for example `.envrc -> .set_env.sh`), while rejecting unsafe links.
+- Add symlink regression tests and richer `workflow --view --details` output for tasks and step metadata.
+- Preserve ZIP symlink restrictions.
+
 # 3.4.29
 
 - Add `workflow --view` to display its stages without executing them.
