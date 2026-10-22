@@ -1,3 +1,9 @@
+# 3.4.29
+
+- Add `workflow --view` to display its stages without executing them.
+- Add `workflow --view --details` to display configured task operations and commands from update-cli.yaml.
+- Preserve `--plan` for compatibility.
+
 # 3.4.28
 
 - Support `update-cli init --repo REPOSITORY` as alias of `--repository`.
