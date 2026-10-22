@@ -23,7 +23,7 @@ u() (
     cd -- "$root" || return
   fi
   if [[ "$#" -eq 0 ]]; then
-    command update-cli update
+    command update-cli
   else
     command update-cli "$@"
   fi
