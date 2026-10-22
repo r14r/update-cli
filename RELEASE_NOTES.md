@@ -1,3 +1,8 @@
+# 3.4.27
+
+- Correct lifecycle confirmation footer: after the modal closes, replace stale WAIT status with running, declined or error status.
+- Standalone confirmation displays a final accepted/declined result instead of a lingering WAIT message.
+
 # 3.4.26
 
 - Fix gofmt failures in workflow.go and workflow_command_test.go that blocked just install.
