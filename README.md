@@ -2,11 +2,21 @@
 
 **Transactional project updates from ZIP releases or Git repositories.**
 
-Current release: **3.4.28**
+Current release: **3.4.29**
 
 ## Latest code review
 
 See [Code Review 2026-10-21](docs/code-review-2026-10-21.md) for prioritized safety, architecture and workflow recommendations.
+
+## Inspect workflow steps
+
+```bash
+update-cli workflow --view
+update-cli workflow --view --details
+update-cli workflow --pipeline --view --details
+```
+
+The `--view` option lists stages without running them; `--details` also reports the manifest-defined task operations and shell commands when available. The existing `--plan` option remains an alias for a stage preview.
 
 ## Optional deployment pipeline
 
