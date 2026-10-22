@@ -81,12 +81,39 @@ func showWorkflowTask(m *projectsetup.Manifest, name string, seen map[string]boo
 	for _, req := range t.Requires {
 		showWorkflowTask(m, req, seen)
 	}
+	fmt.Printf("       Task: %s\n", name)
+	if t.Description != "" {
+		fmt.Printf("         Beschreibung: %s\n", t.Description)
+	}
 	for _, step := range t.Steps {
-		op := step.Operation
+		if step.ID != "" {
+			fmt.Printf("         Schritt: %s\n", step.ID)
+		}
+		if step.Name != "" && step.Name != step.ID {
+			fmt.Printf("           Name: %s\n", step.Name)
+		}
 		if val, ok := step.Config["value"]; ok {
-			fmt.Printf("       %s: %v\n", op, val)
+			fmt.Printf("           %s: %v\n", step.Operation, val)
 		} else {
-			fmt.Printf("       %s: %v\n", op, step.Config)
+			fmt.Printf("           %s: %v\n", step.Operation, step.Config)
+		}
+		if step.WorkingDirectory != "" {
+			fmt.Printf("           cwd: %s\n", step.WorkingDirectory)
+		}
+		if step.Timeout != "" {
+			fmt.Printf("           timeout: %s\n", step.Timeout)
+		}
+		if step.Retries > 0 {
+			fmt.Printf("           retries: %d\n", step.Retries)
+		}
+		if step.AllowFailure {
+			fmt.Println("           allowFailure: true")
+		}
+		if step.When != nil {
+			fmt.Printf("           when: %s\n", step.When.Kind)
+		}
+		if len(step.Environment) > 0 {
+			fmt.Printf("           env: %d Variable(n) (Werte aus Sicherheitsgründen verborgen)\n", len(step.Environment))
 		}
 	}
 }
