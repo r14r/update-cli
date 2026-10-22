@@ -14,6 +14,7 @@ func TestWorkflowPublicSyntax(t *testing.T) {
 		{"workflow", "--root=/tmp/project"},
 		{"workflow", "--no-wait"},
 		{"workflow", "--pipeline", "--plan"},
+		{"workflow", "--view", "--details"},
 		{"workflow", "--debug", "--no-ui"},
 	}
 	for _, args := range valid {
@@ -68,7 +69,7 @@ func TestParseWorkflowArguments(t *testing.T) {
 		{args: []string{"--debug", "--noui", "--no-wait"}, debug: true, noUI: true},
 	}
 	for _, tc := range cases {
-		root, debug, noUI, _, _, err := parseWorkflowArguments(tc.args)
+		root, debug, noUI, _, _, _, err := parseWorkflowArguments(tc.args)
 		if err != nil || root != tc.root || debug != tc.debug || noUI != tc.noUI {
 			t.Errorf("%v: got root=%q debug=%v noUI=%v err=%v", tc.args, root, debug, noUI, err)
 		}
@@ -76,7 +77,7 @@ func TestParseWorkflowArguments(t *testing.T) {
 	for _, args := range [][]string{
 		{"--root"}, {"--root="}, {"--root", "--noui"}, {"--invalid"},
 	} {
-		if _, _, _, _, _, err := parseWorkflowArguments(args); err == nil {
+		if _, _, _, _, _, _, err := parseWorkflowArguments(args); err == nil {
 			t.Errorf("%v: expected argument error", args)
 		}
 	}
@@ -91,7 +92,7 @@ func TestDeploymentStageOrder(t *testing.T) {
 }
 
 func TestParseDeploymentOptions(t *testing.T) {
-	_, _, _, pipeline, plan, err := parseWorkflowArguments([]string{"--pipeline", "--plan"})
+	_, _, _, pipeline, plan, _, err := parseWorkflowArguments([]string{"--pipeline", "--plan"})
 	if err != nil || !pipeline || !plan {
 		t.Fatalf("pipeline=%v plan=%v err=%v", pipeline, plan, err)
 	}
@@ -102,5 +103,12 @@ func TestDeploymentStagesAreIndependent(t *testing.T) {
 	first[0] = "unexpected"
 	if deploymentStages()[0] != "update" {
 		t.Fatal("deploymentStages returned shared storage")
+	}
+}
+
+func TestWorkflowViewOptions(t *testing.T) {
+	_, _, _, pipeline, view, details, err := parseWorkflowArguments([]string{"--view", "--details"})
+	if err != nil || pipeline || !view || !details {
+		t.Fatalf("unexpected view options: pipeline=%v view=%v details=%v err=%v", pipeline, view, details, err)
 	}
 }
