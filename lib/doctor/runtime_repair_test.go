@@ -13,8 +13,8 @@ func TestDoctorMigrateRepairsUnsupportedRuntimeFields(t *testing.T) {
 	root := t.TempDir()
 	if _, err := config.Init(root, config.InitOptions{
 		ProjectName: "demo",
-		SourceType: "download",
-		Folder: t.TempDir(),
+		SourceType:  "download",
+		Folder:      t.TempDir(),
 	}); err != nil {
 		t.Fatal(err)
 	}
