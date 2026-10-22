@@ -1,3 +1,8 @@
+# 3.4.28
+
+- Support `update-cli init --repo REPOSITORY` as alias of `--repository`.
+- Update CLI help and add argument parsing regression tests.
+
 # 3.4.27
 
 - Correct lifecycle confirmation footer: after the modal closes, replace stale WAIT status with running, declined or error status.
