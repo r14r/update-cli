@@ -1,3 +1,7 @@
+# 3.4.35
+
+- Fix project_files_test.go references to documentation examples and demo tapes after doc/ to docs/ migration.
+
 # 3.4.34
 
 - Fix Go formatting in lib/doctor/runtime_repair_test.go to unblock just ci.
