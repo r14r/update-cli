@@ -11,12 +11,12 @@ import (
 )
 
 // parseWorkflowArguments isolates CLI parsing from the lifecycle executor.
-func parseWorkflowArguments(args []string) (root string, debug, noUI, pipeline, plan bool, err error) {
+func parseWorkflowArguments(args []string) (root string, debug, noUI, pipeline, plan, details bool, err error) {
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
 		if value, ok := strings.CutPrefix(arg, "--root="); ok {
 			if strings.TrimSpace(value) == "" {
-				return "", false, false, false, false, fmt.Errorf("--root benötigt einen Pfad")
+				return "", false, false, false, false, false, fmt.Errorf("--root benötigt einen Pfad")
 			}
 			root = value
 			continue
@@ -24,14 +24,16 @@ func parseWorkflowArguments(args []string) (root string, debug, noUI, pipeline, 
 		switch arg {
 		case "--root", "-r":
 			if i+1 >= len(args) || strings.TrimSpace(args[i+1]) == "" || strings.HasPrefix(args[i+1], "-") {
-				return "", false, false, false, false, fmt.Errorf("--root benötigt einen gültigen Pfad")
+				return "", false, false, false, false, false, fmt.Errorf("--root benötigt einen gültigen Pfad")
 			}
 			i++
 			root = args[i]
 		case "--pipeline":
 			pipeline = true
-		case "--plan":
+		case "--plan", "--view":
 			plan = true
+		case "--details":
+			details = true
 		case "--no-wait":
 			// No prompts are shown between workflow phases.
 		case "--debug":
@@ -39,10 +41,10 @@ func parseWorkflowArguments(args []string) (root string, debug, noUI, pipeline, 
 		case "--noui", "--no-ui":
 			noUI = true
 		default:
-			return "", false, false, false, false, fmt.Errorf("workflow unterstützt --root, --debug, --noui, --no-wait, --plan und --pipeline")
+			return "", false, false, false, false, false, fmt.Errorf("workflow unterstützt --root, --debug, --noui, --no-wait, --plan --pipeline, --view und --details")
 		}
 	}
-	return root, debug, noUI, pipeline, plan, nil
+	return root, debug, noUI, pipeline, plan, details, nil
 }
 
 // workflowStages returns a fresh slice so callers cannot mutate the sequence.
