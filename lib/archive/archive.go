@@ -189,7 +189,12 @@ func ValidateTree(ctx context.Context, root string, limits Limits) (Stats, error
 			return err
 		}
 		if info.Mode()&os.ModeSymlink != 0 {
-			return fmt.Errorf("symbolischer Link ist in Release-Inhalten nicht erlaubt: %s", path)
+			if err := validateInternalSymlink(root, path); err != nil {
+				return err
+			}
+			// The link itself contains no regular-file bytes. WalkDir does
+			// not follow links, so its target is counted only once.
+			return nil
 		}
 		if d.IsDir() {
 			s.Directories++
@@ -210,6 +215,32 @@ func ValidateTree(ctx context.Context, root string, limits Limits) (Stats, error
 	})
 	return s, err
 }
+// validateInternalSymlink accepts only links resolving to an existing target
+// within the same release tree. Absolute links, escapes and dangling links
+// are never accepted as part of a release.
+func validateInternalSymlink(root, path string) error {
+	target, err := os.Readlink(path)
+	if err != nil {
+		return err
+	}
+	if filepath.IsAbs(target) {
+		return fmt.Errorf("absoluter symbolischer Link im Release ist nicht erlaubt: %s", path)
+	}
+	rootReal, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return err
+	}
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return fmt.Errorf("ungültiger symbolischer Link %s: %w", path, err)
+	}
+	rel, err := filepath.Rel(rootReal, resolved)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) || filepath.IsAbs(rel) {
+		return fmt.Errorf("symbolischer Link verlässt Release-Verzeichnis: %s -> %s", path, target)
+	}
+	return nil
+}
+
 func ResolveContentRoot(dir string) (string, error) {
 	c := dir
 	for i := 0; i < 12; i++ {
