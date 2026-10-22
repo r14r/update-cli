@@ -954,7 +954,15 @@ func runNoParameter(ctx context.Context, buildVersion string, debug bool) (retEr
 func confirmLifecycleStage(console *ui.Console, question string) (bool, error) {
 	if console != nil && console.Fullscreen() {
 		console.SetFooter("WAIT  Bestätigung erforderlich")
-		return console.Confirm(question, false)
+		yes, err := console.Confirm(question, false)
+		if err != nil {
+			console.SetFooter("FAIL Bestätigung fehlgeschlagen")
+		} else if yes {
+			console.SetFooter("RUN  Bestätigt — Ausführung läuft")
+		} else {
+			console.SetFooter("SKIP Aktion abgelehnt")
+		}
+		return yes, err
 	}
 	fi, err := os.Stdin.Stat()
 	if err != nil {
@@ -972,7 +980,14 @@ func confirmLifecycleStage(console *ui.Console, question string) (bool, error) {
 	console.SetFooter("WAIT  Bestätigung erforderlich")
 	yes, err := console.Confirm(question, false)
 	if console.Fullscreen() {
-		console.FinishFullscreen(err == nil && yes, false)
+		if err != nil {
+			console.SetFooter("FAIL Bestätigung fehlgeschlagen")
+		} else if yes {
+			console.SetFooterSuccess("OK   Bestätigt")
+		} else {
+			console.SetFinishFooter("SKIP Aktion abgelehnt")
+		}
+		console.FinishFullscreen(err == nil, false)
 	}
 	return yes, err
 }
