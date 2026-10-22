@@ -17,7 +17,7 @@ var publicCommands = map[string]struct{}{
 
 var publicValueParameters = map[string]struct{}{
 	"--archive": {}, "-a": {}, "--downloads": {}, "-d": {}, "--mode": {},
-	"--from": {}, "--folder": {}, "--url": {}, "--repository": {},
+	"--from": {}, "--folder": {}, "--url": {}, "--repository": {}, "--repo": {},
 	"--from-repository": {}, "--root": {}, "-r": {}, "--keep": {}, "--limit": {},
 	"--use-template": {}, "--use": {}, "--manifest": {}, "--task": {},
 	"--workflow": {}, "--command": {}, "--set": {}, "--save": {},
