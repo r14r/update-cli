@@ -136,9 +136,9 @@ var commandHelpDetails = map[string]commandHelp{
 		Examples:    []string{"update-cli fix"},
 	},
 	"workflow": {
-		Usage:       []string{"update-cli workflow [--noui] [--root PATH] [--plan] [--pipeline]"},
+		Usage:       []string{"update-cli workflow [--noui] [--root PATH] [--view] [--details] [--pipeline]"},
 		Description: "Führt update, bootstrap, install, precommit, test, build und run nacheinander aus. Wenn das Release bereits installiert ist, wird nach update fortgesetzt.",
-		Examples:    []string{"update-cli workflow", "update-cli workflow --plan", "update-cli workflow --pipeline --plan", "update-cli workflow --pipeline --noui"},
+		Examples:    []string{"update-cli workflow", "update-cli workflow --view", "update-cli workflow --view --details", "update-cli workflow --pipeline --view --details", "update-cli workflow --pipeline --noui"},
 	},
 	"bootstrap": {
 		Usage:       []string{"update-cli bootstrap [--no-ui]"},
