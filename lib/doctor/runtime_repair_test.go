@@ -1,9 +1,9 @@
 package doctor
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/r14r/update-cli/lib/config"
@@ -23,9 +23,17 @@ func TestDoctorMigrateRepairsUnsupportedRuntimeFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Deliberately malformed known field. Strict upgrade must not silently
-	// ignore it; the repair engine should normalize it and keep a backup.
-	b = []byte(strings.Replace(string(b), "\"no parameter\": [", "\"no parameter\": { \"invalid\": true }, \"legacy-unused\": [", 1))
+	// Strict upgrade rejects the invalid field type; doctor --migrate
+	// falls back to the backup-backed repair engine.
+	var raw map[string]any
+	if err := json.Unmarshal(b, &raw); err != nil {
+		t.Fatal(err)
+	}
+	raw["no parameter"] = map[string]any{"invalid": true}
+	b, err = json.Marshal(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(path, b, 0o600); err != nil {
 		t.Fatal(err)
 	}
