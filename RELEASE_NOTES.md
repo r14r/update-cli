@@ -1,3 +1,7 @@
+# 3.4.34
+
+- Fix Go formatting in lib/doctor/runtime_repair_test.go to unblock just ci.
+
 # 3.4.33
 
 - Extend doctor --migrate with validated configuration repair fallback when strict schema upgrade fails on recognizable legacy/structural fields.
