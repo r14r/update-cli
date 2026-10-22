@@ -30,7 +30,7 @@ func TestValidateTreeRejectsUnsafeSymlinks(t *testing.T) {
 		t.Skip("symlink permissions differ on Windows")
 	}
 	for _, tc := range []struct {
-		name string
+		name   string
 		target string
 	}{
 		{"absolute", "/tmp"},
