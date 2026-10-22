@@ -2,7 +2,7 @@
 
 **Transactional project updates from ZIP releases or Git repositories.**
 
-Current release: **3.4.32**
+Current release: **3.4.33**
 
 ## Latest code review
 
@@ -1866,3 +1866,7 @@ update-cli doctor
 update-cli migrate
 update-cli doctor
 ```
+
+### Repair configuration after schema changes
+
+Run `just doctor --migrate` or `just migrate` in the update-cli source checkout to migrate both the runtime `.update-cli/config.json` and project manifests (`update-cli.yaml` in the project root and `current/`). The CLI command `update-cli doctor --migrate` does the same. Migration first attempts normal schema upgrades and falls back to safe, validated, backup-backed repair for recognized legacy field errors. Invalid source syntax, ambiguous changes, failed tests, and unsafe deployment operations still fail instead of being silently ignored.
