@@ -180,7 +180,7 @@ upgrade *args:
     go run . upgrade {{args}}
 
 migrate *args:
-    go run . migrate {{args}}
+    go run . doctor --migrate {{args}}
 
 recover *args:
     go run . recover {{args}}
