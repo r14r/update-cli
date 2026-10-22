@@ -1,3 +1,7 @@
+# 3.4.32
+
+- Fix gofmt formatting in lib/archive/archive.go and lib/archive/tree_symlink_test.go, unblocking fmt-check during just install.
+
 # 3.4.31
 
 - Fix generated shell wrapper `u`: no-argument invocation now delegates to bare `update-cli` so the configured `no parameter` action (including `workflow`) is respected.
