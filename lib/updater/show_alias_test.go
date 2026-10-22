@@ -7,10 +7,13 @@ import (
 
 func TestBashUpdateAlias(t *testing.T) {
 	script := BashUpdateAlias()
-	for _, part := range []string{"u() (", "unalias u", "command update-cli update", "command update-cli \"$@\"", "cd -- \"$root\"", ".update-cli/config.json"} {
+	for _, part := range []string{"u() (", "unalias u", "command update-cli\n  else", "command update-cli \"$@\"", "cd -- \"$root\"", ".update-cli/config.json"} {
 		if !strings.Contains(script, part) {
 			t.Fatalf("missing %q", part)
 		}
+	}
+	if strings.Contains(script, "command update-cli update") {
+		t.Fatal("bare u must delegate to configured no-parameter action, not force update")
 	}
 	if strings.Contains(script, "uupdate()") {
 		t.Fatal("legacy name uupdate must not be defined")
