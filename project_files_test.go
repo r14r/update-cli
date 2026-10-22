@@ -234,7 +234,7 @@ func TestInstallInstallsGlobalSetupTemplate(t *testing.T) {
 }
 
 func TestXCLISetupMigrationExampleParses(t *testing.T) {
-	manifest, err := projectsetup.ParseManifest(filepath.Join("doc", "examples", "update-cli-x-cli.yaml"))
+	manifest, err := projectsetup.ParseManifest(filepath.Join("docs", "examples", "update-cli-x-cli.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -683,8 +683,8 @@ func TestSourcePackagingExcludesRuntimeStateAndRequiresCorePackages(t *testing.T
 
 func TestReadmeCLIDemoTapesAndCanonicalSetupInstall(t *testing.T) {
 	for _, name := range []string{
-		filepath.Join("doc", "tapes", "install.tape"),
-		filepath.Join("doc", "tapes", "quickstart.tape"),
+		filepath.Join("docs", "tapes", "install.tape"),
+		filepath.Join("docs", "tapes", "quickstart.tape"),
 		filepath.Join("scripts", "render-tapes.sh"),
 		filepath.Join("scripts", "tapes", "create-demo-release.sh"),
 	} {
