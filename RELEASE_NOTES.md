@@ -1,3 +1,10 @@
+# 3.4.33
+
+- Extend doctor --migrate with validated configuration repair fallback when strict schema upgrade fails on recognizable legacy/structural fields.
+- Make `just migrate` invoke `doctor --migrate`, covering runtime JSON and both project manifests rather than JSON only.
+- Add regression test for malformed runtime configuration values.
+- Preserve backups and refusal of ambiguous/unrepairable changes.
+
 # 3.4.32
 
 - Fix gofmt formatting in lib/archive/archive.go and lib/archive/tree_symlink_test.go, unblocking fmt-check during just install.
