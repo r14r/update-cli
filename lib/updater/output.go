@@ -218,8 +218,8 @@ var commandHelpDetails = map[string]commandHelp{
 	"init": {
 		Usage:       []string{"update-cli init --project PROJECTNAME", "update-cli init --repository REPOSITORY [--project PROJECTNAME]", "update-cli init --from-repository REPOSITORY [--project PROJECTNAME]"},
 		Description: "Initialisiert den aktuellen Ordner als verwaltetes Update-CLI-Projekt und installiert das erste Release. Bei einer Repository-Quelle ist --project optional; ohne Angabe wird der Repository-Name ohne .git verwendet.",
-		Options:     []string{"--project PROJECTNAME  expliziter Projektname; bei Repository-Init optional", "--repository REPOSITORY  Git-Repository; ohne --project wird daraus der Projektname abgeleitet", "--from-repository REPOSITORY  kompakte Repository-Bootstrap-Form"},
-		Examples:    []string{"update-cli init --project demo", "update-cli init --repository https://github.com/r14r/Boersenfuehrerschein-VideoAnalyzer.git", "update-cli init --project custom-name --repository https://github.com/r14r/demo.git"},
+		Options:     []string{"--project PROJECTNAME  expliziter Projektname; bei Repository-Init optional", "--repository/--repo REPOSITORY  Git-Repository; ohne --project wird daraus der Projektname abgeleitet", "--from-repository REPOSITORY  kompakte Repository-Bootstrap-Form"},
+		Examples:    []string{"update-cli init --project demo", "update-cli init --repository https://github.com/r14r/Boersenfuehrerschein-VideoAnalyzer.git", "update-cli init --project custom-name --repo https://github.com/r14r/demo.git"},
 	},
 	"releases": {
 		Usage:       []string{"update-cli releases --list [--json]"},
