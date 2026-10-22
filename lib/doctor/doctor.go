@@ -228,8 +228,21 @@ func checkRuntimeConfig(root string, migrate bool, r *Report) RuntimeConfigStatu
 	if migrate {
 		res, err := config.Upgrade(root)
 		if err != nil {
-			status.Suggestions = append(status.Suggestions, "Migration nicht automatisch möglich; 'update-cli fix' verwenden: "+err.Error())
-			r.Add("Runtime config.json", LevelError, err.Error()+"; 'update-cli fix' kann bekannte Legacy-/Fehlfelder normalisieren")
+			// Upgrade is deliberately strict. Attempt the backup-backed,
+			// validated repair path for known legacy/structural config issues.
+			repaired, repairErr := config.RepairProjectConfig(root)
+			if repairErr != nil {
+				status.Suggestions = append(status.Suggestions, "Automatische Reparatur nicht möglich; Konfiguration manuell prüfen")
+				r.Add("Runtime config.json", LevelError, fmt.Sprintf("Migration: %v; Reparatur: %v", err, repairErr))
+				return status
+			}
+			status.SchemaVersion = config.SchemaVersion
+			status.MigrationNeeded = false
+			detail := "Konfiguration durch sichere Reparatur normalisiert"
+			if repaired.Local.BackupPath != "" {
+				detail += "; Backup: " + repaired.Local.BackupPath
+			}
+			r.Add("Runtime config.json", LevelOK, detail)
 			return status
 		}
 		status.Path = res.ConfigFile
