@@ -57,10 +57,10 @@ func TestWorkflowMissingRootArgument(t *testing.T) {
 
 func TestParseWorkflowArguments(t *testing.T) {
 	cases := []struct {
-		args []string
-		root string
+		args  []string
+		root  string
 		debug bool
-		noUI bool
+		noUI  bool
 	}{
 		{args: nil},
 		{args: []string{"--root", "/tmp/project"}, root: "/tmp/project"},
