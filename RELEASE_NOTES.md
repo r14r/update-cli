@@ -1,3 +1,7 @@
+# 3.4.26
+
+- Fix gofmt failures in workflow.go and workflow_command_test.go that blocked just install.
+
 # 3.4.25
 
 - Migrate the complete Jekyll website and its assets back into docs/ and build GitHub Pages from docs/.
