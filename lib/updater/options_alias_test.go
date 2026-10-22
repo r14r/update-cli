@@ -34,6 +34,7 @@ func TestCanonicalCommandFormsParse(t *testing.T) {
 		{"history", "--limit", "5"},
 		{"init", "--project", "demo"},
 		{"init", "--repository", "https://github.com/r14r/demo.git"},
+		{"init", "--repo", "https://github.com/r14r/demo.git"},
 		{"upgrade"},
 		{"migrate"},
 		{"recover"},
@@ -289,5 +290,22 @@ func TestWhatsNewVersionParsing(t *testing.T) {
 	}
 	if !selected.whatsNew || selected.whatsNewVersion != "2.16.16" || selected.showVersion {
 		t.Fatalf("unexpected versioned whatsnew options: %#v", selected)
+	}
+}
+
+func TestInitRepoAliasMatchesRepository(t *testing.T) {
+	canonical, err := parseOptions([]string{"init", "--repository", "r14r/demo"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	alias, err := parseOptions([]string{"init", "--repo", "r14r/demo"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(canonical, alias) {
+		t.Fatal("--repo must be identical to --repository")
+	}
+	if err := ValidatePublicSyntax([]string{"init", "--repo", "r14r/demo"}); err != nil {
+		t.Fatal(err)
 	}
 }
