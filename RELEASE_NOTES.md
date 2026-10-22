@@ -1,3 +1,8 @@
+# 3.4.31
+
+- Fix generated shell wrapper `u`: no-argument invocation now delegates to bare `update-cli` so the configured `no parameter` action (including `workflow`) is respected.
+- Keep explicit `u update` behavior unchanged; update regression tests.
+
 # 3.4.30
 
 - Allow relative repository-content symlinks when they resolve to existing files within the release tree (for example `.envrc -> .set_env.sh`), while rejecting unsafe links.
