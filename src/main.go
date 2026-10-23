@@ -11,9 +11,9 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/r14r/update-cli/lib/buildconfig"
-	"github.com/r14r/update-cli/lib/ui"
-	"github.com/r14r/update-cli/lib/updater"
+	"github.com/r14r/update-cli/src/lib/buildconfig"
+	"github.com/r14r/update-cli/src/lib/ui"
+	"github.com/r14r/update-cli/src/lib/updater"
 )
 
 //go:embed VERSION
