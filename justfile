@@ -124,9 +124,10 @@ precommit-all:
 
 pre-commit-all: precommit-all
 
-ci: precommit-all
+ci branch="":
+    bash scripts/ci-branch.sh "{{branch}}"
 
-# Checkout and test a branch without discarding local changes.
+# Explicit alias for CI on a selected branch.
 ci-branch branch:
     bash scripts/ci-branch.sh "{{branch}}"
 
