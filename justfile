@@ -89,7 +89,7 @@ bump-patch:
     bash scripts/bump-patch.sh
 
 check-patch-version:
-    bash scripts/check-patch-version.sh --staged
+    bash scripts/check-patch-version.sh --base origin/main
 
 validate-version:
     ./scripts/validate-version.sh . >/dev/null
@@ -141,15 +141,15 @@ build: validate-version check
 
 build-macos-amd64: check
     mkdir -p dist
-    GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o dist/update-cli-darwin-amd64 .
+    GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o dist/update-cli-darwin-amd64 ./src
 
 build-macos-arm64: check
     mkdir -p dist
-    GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o dist/update-cli-darwin-arm64 .
+    GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o dist/update-cli-darwin-arm64 ./src
 
 build-linux-amd64: check
     mkdir -p dist
-    GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o dist/update-cli-linux-amd64 .
+    GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o dist/update-cli-linux-amd64 ./src
 
 build-all: build-macos-amd64 build-macos-arm64 build-linux-amd64
 
