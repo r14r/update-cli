@@ -1,3 +1,8 @@
+# 3.4.37
+
+- Fix the manifest CI build path after the Go source move into src/.
+- Fix cross-platform just build targets and the deploy example path.
+
 # 3.4.36
 
 - Prepare src/ refactor and fix missing embedded setup script template.
