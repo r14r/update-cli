@@ -126,6 +126,10 @@ pre-commit-all: precommit-all
 
 ci: precommit-all
 
+# Checkout and test a branch without discarding local changes.
+ci-branch branch:
+    bash scripts/ci-branch.sh "{{branch}}"
+
 # -----------------------------------------------------------------------------
 # Build installation and release
 # -----------------------------------------------------------------------------
