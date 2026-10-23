@@ -37,7 +37,7 @@ require python3
 if [[ "$mode" == "--commit" || "$mode" == "--all" ]]; then
   step "Go module download" go mod download
   printf '\n==> Go formatting\n'
-  unformatted="$(gofmt -l .)"
+  unformatted="$(gofmt -l src)"
   if [[ -n "$unformatted" ]]; then
     printf '%s\n' "$unformatted" >&2
     while IFS= read -r file; do gofmt -d "$file" >&2 || true; done <<< "$unformatted"
@@ -53,20 +53,25 @@ if [[ "$mode" == "--commit" || "$mode" == "--all" ]]; then
     exit 1
   fi
   step "Version validation" bash scripts/validate-version.sh .
-  step "Go vet" go vet ./...
-  step "Go tests" go test -count=1 ./...
+  printf '\n==> Legacy Go import paths\n'
+  if grep -Rn --include='*.go' 'github.com/r14r/update-cli/lib/' src; then
+    echo 'ERROR: Go imports must use github.com/r14r/update-cli/src/lib/' >&2
+    exit 1
+  fi
+  step "Go vet" go vet ./src/...
+  step "Go tests" go test -count=1 ./src/...
 fi
 if [[ "$mode" == "--push" || "$mode" == "--all" ]]; then
   step "Go module download" go mod download
   step "Go race tests" go test -count=1 -race ./...
   mkdir -p dist
-  step "Native build" go build -trimpath -o dist/update-cli .
+  step "Native build" go build -trimpath -o dist/update-cli ./src
   step "Setup schema v2 catalog" ./dist/update-cli setup --list --no-ui
   step "Fullscreen TUI smoke" python3 tests/tui_smoke.py
   for target in darwin/amd64 darwin/arm64 linux/amd64; do
     os="${target%/*}"
     arch="${target#*/}"
-    step "Cross-build $target" env GOOS="$os" GOARCH="$arch" go build -trimpath -o "dist/update-cli-$os-$arch" .
+    step "Cross-build $target" env GOOS="$os" GOARCH="$arch" go build -trimpath -o "dist/update-cli-$os-$arch" ./src
   done
 fi
 printf '\nPrecommit checks passed (%s).\n' "$mode"
