@@ -16,10 +16,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/r14r/update-cli/lib/config"
-	rsyncutil "github.com/r14r/update-cli/lib/rsync"
-	"github.com/r14r/update-cli/lib/tools"
-	versionutil "github.com/r14r/update-cli/lib/version"
+	"github.com/r14r/update-cli/src/lib/config"
+	rsyncutil "github.com/r14r/update-cli/src/lib/rsync"
+	"github.com/r14r/update-cli/src/lib/tools"
+	versionutil "github.com/r14r/update-cli/src/lib/version"
 )
 
 const (

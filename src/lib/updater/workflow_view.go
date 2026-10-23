@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/r14r/update-cli/lib/projectsetup"
+	"github.com/r14r/update-cli/src/lib/projectsetup"
 )
 
 // showWorkflowView lists the configured stages without executing them.

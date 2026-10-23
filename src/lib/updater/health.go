@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/r14r/update-cli/lib/config"
+	"github.com/r14r/update-cli/src/lib/config"
 	"net/http"
 	"os"
 	"os/exec"

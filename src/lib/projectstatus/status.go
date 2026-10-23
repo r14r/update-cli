@@ -3,11 +3,11 @@ package projectstatus
 import (
 	"context"
 	"errors"
-	"github.com/r14r/update-cli/lib/config"
-	"github.com/r14r/update-cli/lib/history"
-	"github.com/r14r/update-cli/lib/inventory"
-	"github.com/r14r/update-cli/lib/projectsetup"
-	"github.com/r14r/update-cli/lib/updatecheck"
+	"github.com/r14r/update-cli/src/lib/config"
+	"github.com/r14r/update-cli/src/lib/history"
+	"github.com/r14r/update-cli/src/lib/inventory"
+	"github.com/r14r/update-cli/src/lib/projectsetup"
+	"github.com/r14r/update-cli/src/lib/updatecheck"
 	"os"
 )
 
