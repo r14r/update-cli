@@ -181,7 +181,7 @@ tasks:
           go build -trimpath \
             -ldflags "-s -w" \
             -o "{{ distDir }}/{{ binary }}" \
-            .
+            ./src
 
   verify:
     description: Gebautes Binary validieren
@@ -237,11 +237,11 @@ tasks:
       - id: ai-config-example
         name: AI-Konfigurationsbeispiel installieren
         deploy:
-          source: doc/examples/ai.json
+          source: docs/examples/ai.json
           target: "{{ configDir }}/ai.json.example"
           mode: "0644"
         when:
-          fileExists: doc/examples/ai.json
+          fileExists: docs/examples/ai.json
 
       - id: deploy-binary
         name: Update CLI deployen
