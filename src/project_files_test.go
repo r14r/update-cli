@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/r14r/update-cli/lib/projectsetup"
-	"github.com/r14r/update-cli/lib/ui"
+	"github.com/r14r/update-cli/src/lib/projectsetup"
+	"github.com/r14r/update-cli/src/lib/ui"
 )
 
 func TestJustfileDoesNotUseMakeStyleDoubleDollarEscapes(t *testing.T) {
@@ -550,7 +550,7 @@ func TestInstallInstallsSetupScriptConversionPrompt(t *testing.T) {
 }
 
 func TestEmbeddedAndInstalledSetupScriptPromptsStayInSync(t *testing.T) {
-	embedded, err := os.ReadFile(filepath.Join("lib", "projectsetup", "setup-script-ai-prompt.txt"))
+	embedded, err := os.ReadFile(filepath.Join("src", "lib", "projectsetup", "setup-script-ai-prompt.txt"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -641,7 +641,7 @@ func TestReleaseVersionMarkersStayInSync(t *testing.T) {
 		t.Fatal("VERSION must not be empty")
 	}
 
-	readmeData, err := os.ReadFile("README.md")
+	readmeData, err := os.ReadFile(filepath.Join("doc", "README.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -650,7 +650,7 @@ func TestReleaseVersionMarkersStayInSync(t *testing.T) {
 		t.Fatalf("README.md current release must match VERSION %q", version)
 	}
 
-	notesData, err := os.ReadFile("RELEASE_NOTES.md")
+	notesData, err := os.ReadFile(filepath.Join("doc", "RELEASE_NOTES.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -668,7 +668,7 @@ func TestSourcePackagingExcludesRuntimeStateAndRequiresCorePackages(t *testing.T
 	text := string(data)
 	for _, marker := range []string{
 		"--exclude='/.update-cli/'",
-		"lib/backup/backup.go",
+		"src/lib/backup/backup.go",
 		"defaults/config.json",
 		"defaults/templates.json",
 	} {
@@ -676,7 +676,7 @@ func TestSourcePackagingExcludesRuntimeStateAndRequiresCorePackages(t *testing.T
 			t.Fatalf("source package script missing %q", marker)
 		}
 	}
-	if _, err := os.Stat(filepath.Join("lib", "backup", "backup.go")); err != nil {
+	if _, err := os.Stat(filepath.Join("src", "lib", "backup", "backup.go")); err != nil {
 		t.Fatalf("required backup package missing from source tree: %v", err)
 	}
 }
@@ -715,7 +715,7 @@ func TestReadmeCLIDemoTapesAndCanonicalSetupInstall(t *testing.T) {
 	}
 	_ = installTask
 
-	readme, err := os.ReadFile("README.md")
+	readme, err := os.ReadFile(filepath.Join("doc", "README.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
