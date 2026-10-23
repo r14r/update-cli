@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/r14r/update-cli/lib/config"
-	"github.com/r14r/update-cli/lib/tools"
-	"github.com/r14r/update-cli/lib/ui"
-	versionutil "github.com/r14r/update-cli/lib/version"
+	"github.com/r14r/update-cli/src/lib/config"
+	"github.com/r14r/update-cli/src/lib/tools"
+	"github.com/r14r/update-cli/src/lib/ui"
+	versionutil "github.com/r14r/update-cli/src/lib/version"
 )
 
 const MigrationScriptName = "migrate.sh"

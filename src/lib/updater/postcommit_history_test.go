@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/r14r/update-cli/lib/config"
-	"github.com/r14r/update-cli/lib/history"
-	"github.com/r14r/update-cli/lib/ui"
+	"github.com/r14r/update-cli/src/lib/config"
+	"github.com/r14r/update-cli/src/lib/history"
+	"github.com/r14r/update-cli/src/lib/ui"
 )
 
 func TestAppendSuccessHistoryWarnsInsteadOfFailingCommittedOperation(t *testing.T) {

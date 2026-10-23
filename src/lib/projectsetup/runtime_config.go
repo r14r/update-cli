@@ -1,6 +1,6 @@
 package projectsetup
 
-import "github.com/r14r/update-cli/lib/config"
+import "github.com/r14r/update-cli/src/lib/config"
 
 // ConfigOverrides converts project-versioned update-cli.yaml settings into the
 // runtime override representation consumed by lib/config. Host security and

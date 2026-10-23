@@ -5,10 +5,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/r14r/update-cli/lib/config"
-	"github.com/r14r/update-cli/lib/inventory"
-	rsyncutil "github.com/r14r/update-cli/lib/rsync"
-	"github.com/r14r/update-cli/lib/updatecheck"
+	"github.com/r14r/update-cli/src/lib/config"
+	"github.com/r14r/update-cli/src/lib/inventory"
+	rsyncutil "github.com/r14r/update-cli/src/lib/rsync"
+	"github.com/r14r/update-cli/src/lib/updatecheck"
 )
 
 type Result struct {

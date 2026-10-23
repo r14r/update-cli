@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/r14r/update-cli/lib/ui"
+	"github.com/r14r/update-cli/src/lib/ui"
 )
 
 type Selection struct {

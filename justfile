@@ -69,16 +69,16 @@ unlock:
 # -----------------------------------------------------------------------------
 
 fmt:
-    gofmt -w .
+    gofmt -w src
 
 fmt-check:
-    @out="$(gofmt -l .)"; test -z "$out" || { printf '%s\n' "$out"; exit 1; }
+    @out="$(gofmt -l src)"; test -z "$out" || { printf '%s\n' "$out"; exit 1; }
 
 vet:
-    go vet ./...
+    go vet ./src/...
 
 test:
-    go test -count=1 ./...
+    go test -count=1 ./src/...
 
 test-race:
     go test -count=1 -race ./...
@@ -137,7 +137,7 @@ ci-branch branch:
 
 build: validate-version check
     mkdir -p dist
-    go build -trimpath -ldflags "-s -w" -o dist/update-cli .
+    go build -trimpath -ldflags "-s -w" -o dist/update-cli ./src
 
 build-macos-amd64: check
     mkdir -p dist

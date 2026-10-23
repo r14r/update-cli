@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/r14r/update-cli/lib/config"
-	"github.com/r14r/update-cli/lib/source"
-	versionutil "github.com/r14r/update-cli/lib/version"
+	"github.com/r14r/update-cli/src/lib/config"
+	"github.com/r14r/update-cli/src/lib/source"
+	versionutil "github.com/r14r/update-cli/src/lib/version"
 )
 
 func TestEnforceVersionPolicyAllowsUpdateCLINumberingReset(t *testing.T) {

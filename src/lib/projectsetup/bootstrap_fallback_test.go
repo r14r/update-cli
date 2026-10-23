@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/r14r/update-cli/lib/config"
-	"github.com/r14r/update-cli/lib/ui"
+	"github.com/r14r/update-cli/src/lib/config"
+	"github.com/r14r/update-cli/src/lib/ui"
 )
 
 // Regression for 'u': Update CLI 3.x invokes bootstrap after a no-argument

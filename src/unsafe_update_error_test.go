@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/r14r/update-cli/lib/updater"
+	"github.com/r14r/update-cli/src/lib/updater"
 )
 
 func TestPrintUnsafeUpdateError(t *testing.T) {

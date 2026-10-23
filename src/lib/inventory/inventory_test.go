@@ -1,7 +1,7 @@
 package inventory
 
 import (
-	"github.com/r14r/update-cli/lib/config"
+	"github.com/r14r/update-cli/src/lib/config"
 	"os"
 	"path/filepath"
 	"testing"

@@ -6,7 +6,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/r14r/update-cli/lib/ui"
+	"github.com/r14r/update-cli/src/lib/ui"
 )
 
 // RunJustTest executes the canonical just test recipe before installation.

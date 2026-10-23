@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/r14r/update-cli/lib/config"
+	"github.com/r14r/update-cli/src/lib/config"
 )
 
 func initConfig(t *testing.T, root string) config.Config {

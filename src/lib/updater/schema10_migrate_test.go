@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/r14r/update-cli/lib/config"
-	"github.com/r14r/update-cli/lib/doctor"
+	"github.com/r14r/update-cli/src/lib/config"
+	"github.com/r14r/update-cli/src/lib/doctor"
 )
 
 func TestMigrateCommandUpgradesSchemaNineAndDoctorReportsState(t *testing.T) {

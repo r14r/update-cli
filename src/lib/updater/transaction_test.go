@@ -3,8 +3,8 @@ package updater
 import (
 	"context"
 	"errors"
-	"github.com/r14r/update-cli/lib/config"
-	"github.com/r14r/update-cli/lib/ui"
+	"github.com/r14r/update-cli/src/lib/config"
+	"github.com/r14r/update-cli/src/lib/ui"
 	"io"
 	"os"
 	"os/exec"

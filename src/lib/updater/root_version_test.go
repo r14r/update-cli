@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/r14r/update-cli/lib/config"
+	"github.com/r14r/update-cli/src/lib/config"
 )
 
 func TestWriteLegacyRootMarkersSynchronizesRootVersion(t *testing.T) {

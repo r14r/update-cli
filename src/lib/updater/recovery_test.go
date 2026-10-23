@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/r14r/update-cli/lib/config"
-	"github.com/r14r/update-cli/lib/history"
-	"github.com/r14r/update-cli/lib/ui"
+	"github.com/r14r/update-cli/src/lib/config"
+	"github.com/r14r/update-cli/src/lib/history"
+	"github.com/r14r/update-cli/src/lib/ui"
 )
 
 func TestRecoverRestoresInterruptedAtomicCurrentSwap(t *testing.T) {

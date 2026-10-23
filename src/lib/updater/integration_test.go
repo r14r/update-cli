@@ -14,10 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/r14r/update-cli/lib/buildconfig"
-	"github.com/r14r/update-cli/lib/config"
-	"github.com/r14r/update-cli/lib/history"
-	versionutil "github.com/r14r/update-cli/lib/version"
+	"github.com/r14r/update-cli/src/lib/buildconfig"
+	"github.com/r14r/update-cli/src/lib/config"
+	"github.com/r14r/update-cli/src/lib/history"
+	versionutil "github.com/r14r/update-cli/src/lib/version"
 )
 
 func releaseZip(t *testing.T, dir, project, version string, files map[string]string) string {

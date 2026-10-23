@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/r14r/update-cli/lib/config"
-	"github.com/r14r/update-cli/lib/discovery"
+	"github.com/r14r/update-cli/src/lib/config"
+	"github.com/r14r/update-cli/src/lib/discovery"
 )
 
 func TestHelpJSONFlagAndCommandAreJSONOnly(t *testing.T) {

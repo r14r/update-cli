@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/r14r/update-cli/lib/ui"
+	"github.com/r14r/update-cli/src/lib/ui"
 )
 
 func TestRunJustInstallPrefersCurrent(t *testing.T) {
