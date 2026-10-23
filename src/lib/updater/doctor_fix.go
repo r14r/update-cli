@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/r14r/update-cli/lib/config"
-	"github.com/r14r/update-cli/lib/doctor"
-	"github.com/r14r/update-cli/lib/projectsetup"
-	"github.com/r14r/update-cli/lib/ui"
+	"github.com/r14r/update-cli/src/lib/config"
+	"github.com/r14r/update-cli/src/lib/doctor"
+	"github.com/r14r/update-cli/src/lib/projectsetup"
+	"github.com/r14r/update-cli/src/lib/ui"
 )
 
 type doctorFixPlan struct {

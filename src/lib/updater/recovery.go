@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/r14r/update-cli/lib/config"
-	"github.com/r14r/update-cli/lib/history"
-	"github.com/r14r/update-cli/lib/projectdocker"
-	"github.com/r14r/update-cli/lib/tools"
-	"github.com/r14r/update-cli/lib/ui"
+	"github.com/r14r/update-cli/src/lib/config"
+	"github.com/r14r/update-cli/src/lib/history"
+	"github.com/r14r/update-cli/src/lib/projectdocker"
+	"github.com/r14r/update-cli/src/lib/tools"
+	"github.com/r14r/update-cli/src/lib/ui"
 )
 
 type recoveryItem struct {

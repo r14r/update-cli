@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/r14r/update-cli/lib/tools"
+	"github.com/r14r/update-cli/src/lib/tools"
 )
 
 const transactionJournalSchemaVersion = 1
