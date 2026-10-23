@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/r14r/update-cli/lib/buildconfig"
+	"github.com/r14r/update-cli/src/lib/buildconfig"
 )
 
 // RepairFileResult describes one config.json repair performed by `update-cli fix`.
