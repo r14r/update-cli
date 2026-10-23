@@ -9,6 +9,7 @@ update-cli
 .release-project
 .release-source
 .release-version
+.release-commit
 
 .demo-install/
 .demo-quickstart/
