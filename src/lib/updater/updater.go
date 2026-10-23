@@ -267,6 +267,21 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 		if err == nil {
 			root, err = filepath.Abs(root)
 		}
+	} else if o.setup && strings.TrimSpace(o.rootDir) == "" {
+		// A standalone setup manifest in the working directory takes
+		// precedence over configuration adjacent to the executable.
+		// This is essential for running setup in uninitialized projects.
+		cwd, cwdErr := os.Getwd()
+		if cwdErr != nil {
+			return cwdErr
+		}
+		if _, found, manifestErr := projectsetup.FindManifest(cwd); manifestErr != nil {
+			return manifestErr
+		} else if found {
+			root = cwd
+		} else {
+			root, err = config.ResolveRoot("")
+		}
 	} else {
 		root, err = config.ResolveRoot(o.rootDir)
 	}
