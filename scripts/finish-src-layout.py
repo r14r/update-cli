@@ -40,7 +40,7 @@ func TestMain(m *testing.M) {
 justfile = root / "justfile"
 if justfile.exists():
     text = justfile.read_text()
-    text = text.replace("go run .", "go run ./src")
+    text = re.sub(r"go run \\.(?=\\s|$)", "go run ./src", text)
     text = text.replace("go test -count=1 ./...", "go test -count=1 ./src/...")
     text = text.replace("go vet ./...", "go vet ./src/...")
     text = text.replace("gofmt -w .", "gofmt -w src")
