@@ -53,6 +53,11 @@ if [[ "$mode" == "--commit" || "$mode" == "--all" ]]; then
     exit 1
   fi
   step "Version validation" bash scripts/validate-version.sh .
+  printf '\n==> Legacy Go import paths\n'
+  if grep -Rn --include='*.go' 'github.com/r14r/update-cli/lib/' src; then
+    echo 'ERROR: Go imports must use github.com/r14r/update-cli/src/lib/' >&2
+    exit 1
+  fi
   step "Go vet" go vet ./...
   step "Go tests" go test -count=1 ./...
 fi
