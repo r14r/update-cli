@@ -1,3 +1,7 @@
+# 3.4.36
+
+- Prepare src/ refactor and fix missing embedded setup script template.
+
 # 3.4.35
 
 - Fix project_files_test.go references to documentation examples and demo tapes after doc/ to docs/ migration.
