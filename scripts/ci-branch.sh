@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-branch="${1:?Usage: just ci-branch <branch>}"
+branch="${1:-}"
+if [[ -z "$branch" ]]; then
+  branch="$(git symbolic-ref --quiet --short HEAD)" || {
+    echo "ERROR: Detached HEAD; specify a branch: just ci <branch>" >&2
+    exit 1
+  }
+fi
 root="$(git rev-parse --show-toplevel)"
 cd "$root"
 
@@ -19,4 +25,4 @@ else
   git switch --track -c "$branch" "origin/$branch"
 fi
 git pull --ff-only origin "$branch"
-just ci
+just precommit-all
