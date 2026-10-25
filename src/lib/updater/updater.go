@@ -83,6 +83,9 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 		}
 		return executeWorkflow(ctx, buildVersion, root, debug, noUI, pipeline)
 	}
+	if args[0] == "config" && len(args) > 1 && (args[1] == "--generate" || args[1] == "generate") {
+		return runConfigGenerate(args[2:])
+	}
 	if args[0] == "generate-config" {
 		if len(args) != 1 {
 			return &ExitError{Code: 2, Err: fmt.Errorf("generate-config akzeptiert keine Parameter")}
@@ -2394,6 +2397,17 @@ func initSourceDescription(cfg config.Config) string {
 
 func runConfig(ctx context.Context, console *ui.Console, root string, o options) error {
 	if o.configCheck {
+		report := doctor.RunProject(root, false)
+		if o.jsonOutput {
+			return writeJSON(report)
+		}
+		console.Header("Erweiterte Konfigurationsprüfung")
+		for _, check := range report.Checks {
+			console.Row(string(check.Level)+" "+check.Name, check.Detail)
+		}
+		if report.ErrorCount() > 0 {
+			return fmt.Errorf("Konfigurationsprüfung: %d Fehler, %d Warnungen", report.ErrorCount(), report.WarningCount())
+		}
 		result, err := config.Check(root)
 		if err != nil {
 			return fmt.Errorf("config.json ist ungültig: %w", err)
