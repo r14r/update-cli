@@ -124,11 +124,10 @@ precommit-all:
 
 pre-commit-all: precommit-all
 
-ci branch="":
-    bash scripts/ci-branch.sh "{{branch}}"
+ci: precommit-all
 
-# Explicit alias for CI on a selected branch.
-ci-branch branch:
+# Update the requested branch via fast-forward before running CI.
+ci-branch branch="":
     bash scripts/ci-branch.sh "{{branch}}"
 
 # -----------------------------------------------------------------------------
