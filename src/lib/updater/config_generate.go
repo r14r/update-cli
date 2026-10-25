@@ -53,6 +53,12 @@ func runConfigGenerate(args []string) error {
 		"releaseDir": "release",
 		"currentDir": "current",
 		"no parameter": []string{"update"},
+		"backup": map[string]any{"directory":"backup","keep":3},
+		"retention": map[string]any{"releases":5},
+		"sync": map[string]any{"preserve":[]string{".git/", ".gitignore", ".venv/", ".env", ".env.*", "data/", "storage/", "uploads/", "media/", "logs/", "var/"}},
+		"security": map[string]any{"allowHttp":false,"maxArchiveBytes":2147483648,"maxUncompressedBytes":8589934592,"maxFileBytes":2147483648,"maxEntries":100000,"maxCompressionRatio":200},
+		"docker": map[string]any{"lifecycle":"auto"},
+		"healthcheck": map[string]any{"type":"none"},
 	}
 	data, err := json.MarshalIndent(draft, "", "  ")
 	if err != nil {
