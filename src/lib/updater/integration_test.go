@@ -209,7 +209,7 @@ func TestRunNoParameterRepairsInvalidExistingConfigBeforeExecution(t *testing.T)
 	}
 	defer func() { _ = os.Chdir(old) }()
 
-	err = runNoParameter(context.Background(), "3.0.3", false)
+	err = runNoParameter(context.Background(), "3.0.3", false, false)
 	if err != nil {
 		t.Fatalf("expected automatic config repair, got %v", err)
 	}
@@ -242,7 +242,7 @@ func TestNoParameterCheckSetupRunsCheckWithoutModeCollision(t *testing.T) {
 	}
 	defer func() { _ = os.Chdir(old) }()
 
-	if err := runNoParameter(context.Background(), "3.0.7", false); err != nil {
+	if err := runNoParameter(context.Background(), "3.0.7", false, false); err != nil {
 		t.Fatalf("no-parameter check+setup failed: %v", err)
 	}
 }
