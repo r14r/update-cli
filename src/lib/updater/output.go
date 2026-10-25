@@ -119,10 +119,10 @@ var commandHelpDetails = map[string]commandHelp{
 		Examples: []string{"update-cli setup --list", "update-cli setup --run go-vet --details", "update-cli setup --task build", "update-cli setup --workflow ci"},
 	},
 	"config": {
-		Usage:       []string{"update-cli config [--set KEY=VALUE ...] [--check|--migrate|--list|--edit|--use-template NAME]"},
+		Usage:       []string{"update-cli config --help", "update-cli config --show [--root PATH]", "update-cli config --check [--root PATH] [--json]", "update-cli config --generate --repo URL", "update-cli config [--set KEY=VALUE ...] [--migrate|--list|--edit|--use-template NAME]"},
 		Description: "Verwaltet die lokale .update-cli/config.json und deren effektive Host-/Projektkonfiguration.",
-		Options:     []string{"--check  Konfiguration nur validieren", "--migrate  Schema sicher migrieren und Backup in .update-cli/ anlegen", "--list  Pfade und Konfiguration anzeigen", "--set KEY=VALUE  lokalen Wert setzen"},
-		Examples:    []string{"update-cli config --check", "update-cli config --migrate", "update-cli config --set no-parameter=update,no-setup"},
+		Options:     []string{"--help  ausführliche Hilfe", "--show  aktuell wirksame Konfiguration anzeigen", "--check  Runtime-Konfiguration und Projektmanifeste prüfen, ohne Änderungen", "--generate --repo URL  JSON-Konfigurationsentwurf ausgeben, ohne Dateien zu schreiben", "--migrate  Schema sicher migrieren und Backup in .update-cli/ anlegen", "--list  Pfade und Konfiguration anzeigen", "--set KEY=VALUE  lokalen Wert setzen"},
+		Examples:    []string{"update-cli config --show", "update-cli config --check", "update-cli config --generate --repo https://github.com/r14r/update-cli.git", "update-cli config --migrate", "update-cli config --set no-parameter=update,no-setup"},
 	},
 	"doctor": {
 		Usage:       []string{"update-cli doctor [--migrate] [--json]", "update-cli doctor --fix"},
@@ -382,7 +382,8 @@ func printHelpSummary() {
   update-cli setup --run STEP_ID [--details] [--no-ui]
   update-cli setup --task NAME [--details] [--no-ui]
   update-cli setup --workflow NAME [--details] [--no-ui]
-  update-cli config [--set KEY=VALUE ...] [--check|--migrate|--list|--edit|--use-template NAME]
+  update-cli config --help|--show|--check|--generate --repo URL
+  update-cli config [--set KEY=VALUE ...] [--migrate|--list|--edit|--use-template NAME]
   update-cli init --project PROJECTNAME
   update-cli upgrade
   update-cli recover [--json]
@@ -390,6 +391,12 @@ func printHelpSummary() {
   update-cli howto
   update-cli version
   update-cli whatsnew [--version VERSION]
+  update-cli workflow [--view] [--details] [--pipeline]
+  update-cli bootstrap | test | build | ci | precommit
+  update-cli clean | cleanup | history | templates
+  update-cli show-requirements | generate-config | generate-alias
+  update-cli git --help
+  update-cli convert-yaml | create-yaml | create-setup-script
 
 Global options:
   --debug     show direct detailed execution steps for any command
