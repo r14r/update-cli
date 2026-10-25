@@ -14,7 +14,6 @@ import (
 	"github.com/r14r/update-cli/src/lib/inventory"
 	"github.com/r14r/update-cli/src/lib/projectsetup"
 	"github.com/r14r/update-cli/src/lib/projectstatus"
-	"github.com/r14r/update-cli/src/lib/rollback"
 	rsyncutil "github.com/r14r/update-cli/src/lib/rsync"
 	"github.com/r14r/update-cli/src/lib/ui"
 	"github.com/r14r/update-cli/src/lib/updatecheck"
@@ -195,11 +194,6 @@ var commandHelpDetails = map[string]commandHelp{
 		Description: "Startet die im Manifest unter run.command oder run.steps konfigurierte Anwendung.",
 		Examples:    []string{"update-cli run"},
 	},
-	"rollback": {
-		Usage:       []string{"update-cli rollback --version VERSION [--setup]"},
-		Description: "Aktiviert ein vorhandenes älteres Release transaktional erneut.",
-		Examples:    []string{"update-cli rollback --version 2.14.4", "update-cli rollback --version 2.14.4 --setup"},
-	},
 	"backup": {
 		Usage:       []string{"update-cli backup"},
 		Description: "Erstellt ein persistentes Projekt-Backup nach der konfigurierten Backup-Policy.",
@@ -225,11 +219,6 @@ var commandHelpDetails = map[string]commandHelp{
 		Usage:       []string{"update-cli releases --list [--json]"},
 		Description: "Listet lokal vorhandene versionierte Releases.",
 		Examples:    []string{"update-cli releases --list"},
-	},
-	"restore": {
-		Usage:       []string{"update-cli restore --snapshot BACKUP|latest"},
-		Description: "Stellt einen zuvor erstellten Projekt-Backup-Stand wieder her.",
-		Examples:    []string{"update-cli restore --snapshot latest"},
 	},
 	"verify": {
 		Usage:       []string{"update-cli verify --archive ARCHIVE.zip"},
@@ -367,8 +356,6 @@ func printHelpSummary() {
   update-cli update [--archive ARCHIVE.zip] [--backup] [--setup|--no-setup] [--force] [--wait|--no-wait] [--no-ui]
   update-cli update --plan [--json]
   update-cli backup
-  update-cli rollback --version VERSION [--setup]
-  update-cli restore --snapshot latest
   update-cli status [--json]
   update-cli releases --list [--json]
   update-cli verify --archive ARCHIVE.zip
@@ -520,21 +507,6 @@ func printBackup(c *ui.Console, r backup.Result) {
 	c.Row("Ordner", r.Backup.Path)
 	c.Row("Änderungen", fmt.Sprint(r.Sync.Changes))
 	c.Success("Backup abgeschlossen")
-}
-func printRollback(c *ui.Console, r rollback.Result, setup bool) {
-	c.Header("Rollback abgeschlossen")
-	c.Row("Version", empty(r.FromVersion)+" → "+r.ToVersion)
-	c.Row("Release", r.ReleaseDir)
-	c.Row("Änderungen", fmt.Sprint(r.Sync.Changes))
-	c.Row("Setup", fmt.Sprint(setup))
-	c.Success("Rollback committed")
-}
-func printRestore(c *ui.Console, item backup.Item, from, to string, r rsyncutil.Result) {
-	c.Header("Backup wiederhergestellt")
-	c.Row("Backup", item.Name)
-	c.Row("Version", empty(from)+" → "+empty(to))
-	c.Row("Änderungen", fmt.Sprint(r.Changes))
-	c.Success("Restore committed")
 }
 func printStatus(c *ui.Console, r projectstatus.Result) {
 	c.Header("Updater-Status")
