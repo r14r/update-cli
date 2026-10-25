@@ -81,6 +81,41 @@ run:
   command: just run
 ~~~
 
+## Complete workflow and step coverage
+
+For each project, inspect which of these lifecycle stages apply and define the
+corresponding schemaVersion 2 workflow, reusable task, ordered steps,
+preconditions, dependencies and error handling. Never invent unsupported
+application commands. Document every intentionally inapplicable stage.
+
+| Workflow | Required or suggested steps |
+| --- | --- |
+| bootstrap | detect tools, install missing dependencies, prepare environment, install hooks |
+| setup | validate environment, prepare configuration, preserve secrets, run non-destructive setup, verify setup |
+| precommit | formatting, linting, static analysis, fast tests, fail on any error |
+| test | unit tests, integration tests, coverage when supported, race or concurrency checks when supported |
+| build | validate VERSION, compile/package application, verify output exists and is executable |
+| ci | dependencies, formatting, lint, vet/static checks, tests, race tests, build, smoke tests, artifact verification, cross-build where supported |
+| install | verify build, install/deploy artifacts safely, verify installed version and executable |
+| run | start application, surface errors, support configured run steps |
+| healthcheck | check application availability and readiness; only when a service exists |
+| update | inspect versions, download/pull, verify release, stage, optional setup, activate, healthcheck, commit/rollback |
+| rollback | select known-good release, restore prior state, restart previous services, verify health |
+| backup | snapshot persistent state, verify backup metadata, preserve retention policy |
+| restore | select backup, restore safely, verify integrity and state |
+| clean | remove generated build output without deleting persistent user data |
+| cleanup | apply release/backup retention rules, protect active and rollback-safe releases |
+| doctor | validate runtime JSON, project manifests, dependencies, paths and migration requirements |
+| migrate | inspect schema versions, create backup, migrate, revalidate |
+
+Specify steps as schemaVersion 2 typed operations (shell, go, assert,
+deploy, remove, etc.) with meaningful names and stable IDs. Define
+requires: relationships so invoking a workflow executes prerequisites
+exactly once. Prefer idempotence and fail-fast semantics. Never silently
+skip broken steps or run destructive work as part of bootstrap.
+Ensure the full pipeline is runnable via both just ci and the manifest
+ci workflow; verify that all paths still work after moving source files.
+
 ## justfile requirements
 
 - Define recipes: bootstrap, setup, test, build, install, run.
