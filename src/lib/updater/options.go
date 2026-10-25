@@ -223,7 +223,7 @@ func parseOptions(args []string) (options, error) {
 	setupSelectorMode := (o.setupList || o.setupTask != "" || o.setupWorkflow != "" || o.setupStep != "") && o.setupManifest == ""
 	setupManageMode := o.convertYAML || o.createYAML || o.createSetupScript
 	if setupSelectorMode && (o.update) {
-		return o, errors.New("setup --list/task/workflow/run sind eigenständige Befehle; update/rollback/restore entfernen")
+		return o, errors.New("setup --list/task/workflow/run sind eigenständige Befehle; update entfernen")
 	}
 	primary := 0
 	for _, b := range []bool{o.update, standaloneBackup, o.history, o.cleanup, o.clean, o.init, o.upgrade, o.check, o.doctor, o.fix, o.status, o.list, o.verify, o.config, o.templatesMode, o.showHelp, o.showHowTo, o.showVersion, o.whatsNew, o.recover, o.unlock, o.run, o.install, o.test, o.schema, o.setupManifest != "", setupSelectorMode, setupManageMode} {
@@ -258,10 +258,10 @@ func parseOptions(args []string) (options, error) {
 		return o, errors.New("--setup-task, --setup-workflow und setup --run <stepid> schließen sich gegenseitig aus")
 	}
 	if o.setupManifest == "" && (o.setupList || o.setupTask != "" || o.setupWorkflow != "" || o.setupStep != "") && (o.update || o.setup) {
-		return o, errors.New("setup --list/task/workflow/run sind eigenständige Setup-Befehle und können nicht mit update/rollback/restore kombiniert werden")
+		return o, errors.New("setup --list/task/workflow/run sind eigenständige Setup-Befehle und können nicht mit update kombiniert werden")
 	}
 	if o.setup && !(o.update || primary == 0) {
-		return o, errors.New("--setup kann nur allein oder mit --update/--rollback verwendet werden")
+		return o, errors.New("--setup kann nur allein oder mit --update verwendet werden")
 	}
 	if o.noSetup && !o.update {
 		return o, errors.New("--no-setup ist nur mit --update zulässig")
