@@ -99,12 +99,10 @@ application commands. Document every intentionally inapplicable stage.
 | install | verify build, install/deploy artifacts safely, verify installed version and executable |
 | run | start application, surface errors, support configured run steps |
 | healthcheck | check application availability and readiness; only when a service exists |
-| update | inspect versions, download/pull, verify release, stage, optional setup, activate, healthcheck, commit/rollback |
-| rollback | select known-good release, restore prior state, restart previous services, verify health |
+| update | inspect versions, download/pull, verify release, stage, optional setup, activate, healthcheck, commit/recover |
 | backup | snapshot persistent state, verify backup metadata, preserve retention policy |
-| restore | select backup, restore safely, verify integrity and state |
 | clean | remove generated build output without deleting persistent user data |
-| cleanup | apply release/backup retention rules, protect active and rollback-safe releases |
+| cleanup | apply release/backup retention rules, protect active releases |
 | doctor | validate runtime JSON, project manifests, dependencies, paths and migration requirements |
 | migrate | inspect schema versions, create backup, migrate, revalidate |
 
