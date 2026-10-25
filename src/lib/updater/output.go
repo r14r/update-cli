@@ -402,7 +402,6 @@ func printHowTo(v string) {
 	printHelp(v)
 	fmt.Printf(`
 Safety model:
-  * Updates/rollback/restore prefer an immutable previous release/<VERSION>/ as fast rollback basis; an exact current/ snapshot is only the fallback.
   * If activation, setup, service restart, or healthcheck fails, current is restored.
   * A Docker Compose stack is restarted only when it was running before the operation.
   * sync.preserve protects persistent paths from overwrite and deletion.
@@ -429,7 +428,6 @@ Safety model:
   * create-yaml --from setup-script analyzes setup.sh and converts the detected ordered operations into schemaVersion 2.
   * --with-ai optionally refines the deterministic setup.sh conversion using a configured Ollama or OpenAI-compatible model; the AI result must validate as schemaVersion 2.
   * create-setup-script generates a generic setup.sh bootstrap that delegates execution to Update CLI.
-  * clean removes obsolete release-directory entries only; installed and rollback-safe previous releases are preserved and backups are untouched.
   * cleanup applies the broader configured retention policy to releases and backups.
   * Global config/templates are loaded from INSTALLFOLDER/../etc/update-cli before project-local overrides; /usr/local/bin/update-cli maps to /usr/local/etc/update-cli.
   * config --check validates the effective global+local configuration without changing files; config --migrate upgrades .update-cli/config.json in place and keeps its backup in .update-cli/.
