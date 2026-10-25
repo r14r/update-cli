@@ -222,11 +222,6 @@ verify archive *args:
 backup *args:
     go run . backup {{args}}
 
-rollback *args:
-    go run . rollback {{args}}
-
-restore backup="latest" *args:
-    go run . restore --snapshot "{{backup}}" {{args}}
 
 history *args:
     go run . history {{args}}
