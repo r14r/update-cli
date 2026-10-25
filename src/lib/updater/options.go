@@ -353,7 +353,7 @@ func parseOptions(args []string) (options, error) {
 		return o, errors.New("--use ist nur mit --templates zulässig")
 	}
 	if primary == 0 && !o.setup {
-		if o.debug {
+		if o.debug || o.noUI {
 			o.noParameterInvocation = true
 		} else {
 			return o, errors.New("keine Betriebsart angegeben")
