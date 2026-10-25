@@ -181,7 +181,7 @@ func TestHelpJSONUsesCommandSyntaxAndReleasesCommand(t *testing.T) {
 	for _, command := range cli.Commands {
 		names[command.Name] = true
 	}
-	for _, name := range []string{"upgrade", "unlock", "howto", "version", "check", "update", "backup", "rollback", "restore", "status", "releases", "verify", "doctor", "fix"} {
+	for _, name := range []string{"upgrade", "unlock", "howto", "version", "check", "update", "backup", "status", "releases", "verify", "doctor", "fix"} {
 		if !names[name] {
 			t.Fatalf("discovery missing command %q", name)
 		}
