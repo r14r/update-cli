@@ -19,7 +19,7 @@ Run `update-cli help` for the authoritative command and parameter list for your 
 | `build`, `install`, `run`, `clean` | Build and application lifecycle |
 | `doctor`, `fix`, `migrate` | Diagnose and repair configuration |
 | `status`, `releases`, `history` | Inspect project and release state |
-| `backup`, `restore`, `rollback`, `recover` | Recovery tooling |
+| `backup`, `recover` | Recovery tooling |
 | `config`, `schema`, `templates` | Configuration and manifest utilities |
 | `generate-config` | Print a starter `update-cli.yaml` to stdout |
 | `generate-alias` | Print a Bash function `u` to stdout |
