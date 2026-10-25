@@ -73,7 +73,6 @@ func Build(version string) CLI {
 		opt("repository", []string{"--repository"}, "Release repository override", "string"),
 	}
 
-
 	setupTaskArg := arg("name", "Setup task name", "enum", true, 1)
 	setupTaskArg.Values = &ValueSource{Type: "command", Args: []string{"setup", "--list", "--json"}, ItemsField: "tasks", ValueField: "name", LabelTemplate: "{{name}}"}
 	setupWorkflowArg := arg("name", "Setup workflow name", "enum", true, 1)
