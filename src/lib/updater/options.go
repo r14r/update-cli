@@ -10,7 +10,7 @@ import (
 
 type options struct {
 	archive, downloadDir, mode, sourceType, sourceFolder, sourceURL, repository, fromRepository, rootDir, projectName, setupManifest, setupTask, setupWorkflow, setupStep, helpTopic, initialGitDir, whatsNewVersion, activation                                                                                                                                                                                                                                                                                                                            string
-	dryRun, plan, allowDowngrade, jsonOutput, update, backup, rollback, history, cleanup, clean, init, upgrade, check, doctor, fix, status, list, verify, setup, noSetup, config, configList, configCheck, configMigrate, templatesMode, templatesList, setupList, convertYAML, createYAML, createSetupScript, withAI, details, debug, edit, force, noColor, noUI, noAsk, wait, noWait, showHelp, showHowTo, showVersion, whatsNew, recover, unlock, run, install, test, schema, schemaView, schemaVersion, doctorMigrate, doctorFix, noParameterInvocation bool
+	dryRun, plan, allowDowngrade, jsonOutput, update, backup, rollback, history, cleanup, clean, init, upgrade, check, doctor, fix, status, list, verify, setup, noSetup, config, configList, configCheck, configShow, configMigrate, templatesMode, templatesList, setupList, convertYAML, createYAML, createSetupScript, withAI, details, debug, edit, force, noColor, noUI, noAsk, wait, noWait, showHelp, showHowTo, showVersion, whatsNew, recover, unlock, run, install, test, schema, schemaView, schemaVersion, doctorMigrate, doctorFix, noParameterInvocation bool
 	rollbackVersion, restore, useTemplate, templateUse, templateName, schemaSave                                                                                                                                                                                                                                                                                                                                                                                                                                                                            string
 	keep, limit                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             int
 	configSet                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               []string
@@ -78,6 +78,7 @@ func parseOptions(args []string) (options, error) {
 	fs.BoolVar(&o.noSetup, "no-setup", false, "")
 	fs.BoolVar(&o.config, "config", false, "")
 	fs.BoolVar(&o.configCheck, "config-check", false, "")
+	fs.BoolVar(&o.configShow, "config-show", false, "")
 	fs.BoolVar(&o.configMigrate, "config-migrate", false, "")
 	fs.Var((*stringListFlag)(&o.configSet), "set", "")
 	fs.BoolVar(&o.templatesMode, "templates", false, "")
@@ -202,7 +203,7 @@ func parseOptions(args []string) (options, error) {
 	if o.setup && (strings.TrimSpace(o.setupManifest) != "" || strings.TrimSpace(o.setupTask) != "" || strings.TrimSpace(o.setupWorkflow) != "" || strings.TrimSpace(o.setupStep) != "") {
 		o.setup = false
 	}
-	if (o.configCheck || o.configMigrate) && !o.config {
+	if (o.configCheck || o.configShow || o.configMigrate) && !o.config {
 		return o, errors.New("config --check/--migrate sind nur mit config zulässig")
 	}
 	if o.templatesMode && o.list {
@@ -335,7 +336,7 @@ func parseOptions(args []string) (options, error) {
 	if len(o.configSet) > 0 && !o.config {
 		return o, errors.New("--set ist nur mit config/--config zulässig")
 	}
-	configActions := boolInt(o.configList) + boolInt(o.configCheck) + boolInt(o.configMigrate) + boolInt(o.edit) + boolInt(o.useTemplate != "")
+	configActions := boolInt(o.configList) + boolInt(o.configCheck) + boolInt(o.configShow) + boolInt(o.configMigrate) + boolInt(o.edit) + boolInt(o.useTemplate != "")
 	if len(o.configSet) > 0 && configActions > 0 {
 		return o, errors.New("config --set kann nicht mit --list, --check, --migrate, --edit oder --use-template kombiniert werden")
 	}
@@ -595,6 +596,8 @@ func normalizeCommandArguments(args []string) []string {
 			switch sub {
 			case "check", "--check":
 				return append([]string{"--config", "--config-check"}, rest[1:]...)
+			case "show", "--show":
+				return append([]string{"--config", "--config-show"}, rest[1:]...)
 			case "migrate", "--migrate":
 				return append([]string{"--config", "--config-migrate"}, rest[1:]...)
 			case "set":
