@@ -108,18 +108,7 @@ func executeWorkflow(ctx context.Context, buildVersion, root string, debug, noUI
 		} else {
 			fmt.Printf("\n==> Workflow [%d/%d]: %s\n", index+1, len(stages), stage)
 		}
-		args := []string{stage, "--root", root}
-		// --no-wait is not supported by every command (notably run).
-		// Workflow phases should not invent unsupported command flags.
-		if stage != "run" {
-			args = append(args, "--no-wait")
-		}
-		if noUI || debug {
-			args = append(args, "--noui")
-		}
-		if debug {
-			args = append(args, "--debug")
-		}
+		args := workflowStageArgs(stage, root, noUI, debug)
 		var err error
 		if stage == "healthcheck" {
 			err = runWorkflowHealthcheck(ctx, root)
@@ -140,4 +129,19 @@ func executeWorkflow(ctx context.Context, buildVersion, root string, debug, noUI
 		}
 	}
 	return nil
+}
+
+// workflowStageArgs only supplies flags supported by the target command.
+func workflowStageArgs(stage, root string, noUI, debug bool) []string {
+	args := []string{stage, "--root", root}
+	if stage != "run" {
+		args = append(args, "--no-wait")
+	}
+	if noUI || debug {
+		args = append(args, "--noui")
+	}
+	if debug {
+		args = append(args, "--debug")
+	}
+	return args
 }
