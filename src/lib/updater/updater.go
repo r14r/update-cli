@@ -123,7 +123,7 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 			_, marshalErr = os.Stdout.Write(append(b, '\n'))
 			return marshalErr
 		}
-		printCommandHelp(buildVersion, o.helpTopic, o.details)
+		printCommandHelp(buildVersion, o.helpTopic, o.details || strings.EqualFold(o.helpTopic, "config"))
 		return nil
 	}
 	if o.showHowTo {
