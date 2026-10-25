@@ -67,7 +67,7 @@ type lifecycleStageHeadersKey struct{}
 
 func Run(ctx context.Context, buildVersion string, args []string) (retErr error) {
 	if len(args) == 0 {
-		return runNoParameter(ctx, buildVersion, false)
+		return runNoParameter(ctx, buildVersion, false, false)
 	}
 	if args[0] == "workflow" {
 		rootArg, debug, noUI, pipeline, plan, details, parseErr := parseWorkflowArguments(args[1:])
@@ -147,7 +147,7 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 		return whatsNewErr
 	}
 	if o.noParameterInvocation {
-		return runNoParameter(ctx, buildVersion, o.debug)
+		return runNoParameter(ctx, buildVersion, o.debug, o.noUI)
 	}
 	if o.schema {
 		if o.schemaVersion {
@@ -866,7 +866,7 @@ func projectMigrationRequired(root string) bool {
 	return doctor.InspectMigrationRequirement(root).Required
 }
 
-func runNoParameter(ctx context.Context, buildVersion string, debug bool) (retErr error) {
+func runNoParameter(ctx context.Context, buildVersion string, debug, noUI bool) (retErr error) {
 	root, err := config.ResolveRoot("")
 	if err != nil {
 		printHelp(buildVersion)
@@ -892,7 +892,7 @@ func runNoParameter(ctx context.Context, buildVersion string, debug bool) (retEr
 		actions[strings.ToLower(strings.TrimSpace(action))] = true
 	}
 	if actions["workflow"] {
-		return runDefaultWorkflow(ctx, buildVersion, root, debug, true)
+		return runDefaultWorkflow(ctx, buildVersion, root, debug, noUI)
 	}
 	if actions["help"] && len(actions) == 1 {
 		printHelp(buildVersion)
@@ -908,7 +908,7 @@ func runNoParameter(ctx context.Context, buildVersion string, debug bool) (retEr
 	// Own one fullscreen TUI for the complete update -> bootstrap -> test -> install
 	// lifecycle; individual Run calls change its phase without closing the screen.
 	lifecycleConsole := ui.New(false)
-	if !debug && lifecycleConsole.StartFullscreen(fmt.Sprintf("Update CLI Version %s — Install", buildVersion)) {
+	if !debug && !noUI && lifecycleConsole.StartFullscreen(fmt.Sprintf("Update CLI Version %s — Install", buildVersion)) {
 		ctx = context.WithValue(ctx, lifecycleUIContextKey{}, lifecycleConsole)
 		multiStage := !actions["no-bootstrap"] || !actions["no-test"] || !actions["no-install"]
 		ctx = context.WithValue(ctx, lifecycleStageHeadersKey{}, multiStage)
@@ -921,6 +921,9 @@ func runNoParameter(ctx context.Context, buildVersion string, debug bool) (retEr
 		}()
 	}
 	args := []string{"update", "--root", root}
+	if noUI {
+		args = append(args, "--noui")
+	}
 	if debug {
 		args = append(args, "--debug")
 	}
@@ -948,6 +951,9 @@ func runNoParameter(ctx context.Context, buildVersion string, debug bool) (retEr
 			return nil
 		}
 		stageArgs := []string{stage.name, "--root", root}
+		if noUI {
+			stageArgs = append(stageArgs, "--noui")
+		}
 		if debug {
 			stageArgs = append(stageArgs, "--debug")
 		}
