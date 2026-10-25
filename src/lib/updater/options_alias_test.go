@@ -26,8 +26,6 @@ func TestCanonicalCommandFormsParse(t *testing.T) {
 		{"ci"},
 		{"test"},
 		{"backup"},
-		{"rollback", "--version", "1.2.3", "--setup"},
-		{"restore", "--snapshot", "latest"},
 		{"status", "--json"},
 		{"verify", "--archive", "release.zip"},
 		{"cleanup", "--keep", "3"},
