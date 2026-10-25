@@ -10,8 +10,8 @@ import (
 
 type options struct {
 	archive, downloadDir, mode, sourceType, sourceFolder, sourceURL, repository, fromRepository, rootDir, projectName, setupManifest, setupTask, setupWorkflow, setupStep, helpTopic, initialGitDir, whatsNewVersion, activation                                                                                                                                                                                                                                                                                                                                        string
-	dryRun, plan, allowDowngrade, jsonOutput, update, backup, rollback, history, cleanup, clean, init, upgrade, check, doctor, fix, status, list, verify, setup, noSetup, config, configList, configCheck, configShow, configMigrate, templatesMode, templatesList, setupList, convertYAML, createYAML, createSetupScript, withAI, details, debug, edit, force, noColor, noUI, noAsk, wait, noWait, showHelp, showHowTo, showVersion, whatsNew, recover, unlock, run, install, test, schema, schemaView, schemaVersion, doctorMigrate, doctorFix, noParameterInvocation bool
-	rollbackVersion, restore, useTemplate, templateUse, templateName, schemaSave                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        string
+	dryRun, plan, allowDowngrade, jsonOutput, update, backup, history, cleanup, clean, init, upgrade, check, doctor, fix, status, list, verify, setup, noSetup, config, configList, configCheck, configShow, configMigrate, templatesMode, templatesList, setupList, convertYAML, createYAML, createSetupScript, withAI, details, debug, edit, force, noColor, noUI, noAsk, wait, noWait, showHelp, showHowTo, showVersion, whatsNew, recover, unlock, run, install, test, schema, schemaView, schemaVersion, doctorMigrate, doctorFix, noParameterInvocation bool
+	rollbackVersion, useTemplate, templateUse, templateName, schemaSave                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        string
 	keep, limit                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         int
 	configSet                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           []string
 }
@@ -31,8 +31,6 @@ func parseOptions(args []string) (options, error) {
 	fs.StringVar(&o.repository, "repository", "", "")
 	fs.StringVar(&o.repository, "repo", "", "")
 	fs.StringVar(&o.projectName, "project", "", "")
-	fs.StringVar(&o.rollbackVersion, "rollback-version", "", "")
-	fs.StringVar(&o.restore, "snapshot", "", "")
 	fs.StringVar(&o.rootDir, "root", "", "")
 	fs.StringVar(&o.activation, "activation", "in-place", "")
 	fs.StringVar(&o.rootDir, "r", "", "")
@@ -43,8 +41,6 @@ func parseOptions(args []string) (options, error) {
 	fs.BoolVar(&o.jsonOutput, "json", false, "")
 	fs.BoolVar(&o.update, "update", false, "")
 	fs.BoolVar(&o.backup, "backup", false, "")
-	fs.BoolVar(&o.rollback, "rollback", false, "")
-	fs.StringVar(&o.restore, "restore", "", "")
 	fs.BoolVar(&o.history, "history", false, "")
 	fs.BoolVar(&o.cleanup, "cleanup", false, "")
 	fs.BoolVar(&o.clean, "clean", false, "")
@@ -138,9 +134,6 @@ func parseOptions(args []string) (options, error) {
 		return o, errors.New("doctor --fix ist interaktiv und kann nicht mit --json kombiniert werden")
 	}
 	// Public parameter aliases are translated after flag parsing.
-	if o.rollback && o.showVersion {
-		return o, errors.New("rollback --version benötigt einen Versionswert")
-	}
 	o.activation = strings.ToLower(strings.TrimSpace(o.activation))
 	if o.activation != "in-place" && o.activation != "atomic" {
 		return o, fmt.Errorf("unbekannte Aktivierungsstrategie %q (erlaubt: in-place, atomic)", o.activation)
@@ -218,8 +211,6 @@ func parseOptions(args []string) (options, error) {
 		switch {
 		case o.update || o.verify:
 			o.archive = rest[0]
-		case o.rollback:
-			o.rollbackVersion = rest[0]
 		case o.init:
 			o.projectName = rest[0]
 		case o.templatesMode && o.edit:
@@ -231,11 +222,11 @@ func parseOptions(args []string) (options, error) {
 	standaloneBackup := o.backup && !o.update
 	setupSelectorMode := (o.setupList || o.setupTask != "" || o.setupWorkflow != "" || o.setupStep != "") && o.setupManifest == ""
 	setupManageMode := o.convertYAML || o.createYAML || o.createSetupScript
-	if setupSelectorMode && (o.update || o.rollback || o.restore != "") {
+	if setupSelectorMode && (o.update) {
 		return o, errors.New("setup --list/task/workflow/run sind eigenständige Befehle; update/rollback/restore entfernen")
 	}
 	primary := 0
-	for _, b := range []bool{o.update, standaloneBackup, o.rollback, o.restore != "", o.history, o.cleanup, o.clean, o.init, o.upgrade, o.check, o.doctor, o.fix, o.status, o.list, o.verify, o.config, o.templatesMode, o.showHelp, o.showHowTo, o.showVersion, o.whatsNew, o.recover, o.unlock, o.run, o.install, o.test, o.schema, o.setupManifest != "", setupSelectorMode, setupManageMode} {
+	for _, b := range []bool{o.update, standaloneBackup, o.history, o.cleanup, o.clean, o.init, o.upgrade, o.check, o.doctor, o.fix, o.status, o.list, o.verify, o.config, o.templatesMode, o.showHelp, o.showHowTo, o.showVersion, o.whatsNew, o.recover, o.unlock, o.run, o.install, o.test, o.schema, o.setupManifest != "", setupSelectorMode, setupManageMode} {
 		if b {
 			primary++
 		}
@@ -260,16 +251,16 @@ func parseOptions(args []string) (options, error) {
 	} else if o.withAI {
 		return o, errors.New("--with-ai ist nur mit --create-yaml --from setup-script zulässig")
 	}
-	if o.setupManifest != "" && (o.setup || o.update || o.rollback || o.restore != "") {
+	if o.setupManifest != "" && (o.setup || o.update) {
 		return o, errors.New("--setup-manifest kann nicht mit Update-/Setup-Modi kombiniert werden")
 	}
 	if boolInt(o.setupTask != "")+boolInt(o.setupWorkflow != "")+boolInt(o.setupStep != "") > 1 {
 		return o, errors.New("--setup-task, --setup-workflow und setup --run <stepid> schließen sich gegenseitig aus")
 	}
-	if o.setupManifest == "" && (o.setupList || o.setupTask != "" || o.setupWorkflow != "" || o.setupStep != "") && (o.update || o.rollback || o.restore != "" || o.setup) {
+	if o.setupManifest == "" && (o.setupList || o.setupTask != "" || o.setupWorkflow != "" || o.setupStep != "") && (o.update || o.setup) {
 		return o, errors.New("setup --list/task/workflow/run sind eigenständige Setup-Befehle und können nicht mit update/rollback/restore kombiniert werden")
 	}
-	if o.setup && !(o.update || o.rollback || primary == 0) {
+	if o.setup && !(o.update || primary == 0) {
 		return o, errors.New("--setup kann nur allein oder mit --update/--rollback verwendet werden")
 	}
 	if o.noSetup && !o.update {
@@ -330,7 +321,7 @@ func parseOptions(args []string) (options, error) {
 	if o.wait && o.noWait {
 		return o, errors.New("--wait und --no-wait schließen sich aus")
 	}
-	if (o.wait || o.noWait) && !(o.check || o.update || o.install || o.test || o.setup || o.setupManifest != "" || o.setupTask != "" || o.setupWorkflow != "" || o.setupStep != "" || (o.rollback && o.setup)) {
+	if (o.wait || o.noWait) && !(o.check || o.update || o.install || o.test || o.setup || o.setupManifest != "" || o.setupTask != "" || o.setupWorkflow != "" || o.setupStep != "") {
 		return o, errors.New("--wait/--no-wait sind nur mit --check, --update, --install, --test oder Setup zulässig")
 	}
 	if len(o.configSet) > 0 && !o.config {
@@ -497,10 +488,6 @@ func normalizeCommandArguments(args []string) []string {
 		return prepend("--setup-workflow", "ci")
 	case "backup":
 		return prepend("--backup")
-	case "rollback":
-		return prepend("--rollback")
-	case "restore":
-		return append([]string{"--restore", "latest"}, rest...)
 	case "history":
 		return prepend("--history")
 	case "cleanup":
@@ -707,20 +694,6 @@ func normalizeLegacyFromRepositoryArguments(args []string) []string {
 }
 
 func normalizeFlagArguments(args []string) []string {
-	hasRollback := false
-	for _, arg := range args {
-		if arg == "--rollback" {
-			hasRollback = true
-			break
-		}
-	}
-	if hasRollback {
-		for i := 0; i+1 < len(args); i++ {
-			if args[i] == "--version" && !strings.HasPrefix(args[i+1], "-") {
-				args[i] = "--rollback-version"
-			}
-		}
-	}
 	hasSetup := false
 	for _, arg := range args {
 		if arg == "--setup" {
