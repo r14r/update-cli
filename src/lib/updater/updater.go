@@ -921,6 +921,9 @@ func runNoParameter(ctx context.Context, buildVersion string, debug, noUI bool) 
 		}()
 	}
 	args := []string{"update", "--root", root}
+	if noUI {
+		args = append(args, "--noui")
+	}
 	if debug {
 		args = append(args, "--debug")
 	}
@@ -948,6 +951,9 @@ func runNoParameter(ctx context.Context, buildVersion string, debug, noUI bool) 
 			return nil
 		}
 		stageArgs := []string{stage.name, "--root", root}
+		if noUI {
+			stageArgs = append(stageArgs, "--noui")
+		}
 		if debug {
 			stageArgs = append(stageArgs, "--debug")
 		}
