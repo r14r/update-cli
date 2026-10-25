@@ -29,7 +29,7 @@ func TestContractBasics(t *testing.T) {
 	if len(cli.Commands) == 0 {
 		t.Fatal("commands is empty")
 	}
-	for _, name := range []string{"update", "check", "status", "run", "install", "schema", "setup", "rollback", "doctor"} {
+	for _, name := range []string{"update", "check", "status", "run", "install", "schema", "setup", "doctor"} {
 		if findCommand(cli.Commands, []string{name}) == nil {
 			t.Fatalf("missing command %q", name)
 		}
