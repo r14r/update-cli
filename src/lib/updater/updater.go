@@ -22,7 +22,6 @@ import (
 	"github.com/r14r/update-cli/src/lib/inventory"
 	"github.com/r14r/update-cli/src/lib/projectsetup"
 	"github.com/r14r/update-cli/src/lib/projectstatus"
-	"github.com/r14r/update-cli/src/lib/rollback"
 	rsyncutil "github.com/r14r/update-cli/src/lib/rsync"
 	"github.com/r14r/update-cli/src/lib/source"
 	"github.com/r14r/update-cli/src/lib/templates"
@@ -773,10 +772,6 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 		return nil
 	case o.backup && !o.update:
 		return runBackup(ctx, console, cfg, o.jsonOutput)
-	case o.rollback:
-		return runRollback(ctx, console, cfg, o)
-	case o.restore != "":
-		return runRestore(ctx, console, cfg, o)
 	case o.status:
 		res, err := projectstatus.Run(ctx, cfg)
 		if err != nil {
@@ -1656,100 +1651,6 @@ func updatePhaseLabel(phase string) string {
 		return label
 	}
 	return phase
-}
-
-func runRollback(ctx context.Context, console *ui.Console, cfg config.Config, o options) error {
-	lock, err := tools.AcquireLock(filepath.Join(cfg.RootDir, ".release-update.lock"), "rollback")
-	if err != nil {
-		return err
-	}
-	defer lock.Release()
-	rel, err := rollback.Resolve(cfg, o.rollbackVersion)
-	if err != nil {
-		return err
-	}
-	from := installedVersion(cfg.CurrentDir)
-	tx, err := beginTransaction(ctx, cfg, console)
-	if err != nil {
-		return err
-	}
-	phase := "sync-current"
-	res, err := rollback.Apply(ctx, cfg, rel)
-	if err != nil {
-		return tx.recover(recordFailure(cfg, "rollback", phase, from, rel.Version, "rollback:"+rel.Version, err))
-	}
-	if o.setup {
-		phase = "setup"
-		if _, err := projectsetup.Run(ctx, cfg, console); err != nil {
-			return tx.recover(recordFailure(cfg, "rollback", phase, from, rel.Version, "rollback:"+rel.Version, err))
-		}
-	}
-	phase = "services-start"
-	if err := tx.startPreviousServiceState(ctx); err != nil {
-		return tx.recover(err)
-	}
-	phase = "healthcheck"
-	if err := runHealthcheck(ctx, cfg); err != nil {
-		return tx.recover(err)
-	}
-	phase = "metadata"
-	if err := writeRootState(cfg, rel.Version, "rollback:"+rel.Version); err != nil {
-		return tx.recover(recordFailure(cfg, "rollback", phase, from, rel.Version, "rollback:"+rel.Version, err))
-	}
-	if err := tx.commit(); err != nil {
-		console.Warn("Temporäre Transaktionsdaten konnten nach Commit nicht entfernt werden: " + err.Error())
-	}
-	if err := writeLegacyRootMarkers(cfg, rel.Version, "rollback:"+rel.Version); err != nil {
-		console.Warn("Legacy-Release-Marker konnten nicht vollständig geschrieben werden: " + err.Error())
-	}
-	appendSuccessHistory(console, cfg, history.Entry{Action: "rollback", ProjectName: cfg.ProjectName, FromVersion: from, ToVersion: rel.Version, Setup: o.setup, Status: "success", Phase: "committed"})
-	if o.jsonOutput {
-		return writeJSON(res)
-	}
-	printRollback(console, res, o.setup)
-	return nil
-}
-func runRestore(ctx context.Context, console *ui.Console, cfg config.Config, o options) error {
-	lock, err := tools.AcquireLock(filepath.Join(cfg.RootDir, ".release-update.lock"), "restore")
-	if err != nil {
-		return err
-	}
-	defer lock.Release()
-	item, err := backup.Resolve(cfg, o.restore)
-	if err != nil {
-		return err
-	}
-	from := installedVersion(cfg.CurrentDir)
-	tx, err := beginTransaction(ctx, cfg, console)
-	if err != nil {
-		return err
-	}
-	res, err := backup.Restore(ctx, cfg, item, false)
-	if err != nil {
-		return tx.recover(recordFailure(cfg, "restore", "sync-current", from, item.Version, item.Path, err))
-	}
-	to := installedVersion(cfg.CurrentDir)
-	if err := tx.startPreviousServiceState(ctx); err != nil {
-		return tx.recover(err)
-	}
-	if err := runHealthcheck(ctx, cfg); err != nil {
-		return tx.recover(err)
-	}
-	if err := writeRootState(cfg, to, "backup:"+item.Name); err != nil {
-		return tx.recover(recordFailure(cfg, "restore", "metadata", from, to, item.Path, err))
-	}
-	if err := tx.commit(); err != nil {
-		console.Warn("Temporäre Transaktionsdaten konnten nach Commit nicht entfernt werden: " + err.Error())
-	}
-	if err := writeLegacyRootMarkers(cfg, to, "backup:"+item.Name); err != nil {
-		console.Warn("Legacy-Release-Marker konnten nicht vollständig geschrieben werden: " + err.Error())
-	}
-	appendSuccessHistory(console, cfg, history.Entry{Action: "restore", ProjectName: cfg.ProjectName, FromVersion: from, ToVersion: to, Backup: item.Path, Status: "success", Phase: "committed"})
-	if o.jsonOutput {
-		return writeJSON(map[string]any{"backup": item, "sync": res, "fromVersion": from, "toVersion": to})
-	}
-	printRestore(console, item, from, to, res)
-	return nil
 }
 
 func resolveArtifact(ctx context.Context, s *state, explicit string) error {
