@@ -892,7 +892,7 @@ func runNoParameter(ctx context.Context, buildVersion string, debug bool) (retEr
 		actions[strings.ToLower(strings.TrimSpace(action))] = true
 	}
 	if actions["workflow"] {
-		return runDefaultWorkflow(ctx, buildVersion, root, debug, true)
+		return runDefaultWorkflow(ctx, buildVersion, root, debug, false)
 	}
 	if actions["help"] && len(actions) == 1 {
 		printHelp(buildVersion)
