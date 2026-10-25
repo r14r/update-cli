@@ -35,6 +35,8 @@ func TestValidatePublicSyntaxRejectsLegacyCommandFlagsAndBareSubcommands(t *test
 		{"schema", "version"},
 		{"config", "migrate"},
 		{"update", "release.zip"},
+		{"rollback", "--version", "3.4.38"},
+		{"restore", "--snapshot", "latest"},
 		{"help", "setup", "--details"},
 	}
 	for _, args := range invalid {
