@@ -1,3 +1,9 @@
+# 3.4.38
+
+- Expand show-requirements with the full project workflow lifecycle and step checks.
+- List all registered commands in help, including show-requirements.
+- Add config --show, a deeper read-only config --check and config --generate --repo for runtime JSON drafts.
+
 # 3.4.37
 
 - Fix the manifest CI build path after the Go source move into src/.
