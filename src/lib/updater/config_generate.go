@@ -13,7 +13,7 @@ func runConfigGenerate(args []string) error {
 	var repository string
 	for i := 0; i < len(args); i++ {
 		switch {
-		case args[i] == "--repo" || args[i] == "--repository": 
+		case args[i] == "--repo" || args[i] == "--repository":
 			if i+1 >= len(args) {
 				return fmt.Errorf("%s benötigt eine Repository-URL", args[i])
 			}
