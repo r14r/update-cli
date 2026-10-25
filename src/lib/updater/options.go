@@ -9,11 +9,86 @@ import (
 )
 
 type options struct {
-	archive, downloadDir, mode, sourceType, sourceFolder, sourceURL, repository, fromRepository, rootDir, projectName, setupManifest, setupTask, setupWorkflow, setupStep, helpTopic, initialGitDir, whatsNewVersion, activation                                                                                                                                                                                                                                                                                                                                        string
-	dryRun, plan, allowDowngrade, jsonOutput, update, backup, history, cleanup, clean, init, upgrade, check, doctor, fix, status, list, verify, setup, noSetup, config, configList, configCheck, configShow, configMigrate, templatesMode, templatesList, setupList, convertYAML, createYAML, createSetupScript, withAI, details, debug, edit, force, noColor, noUI, noAsk, wait, noWait, showHelp, showHowTo, showVersion, whatsNew, recover, unlock, run, install, test, schema, schemaView, schemaVersion, doctorMigrate, doctorFix, noParameterInvocation bool
-	useTemplate, templateUse, templateName, schemaSave                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        string
-	keep, limit                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         int
-	configSet                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           []string
+	archive string
+	downloadDir string
+	mode string
+	sourceType string
+	sourceFolder string
+	sourceURL string
+	repository string
+	fromRepository string
+	rootDir string
+	projectName string
+	setupManifest string
+	setupTask string
+	setupWorkflow string
+	setupStep string
+	helpTopic string
+	initialGitDir string
+	whatsNewVersion string
+	activation string
+	dryRun bool
+	plan bool
+	allowDowngrade bool
+	jsonOutput bool
+	update bool
+	backup bool
+	history bool
+	cleanup bool
+	clean bool
+	init bool
+	upgrade bool
+	check bool
+	doctor bool
+	fix bool
+	status bool
+	list bool
+	verify bool
+	setup bool
+	noSetup bool
+	config bool
+	configList bool
+	configCheck bool
+	configShow bool
+	configMigrate bool
+	templatesMode bool
+	templatesList bool
+	setupList bool
+	convertYAML bool
+	createYAML bool
+	createSetupScript bool
+	withAI bool
+	details bool
+	debug bool
+	edit bool
+	force bool
+	noColor bool
+	noUI bool
+	noAsk bool
+	wait bool
+	noWait bool
+	showHelp bool
+	showHowTo bool
+	showVersion bool
+	whatsNew bool
+	recover bool
+	unlock bool
+	run bool
+	install bool
+	test bool
+	schema bool
+	schemaView bool
+	schemaVersion bool
+	doctorMigrate bool
+	doctorFix bool
+	noParameterInvocation bool
+	useTemplate string
+	templateUse string
+	templateName string
+	schemaSave string
+	keep int
+	limit int
+	configSet []string
 }
 
 func parseOptions(args []string) (options, error) {
