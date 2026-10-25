@@ -402,6 +402,13 @@ Global options:
   --debug     show direct detailed execution steps for any command
   --details   with help: show purpose, options and examples for the selected command
 `)
+	names := make([]string, 0, len(publicCommands))
+	for name := range publicCommands {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	fmt.Println("\nAlle Befehle:")
+	fmt.Println("  " + strings.Join(names, ", "))
 }
 
 func printHowTo(v string) {
