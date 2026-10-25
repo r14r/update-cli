@@ -446,7 +446,7 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 			return nil
 		}
 	}
-	standaloneSetupCommand := (o.setup && !o.update && !o.rollback) || o.setupList || o.setupTask != "" || o.setupWorkflow != "" || o.setupStep != ""
+	standaloneSetupCommand := (o.setup && !o.update) || o.setupList || o.setupTask != "" || o.setupWorkflow != "" || o.setupStep != ""
 	if standaloneSetupCommand {
 		selection := projectsetup.Selection{Workflow: o.setupWorkflow, Task: o.setupTask, Step: o.setupStep}
 		hasState := false
