@@ -1,5 +1,5 @@
 ---
-layout: home
+layout: single
 title: Update CLI
 ---
 
@@ -14,10 +14,10 @@ Update CLI works with Git repositories and ZIP releases and uses a versioned `up
 ## Lifecycle
 
 ```text
-init → update → bootstrap → setup → test → build → install → run
+update → bootstrap → install → precommit → test → build → run
 ```
 
-Not every application needs every step. `update` synchronizes the release; `bootstrap` prepares prerequisites; `setup` configures the app; `test` validates; `build` assembles; `install` deploys; `run` starts services. Keep production migrations and destructive operations explicit.
+The default seven-stage workflow runs without confirmation. Configure `no parameter: [workflow-ask]` to confirm each stage. Individual commands remain available. Keep production migrations and destructive operations explicit.
 
 ## Example
 
