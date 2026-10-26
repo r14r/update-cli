@@ -1,3 +1,9 @@
+# 3.4.41
+
+- Review command registration and improve human-readable and JSON CLI help coverage.
+- Upgrade Jekyll documentation to the github-pages-template Minimal Mistakes layout.
+- Refresh README and command reference, and add a code-review report.
+
 # 3.4.40
 
 - Remove public rollback and restore/snapshot commands while retaining automatic transaction recovery.
