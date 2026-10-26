@@ -889,6 +889,9 @@ func runNoParameter(ctx context.Context, buildVersion string, debug, noUI bool) 
 	if actions["workflow"] {
 		return runDefaultWorkflow(ctx, buildVersion, root, debug, noUI)
 	}
+	if actions["workflow-ask"] {
+		return runConfirmingWorkflow(ctx, buildVersion, root, debug, noUI)
+	}
 	if actions["help"] && len(actions) == 1 {
 		printHelp(buildVersion)
 		return nil
