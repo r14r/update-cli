@@ -31,6 +31,10 @@ update-cli install --noui
 update-cli run --noui
 ```
 
+## Site structure
+
+This documentation is built with the [r14r/github-pages-template](https://github.com/r14r/github-pages-template) layout: Minimal Mistakes, left-hand navigation, sticky table of contents and integrated search.
+
 ## Documentation
 
 - [Manifest schema and examples]({{ '/configuration/' | relative_url }})
