@@ -1,3 +1,9 @@
+---
+layout: single
+title: Manifest schema
+permalink: /setup-schema/
+---
+
 # Update CLI setup manifest schema
 
 Update CLI 2.11 combines versioned project update policy with setup automation while keeping host/user policy in JSON.
