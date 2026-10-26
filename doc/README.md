@@ -2,11 +2,11 @@
 
 **Transactional project updates from ZIP releases or Git repositories.**
 
-Current release: **3.4.40**
+Current release: **3.4.41**
 
 ## Latest code review
 
-See [Code Review 2026-10-21](docs/code-review-2026-10-21.md) for prioritized safety, architecture and workflow recommendations.
+See [Code Review 2026-10-26](../docs/code-review-2026-10-26.md) for prioritized safety, architecture and workflow recommendations.
 
 ## Inspect workflow steps
 
