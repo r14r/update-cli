@@ -1,20 +1,36 @@
 title: Update CLI
 description: Reliable project updates, setup and deployment
-url: https://r14r.github.io
-baseurl: /update-cli
-theme: minima
+url: "https://r14r.github.io"
+baseurl: "/update-cli"
+project:
+  name: Update CLI
+  url: "https://github.com/r14r/update-cli"
+author:
+  name: r14r
+theme: minimal-mistakes-jekyll
+minimal_mistakes_skin: default
+locale: en
 markdown: kramdown
+permalink: pretty
+search: true
 plugins:
-  - jekyll-seo-tag
-header_pages:
-  - getting-started.md
-  - commands.md
-  - configuration.md
-  - tutorials.md
-  - terminal-demos.md
+  - jekyll-include-cache
+sass:
+  quiet_deps: true
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: single
+      toc: true
+      toc_label: "On this page"
+      toc_sticky: true
+      sidebar:
+        nav: docs
 exclude:
-  - tapes
-  - examples
-  - root-lifecycle-design.md
   - Gemfile
   - Gemfile.lock
+  - tapes
+  - examples
+  - vendor
+  - _site
