@@ -45,3 +45,22 @@ func TestDetailedHelpShowsRegisteredParameters(t *testing.T) {
 		}
 	}
 }
+
+func TestDetailedHelpIncludesAllDiscoverableParameterFlags(t *testing.T) {
+	out, err := captureStdout(func() error {
+		printCommandHelp("3.4.41", "", true)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, command := range discovery.Build("3.4.41").Commands {
+		for _, parameter := range command.Options {
+			for _, flag := range parameter.Flags {
+				if !strings.Contains(out, flag) {
+					t.Errorf("help --details missing %s option %s", command.Name, flag)
+				}
+			}
+		}
+	}
+}
