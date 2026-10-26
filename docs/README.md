@@ -4,6 +4,14 @@ This folder is the Jekyll source for https://r14r.github.io/update-cli/.
 
 The layout and build conventions follow [r14r/github-pages-template](https://github.com/r14r/github-pages-template): Minimal Mistakes theme, left sidebar from `_data/navigation.yml`, sticky right table of contents, search and scrollspy. Update CLI's existing documentation pages remain the content source.
 
+## Build everything from the repository root
+
+```bash
+just build-docs
+```
+
+This first renders `docs/tapes/install.tape` and `docs/tapes/quickstart.tape` via VHS into `docs/assets/terminal/`, then runs the Jekyll site build using `docs/justfile`. Prerequisites: `vhs` and its terminal recording dependencies, Ruby, Bundler, and the Go toolchain used by the tape recordings. The finished site is written to `_site/` at the repository root.
+
 ## Local build
 
 ```bash
