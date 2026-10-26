@@ -4,6 +4,45 @@
 
 Current release: **3.4.41**
 
+## Start here
+
+Update CLI manages project releases from Git repositories and ZIP archives using a project manifest (`update-cli.yaml`, schema 2) and a host-local runtime configuration (`.update-cli/config.json`, schema 10). Its normal invocation can run an unattended seven-stage workflow in a full-screen terminal UI.
+
+- **Documentation website:** https://r14r.github.io/update-cli/
+- **Complete command reference:** https://r14r.github.io/update-cli/commands/
+- **Project manifest and Justfile integration:** `update-cli show-requirements`
+- **All command options:** `update-cli help --details`, `update-cli help --command update --details`
+- **Machine-readable command definitions:** `update-cli help --json`
+
+### Installation and everyday commands
+
+```bash
+update-cli version
+update-cli help --details
+update-cli doctor
+update-cli config --check
+update-cli workflow --view --details
+update-cli workflow --noui
+```
+
+For bare `update-cli` (or the `u` alias), set one of these runtime configuration modes:
+
+```json
+{ "no parameter": ["workflow"] }
+```
+
+This executes all stages without confirmations. Use `["workflow-ask"]` to ask before every stage. The default stages are `update → bootstrap → install → precommit → test → build → run`. Individual commands remain available. A manifest's `workflows.install.tasks: [install]` requires a `tasks.install` definition; a `just install` recipe alone is not a manifest task.
+
+### Developer quality gate
+
+```bash
+just ci
+just ci-branch
+```
+
+`just ci` only checks the current checkout; `just ci-branch` explicitly updates the branch before checking.
+
+
 ## Latest code review
 
 See [Code Review 2026-10-26](../docs/code-review-2026-10-26.md) for prioritized safety, architecture and workflow recommendations.
