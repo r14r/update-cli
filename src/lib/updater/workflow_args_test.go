@@ -26,6 +26,16 @@ func TestWorkflowStageArgsRunDoesNotPassWaitFlags(t *testing.T) {
 	}
 }
 
+func TestWorkflowStageUpdateDisablesSetupConfirmation(t *testing.T) {
+	args := workflowStageArgs("update", "/tmp/project", false, false)
+	if !slices.Contains(args, "--no-setup") {
+		t.Fatalf("unattended workflow update must bypass setup confirmation: %v", args)
+	}
+	if _, err := parseOptions(args); err != nil {
+		t.Fatalf("unattended workflow update flags invalid: %v", err)
+	}
+}
+
 func TestWorkflowStageArgsRetainsNoWaitForSupportedStages(t *testing.T) {
 	for _, stage := range []string{"update", "bootstrap", "install", "precommit", "test", "build"} {
 		args := workflowStageArgs(stage, "/tmp/project", false, false)
