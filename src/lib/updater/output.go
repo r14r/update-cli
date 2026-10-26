@@ -14,8 +14,6 @@ import (
 	"github.com/r14r/update-cli/src/lib/inventory"
 	"github.com/r14r/update-cli/src/lib/projectsetup"
 	"github.com/r14r/update-cli/src/lib/projectstatus"
-	"github.com/r14r/update-cli/src/lib/rollback"
-	rsyncutil "github.com/r14r/update-cli/src/lib/rsync"
 	"github.com/r14r/update-cli/src/lib/ui"
 	"github.com/r14r/update-cli/src/lib/updatecheck"
 )
@@ -195,11 +193,6 @@ var commandHelpDetails = map[string]commandHelp{
 		Description: "Startet die im Manifest unter run.command oder run.steps konfigurierte Anwendung.",
 		Examples:    []string{"update-cli run"},
 	},
-	"rollback": {
-		Usage:       []string{"update-cli rollback --version VERSION [--setup]"},
-		Description: "Aktiviert ein vorhandenes älteres Release transaktional erneut.",
-		Examples:    []string{"update-cli rollback --version 2.14.4", "update-cli rollback --version 2.14.4 --setup"},
-	},
 	"backup": {
 		Usage:       []string{"update-cli backup"},
 		Description: "Erstellt ein persistentes Projekt-Backup nach der konfigurierten Backup-Policy.",
@@ -225,11 +218,6 @@ var commandHelpDetails = map[string]commandHelp{
 		Usage:       []string{"update-cli releases --list [--json]"},
 		Description: "Listet lokal vorhandene versionierte Releases.",
 		Examples:    []string{"update-cli releases --list"},
-	},
-	"restore": {
-		Usage:       []string{"update-cli restore --snapshot BACKUP|latest"},
-		Description: "Stellt einen zuvor erstellten Projekt-Backup-Stand wieder her.",
-		Examples:    []string{"update-cli restore --snapshot latest"},
 	},
 	"verify": {
 		Usage:       []string{"update-cli verify --archive ARCHIVE.zip"},
@@ -367,8 +355,6 @@ func printHelpSummary() {
   update-cli update [--archive ARCHIVE.zip] [--backup] [--setup|--no-setup] [--force] [--wait|--no-wait] [--no-ui]
   update-cli update --plan [--json]
   update-cli backup
-  update-cli rollback --version VERSION [--setup]
-  update-cli restore --snapshot latest
   update-cli status [--json]
   update-cli releases --list [--json]
   update-cli verify --archive ARCHIVE.zip
@@ -415,7 +401,6 @@ func printHowTo(v string) {
 	printHelp(v)
 	fmt.Printf(`
 Safety model:
-  * Updates/rollback/restore prefer an immutable previous release/<VERSION>/ as fast rollback basis; an exact current/ snapshot is only the fallback.
   * If activation, setup, service restart, or healthcheck fails, current is restored.
   * A Docker Compose stack is restarted only when it was running before the operation.
   * sync.preserve protects persistent paths from overwrite and deletion.
@@ -442,7 +427,6 @@ Safety model:
   * create-yaml --from setup-script analyzes setup.sh and converts the detected ordered operations into schemaVersion 2.
   * --with-ai optionally refines the deterministic setup.sh conversion using a configured Ollama or OpenAI-compatible model; the AI result must validate as schemaVersion 2.
   * create-setup-script generates a generic setup.sh bootstrap that delegates execution to Update CLI.
-  * clean removes obsolete release-directory entries only; installed and rollback-safe previous releases are preserved and backups are untouched.
   * cleanup applies the broader configured retention policy to releases and backups.
   * Global config/templates are loaded from INSTALLFOLDER/../etc/update-cli before project-local overrides; /usr/local/bin/update-cli maps to /usr/local/etc/update-cli.
   * config --check validates the effective global+local configuration without changing files; config --migrate upgrades .update-cli/config.json in place and keeps its backup in .update-cli/.
@@ -520,21 +504,6 @@ func printBackup(c *ui.Console, r backup.Result) {
 	c.Row("Ordner", r.Backup.Path)
 	c.Row("Änderungen", fmt.Sprint(r.Sync.Changes))
 	c.Success("Backup abgeschlossen")
-}
-func printRollback(c *ui.Console, r rollback.Result, setup bool) {
-	c.Header("Rollback abgeschlossen")
-	c.Row("Version", empty(r.FromVersion)+" → "+r.ToVersion)
-	c.Row("Release", r.ReleaseDir)
-	c.Row("Änderungen", fmt.Sprint(r.Sync.Changes))
-	c.Row("Setup", fmt.Sprint(setup))
-	c.Success("Rollback committed")
-}
-func printRestore(c *ui.Console, item backup.Item, from, to string, r rsyncutil.Result) {
-	c.Header("Backup wiederhergestellt")
-	c.Row("Backup", item.Name)
-	c.Row("Version", empty(from)+" → "+empty(to))
-	c.Row("Änderungen", fmt.Sprint(r.Changes))
-	c.Success("Restore committed")
 }
 func printStatus(c *ui.Console, r projectstatus.Result) {
 	c.Header("Updater-Status")

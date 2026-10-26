@@ -73,12 +73,6 @@ func Build(version string) CLI {
 		opt("repository", []string{"--repository"}, "Release repository override", "string"),
 	}
 
-	rollbackArg := arg("version", "Release version to restore", "enum", false, 1)
-	rollbackArg.Values = &ValueSource{Type: "command", Args: []string{"releases", "--list", "--json"}, ItemsField: "releases", ValueField: "version", LabelTemplate: "{{version}}"}
-	restoreArg := arg("backup", "Backup to restore", "enum", true, 1)
-	restoreArg.Choices = []Choice{{Value: "latest", Label: "latest (most recent backup)"}}
-	restoreArg.Values = &ValueSource{Type: "command", Args: []string{"releases", "--list", "--json"}, ItemsField: "backups", ValueField: "name", LabelTemplate: "{{name}} ({{version}})"}
-
 	setupTaskArg := arg("name", "Setup task name", "enum", true, 1)
 	setupTaskArg.Values = &ValueSource{Type: "command", Args: []string{"setup", "--list", "--json"}, ItemsField: "tasks", ValueField: "name", LabelTemplate: "{{name}}"}
 	setupWorkflowArg := arg("name", "Setup workflow name", "enum", true, 1)
@@ -90,8 +84,6 @@ func Build(version string) CLI {
 		cmd("check", "Check", "Check for an available project update", nil, join([]Parameter{root, jsonOpt, opt("no-ask", []string{"--no-ask"}, "Do not ask to install an available update", "boolean"), wait, noWait, noUI, noColor}, sourceOpts...)),
 		cmd("update", "Update", "Install a new project release", nil, join([]Parameter{root, opt("archive", []string{"--archive", "-a"}, "Release ZIP archive", "file"), opt("dry-run", []string{"--dry-run", "-n"}, "Preview update without applying it", "boolean"), opt("plan", []string{"--plan"}, "Create an update plan without applying changes", "boolean"), opt("allow-downgrade", []string{"--allow-downgrade"}, "Allow installing an older project version", "boolean"), jsonOpt, opt("backup", []string{"--backup"}, "Create a backup before updating", "boolean"), opt("setup", []string{"--setup"}, "Run project setup after update without asking", "boolean"), opt("no-setup", []string{"--no-setup"}, "Do not run project setup after update", "boolean"), opt("force", []string{"--force", "-f"}, "Force update where supported", "boolean"), wait, noWait, noUI, noColor}, sourceOpts...)),
 		cmd("backup", "Backup", "Create a project backup", nil, []Parameter{root, jsonOpt, noColor}),
-		cmd("rollback", "Rollback", "Restore a previous validated release", nil, []Parameter{root, enumParam("version", []string{"--version"}, rollbackArg), opt("setup", []string{"--setup"}, "Run project setup after rollback", "boolean"), jsonOpt, wait, noWait, noUI, noColor}),
-		cmd("restore", "Restore", "Restore a project backup", nil, []Parameter{root, enumParam("snapshot", []string{"--snapshot"}, restoreArg), jsonOpt, noColor}),
 		cmd("status", "Status", "Show project and release status", nil, join([]Parameter{root, jsonOpt, noColor}, sourceOpts...)),
 		Command{Name: "releases", Title: "Releases", Description: "Inspect releases and backups", Options: join([]Parameter{root, opt("list", []string{"--list"}, "List releases and backups", "boolean"), jsonOpt, noColor}, sourceOpts...), Commands: []Command{}},
 		cmd("verify", "Verify", "Verify a release ZIP archive", nil, join([]Parameter{root, opt("archive", []string{"--archive", "-a"}, "Release ZIP archive", "file"), jsonOpt, noColor}, sourceOpts...)),

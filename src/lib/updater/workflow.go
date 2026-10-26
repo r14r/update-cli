@@ -70,10 +70,14 @@ func runWorkflowHealthcheck(ctx context.Context, root string) error {
 }
 
 func runDefaultWorkflow(ctx context.Context, buildVersion, root string, debug, noUI bool) error {
-	return executeWorkflow(ctx, buildVersion, root, debug, noUI, false)
+	return executeWorkflow(ctx, buildVersion, root, debug, noUI, false, false)
 }
 
-func executeWorkflow(ctx context.Context, buildVersion, root string, debug, noUI, pipeline bool) (retErr error) {
+func runConfirmingWorkflow(ctx context.Context, buildVersion, root string, debug, noUI bool) error {
+	return executeWorkflow(ctx, buildVersion, root, debug, noUI, false, true)
+}
+
+func executeWorkflow(ctx context.Context, buildVersion, root string, debug, noUI, pipeline, ask bool) (retErr error) {
 	if pipeline {
 		cfg, err := config.Load(root, "")
 		if err != nil {
@@ -108,13 +112,16 @@ func executeWorkflow(ctx context.Context, buildVersion, root string, debug, noUI
 		} else {
 			fmt.Printf("\n==> Workflow [%d/%d]: %s\n", index+1, len(stages), stage)
 		}
-		args := []string{stage, "--root", root, "--no-wait"}
-		if noUI || debug {
-			args = append(args, "--noui")
+		if ask {
+			yes, confirmErr := confirmLifecycleStage(console, "Workflow-Phase "+stage+" ausführen?")
+			if confirmErr != nil {
+				return confirmErr
+			}
+			if !yes {
+				return nil
+			}
 		}
-		if debug {
-			args = append(args, "--debug")
-		}
+		args := workflowStageArgs(stage, root, noUI, debug)
 		var err error
 		if stage == "healthcheck" {
 			err = runWorkflowHealthcheck(ctx, root)
@@ -135,4 +142,23 @@ func executeWorkflow(ctx context.Context, buildVersion, root string, debug, noUI
 		}
 	}
 	return nil
+}
+
+// workflowStageArgs only supplies flags supported by the target command.
+func workflowStageArgs(stage, root string, noUI, debug bool) []string {
+	args := []string{stage, "--root", root}
+	// Update runs unattended inside a workflow; setup is an explicit bootstrap stage.
+	if stage == "update" {
+		args = append(args, "--no-setup")
+	}
+	if stage != "run" {
+		args = append(args, "--no-wait")
+	}
+	if noUI || debug {
+		args = append(args, "--noui")
+	}
+	if debug {
+		args = append(args, "--debug")
+	}
+	return args
 }

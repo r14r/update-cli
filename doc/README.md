@@ -2,7 +2,7 @@
 
 **Transactional project updates from ZIP releases or Git repositories.**
 
-Current release: **3.4.38**
+Current release: **3.4.40**
 
 ## Latest code review
 

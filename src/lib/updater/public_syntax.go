@@ -7,7 +7,7 @@ import (
 
 var publicCommands = map[string]struct{}{
 	"help": {}, "howto": {}, "version": {}, "check": {}, "update": {},
-	"backup": {}, "rollback": {}, "restore": {}, "history": {}, "cleanup": {},
+	"backup": {}, "history": {}, "cleanup": {},
 	"clean": {}, "init": {}, "upgrade": {}, "migrate": {}, "whatsnew": {}, "recover": {}, "doctor": {}, "fix": {}, "status": {},
 	"releases": {}, "verify": {}, "unlock": {}, "run": {}, "install": {},
 	"bootstrap": {}, "build": {}, "test": {}, "precommit": {}, "ci": {}, "workflow": {},
@@ -21,7 +21,7 @@ var publicValueParameters = map[string]struct{}{
 	"--from-repository": {}, "--root": {}, "-r": {}, "--keep": {}, "--limit": {},
 	"--use-template": {}, "--use": {}, "--manifest": {}, "--task": {},
 	"--workflow": {}, "--command": {}, "--set": {}, "--save": {},
-	"--project": {}, "--snapshot": {}, "--activation": {},
+	"--project": {}, "--activation": {},
 }
 
 // ValidatePublicSyntax enforces the single public CLI grammar:
@@ -60,7 +60,7 @@ func ValidatePublicSyntax(args []string) error {
 		if command == "setup" && name == "--run" {
 			needsValue = true
 		}
-		if (command == "rollback" || command == "whatsnew") && name == "--version" {
+		if command == "whatsnew" && name == "--version" {
 			needsValue = true
 		}
 		if needsValue {

@@ -4,8 +4,8 @@ import "testing"
 
 func TestNoArgumentNoUISelection(t *testing.T) {
 	tests := []struct {
-		name string
-		args []string
+		name     string
+		args     []string
 		wantNoUI bool
 	}{
 		{name: "explicit noui", args: []string{"--noui"}, wantNoUI: true},

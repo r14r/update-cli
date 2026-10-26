@@ -1,3 +1,13 @@
+# 3.4.40
+
+- Remove public rollback and restore/snapshot commands while retaining automatic transaction recovery.
+- Add unattended `workflow` and confirming `workflow-ask` no-parameter modes.
+- Fix workflow run arguments and local `just ci` behavior.
+
+# 3.4.39
+
+- Enable interactive UI by default for no-parameter workflow invocations; support `--noui`.
+
 # 3.4.38
 
 - Expand show-requirements with the full project workflow lifecycle and step checks.
