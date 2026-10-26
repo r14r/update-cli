@@ -80,7 +80,7 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 		if plan {
 			return showWorkflowView(root, pipeline, details)
 		}
-		return executeWorkflow(ctx, buildVersion, root, debug, noUI, pipeline)
+		return executeWorkflow(ctx, buildVersion, root, debug, noUI, pipeline, false)
 	}
 	if args[0] == "config" && len(args) > 1 && (args[1] == "--generate" || args[1] == "generate") {
 		return runConfigGenerate(args[2:])
