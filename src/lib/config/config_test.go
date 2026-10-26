@@ -101,6 +101,27 @@ func TestLoadSchema6AcceptsHistoricalNoParameterCheck(t *testing.T) {
 	}
 }
 
+func TestNoParameterWorkflowModes(t *testing.T) {
+	for _, mode := range []string{"workflow", "workflow-ask"} {
+		got, err := normalizedNoParameter(NoParameterConfig{mode})
+		if err != nil {
+			t.Fatalf("%s rejected: %v", mode, err)
+		}
+		if len(got) != 1 || got[0] != mode {
+			t.Fatalf("%s normalized to %v", mode, got)
+		}
+	}
+	for _, combination := range [][]string{
+		{"workflow", "workflow-ask"},
+		{"workflow-ask", "update"},
+		{"workflow", "setup"},
+	} {
+		if _, err := normalizedNoParameter(NoParameterConfig(combination)); err == nil {
+			t.Fatalf("invalid workflow combination accepted: %v", combination)
+		}
+	}
+}
+
 func TestNoParameterCheckMayEnableSetupAfterConfirmedUpdate(t *testing.T) {
 	actions, err := normalizedNoParameter(NoParameterConfig{"check", "setup"})
 	if err != nil {
