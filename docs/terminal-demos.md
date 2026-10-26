@@ -12,6 +12,9 @@ The project includes [VHS](https://github.com/charmbracelet/vhs) terminal record
 # Install VHS separately; Docker or ttyd may be required by the local setup.
 vhs docs/tapes/quickstart.tape
 vhs docs/tapes/install.tape
+
+# Render both tapes and build the Jekyll website
+just build-docs
 ```
 
 **These scripts are recording sources, not proof of a successful run in your environment.** Generated GIF/MP4 assets should only be published after running and checking them.
