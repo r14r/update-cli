@@ -81,6 +81,17 @@ func Build(version string) CLI {
 	setupStepArg.Values = &ValueSource{Type: "command", Args: []string{"setup", "--list", "--json"}, ItemsField: "steps", ValueField: "id", LabelTemplate: "{{id}} — {{task}} / {{name}}"}
 
 	commands := []Command{
+		cmd("help", "Help", "List commands and show per-command details", nil, []Parameter{opt("details", []string{"--details"}, "Show detailed command reference", "boolean"), opt("command", []string{"--command"}, "Show one command", "string"), jsonOpt}),
+		cmd("workflow", "Workflow", "Execute unattended project workflow", nil, []Parameter{root, noUI, noWait, details, opt("view", []string{"--view"}, "Preview workflow", "boolean"), opt("plan", []string{"--plan"}, "Preview workflow", "boolean"), opt("pipeline", []string{"--pipeline"}, "Include deployment healthcheck", "boolean")}),
+		cmd("bootstrap", "Bootstrap", "Run manifest bootstrap workflow", nil, []Parameter{root, noUI, noWait}),
+		cmd("precommit", "Precommit", "Run manifest precommit workflow", nil, []Parameter{root, noUI, noWait}),
+		cmd("test", "Test", "Run project tests", nil, []Parameter{root, noUI, noWait}),
+		cmd("build", "Build", "Run manifest build workflow", nil, []Parameter{root, noUI, noWait}),
+		cmd("ci", "CI", "Run manifest CI workflow", nil, []Parameter{root, noUI, noWait}),
+		cmd("git", "Git", "Run supported git helper commands", nil, []Parameter{}),
+		cmd("generate-alias", "Generate alias", "Print shell alias", nil, []Parameter{}),
+		cmd("show-requirements", "Show requirements", "Print integration requirements", nil, []Parameter{}),
+		cmd("generate-config", "Generate config", "Print starter manifest", nil, []Parameter{}),
 		cmd("check", "Check", "Check for an available project update", nil, join([]Parameter{root, jsonOpt, opt("no-ask", []string{"--no-ask"}, "Do not ask to install an available update", "boolean"), wait, noWait, noUI, noColor}, sourceOpts...)),
 		cmd("update", "Update", "Install a new project release", nil, join([]Parameter{root, opt("archive", []string{"--archive", "-a"}, "Release ZIP archive", "file"), opt("dry-run", []string{"--dry-run", "-n"}, "Preview update without applying it", "boolean"), opt("plan", []string{"--plan"}, "Create an update plan without applying changes", "boolean"), opt("allow-downgrade", []string{"--allow-downgrade"}, "Allow installing an older project version", "boolean"), jsonOpt, opt("backup", []string{"--backup"}, "Create a backup before updating", "boolean"), opt("setup", []string{"--setup"}, "Run project setup after update without asking", "boolean"), opt("no-setup", []string{"--no-setup"}, "Do not run project setup after update", "boolean"), opt("force", []string{"--force", "-f"}, "Force update where supported", "boolean"), wait, noWait, noUI, noColor}, sourceOpts...)),
 		cmd("backup", "Backup", "Create a project backup", nil, []Parameter{root, jsonOpt, noColor}),
