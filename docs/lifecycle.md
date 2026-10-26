@@ -1,3 +1,9 @@
+---
+layout: single
+title: Lifecycle
+permalink: /lifecycle/
+---
+
 # Explicit project lifecycle
 
 The top-level commands deliberately separate source synchronization, local

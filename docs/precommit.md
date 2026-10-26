@@ -1,3 +1,9 @@
+---
+layout: single
+title: Local quality gates
+permalink: /precommit/
+---
+
 # Local quality gates
 
 The same checks run locally and in GitHub Actions. The hooks are **opt-in** and

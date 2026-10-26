@@ -18,6 +18,8 @@ docs:
         url: /setup-schema/
       - title: Lifecycle
         url: /lifecycle/
+      - title: Deployment pipeline
+        url: /deployment-pipeline/
   - title: Development
     children:
       - title: Precommit
