@@ -1023,7 +1023,7 @@ func normalizedNoParameter(v NoParameterConfig) (NoParameterConfig, error) {
 	// after the user confirms installation, run project setup as part of that
 	// update. setup is therefore a modifier of check here, not a second CLI mode.
 	ordered := []string{}
-	for _, a := range []string{"help", "check", "update", "workflow", "setup", "no-setup", "no-bootstrap", "no-test", "no-install"} {
+	for _, a := range []string{"help", "check", "update", "workflow", "workflow-ask", "setup", "no-setup", "no-bootstrap", "no-test", "no-install"} {
 		if seen[a] {
 			ordered = append(ordered, a)
 		}
