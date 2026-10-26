@@ -1,0 +1,28 @@
+main:
+  - title: Documentation
+    url: /
+docs:
+  - title: Getting started
+    children:
+      - title: Overview
+        url: /
+      - title: Getting started
+        url: /getting-started/
+      - title: Commands
+        url: /commands/
+  - title: Configuration
+    children:
+      - title: Runtime configuration
+        url: /configuration/
+      - title: Manifest schema
+        url: /setup-schema/
+      - title: Lifecycle
+        url: /lifecycle/
+  - title: Development
+    children:
+      - title: Precommit
+        url: /precommit/
+      - title: Tutorials
+        url: /tutorials/
+      - title: Terminal demos
+        url: /terminal-demos/
