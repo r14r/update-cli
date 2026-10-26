@@ -70,7 +70,7 @@ func Build(version string) CLI {
 		enumOpt("from", []string{"--from"}, "Release source type override", []Choice{{Value: "download"}, {Value: "url"}, {Value: "repository"}}),
 		opt("folder", []string{"--folder"}, "Release source folder override", "directory"),
 		opt("url", []string{"--url"}, "Release source URL override", "url"),
-		opt("repository", []string{"--repository"}, "Release repository override", "string"),
+		opt("repository", []string{"--repository", "--repo"}, "Release repository override", "string"),
 	}
 
 	setupTaskArg := arg("name", "Setup task name", "enum", true, 1)
@@ -81,8 +81,19 @@ func Build(version string) CLI {
 	setupStepArg.Values = &ValueSource{Type: "command", Args: []string{"setup", "--list", "--json"}, ItemsField: "steps", ValueField: "id", LabelTemplate: "{{id}} — {{task}} / {{name}}"}
 
 	commands := []Command{
+		cmd("help", "Help", "List commands and show per-command details", nil, []Parameter{opt("details", []string{"--details"}, "Show detailed command reference", "boolean"), opt("command", []string{"--command"}, "Show one command", "string"), jsonOpt}),
+		cmd("workflow", "Workflow", "Execute unattended project workflow", nil, []Parameter{root, noUI, noWait, details, opt("view", []string{"--view"}, "Preview workflow", "boolean"), opt("plan", []string{"--plan"}, "Preview workflow", "boolean"), opt("pipeline", []string{"--pipeline"}, "Include deployment healthcheck", "boolean")}),
+		cmd("bootstrap", "Bootstrap", "Run manifest bootstrap workflow", nil, []Parameter{root, noUI, noWait}),
+		cmd("precommit", "Precommit", "Run manifest precommit workflow", nil, []Parameter{root, noUI, noWait}),
+		cmd("test", "Test", "Run project tests", nil, []Parameter{root, noUI, noWait}),
+		cmd("build", "Build", "Run manifest build workflow", nil, []Parameter{root, noUI, noWait}),
+		cmd("ci", "CI", "Run manifest CI workflow", nil, []Parameter{root, noUI, noWait}),
+		cmd("git", "Git", "Run supported git helper commands", nil, []Parameter{}),
+		cmd("generate-alias", "Generate alias", "Print shell alias", nil, []Parameter{}),
+		cmd("show-requirements", "Show requirements", "Print integration requirements", nil, []Parameter{}),
+		cmd("generate-config", "Generate config", "Print starter manifest", nil, []Parameter{}),
 		cmd("check", "Check", "Check for an available project update", nil, join([]Parameter{root, jsonOpt, opt("no-ask", []string{"--no-ask"}, "Do not ask to install an available update", "boolean"), wait, noWait, noUI, noColor}, sourceOpts...)),
-		cmd("update", "Update", "Install a new project release", nil, join([]Parameter{root, opt("archive", []string{"--archive", "-a"}, "Release ZIP archive", "file"), opt("dry-run", []string{"--dry-run", "-n"}, "Preview update without applying it", "boolean"), opt("plan", []string{"--plan"}, "Create an update plan without applying changes", "boolean"), opt("allow-downgrade", []string{"--allow-downgrade"}, "Allow installing an older project version", "boolean"), jsonOpt, opt("backup", []string{"--backup"}, "Create a backup before updating", "boolean"), opt("setup", []string{"--setup"}, "Run project setup after update without asking", "boolean"), opt("no-setup", []string{"--no-setup"}, "Do not run project setup after update", "boolean"), opt("force", []string{"--force", "-f"}, "Force update where supported", "boolean"), wait, noWait, noUI, noColor}, sourceOpts...)),
+		cmd("update", "Update", "Install a new project release", nil, join([]Parameter{root, opt("archive", []string{"--archive", "-a"}, "Release ZIP archive", "file"), opt("dry-run", []string{"--dry-run", "-n"}, "Preview update without applying it", "boolean"), opt("plan", []string{"--plan"}, "Create an update plan without applying changes", "boolean"), opt("activation", []string{"--activation"}, "Release activation mode override", "string"), opt("allow-downgrade", []string{"--allow-downgrade"}, "Allow installing an older project version", "boolean"), jsonOpt, opt("backup", []string{"--backup"}, "Create a backup before updating", "boolean"), opt("setup", []string{"--setup"}, "Run project setup after update without asking", "boolean"), opt("no-setup", []string{"--no-setup"}, "Do not run project setup after update", "boolean"), opt("force", []string{"--force", "-f"}, "Force update where supported", "boolean"), wait, noWait, noUI, noColor}, sourceOpts...)),
 		cmd("backup", "Backup", "Create a project backup", nil, []Parameter{root, jsonOpt, noColor}),
 		cmd("status", "Status", "Show project and release status", nil, join([]Parameter{root, jsonOpt, noColor}, sourceOpts...)),
 		Command{Name: "releases", Title: "Releases", Description: "Inspect releases and backups", Options: join([]Parameter{root, opt("list", []string{"--list"}, "List releases and backups", "boolean"), jsonOpt, noColor}, sourceOpts...), Commands: []Command{}},
@@ -95,7 +106,7 @@ func Build(version string) CLI {
 		cmd("clean", "Clean releases", "Remove obsolete release directory entries only", nil, []Parameter{root, intOpt("keep", []string{"--keep"}, "Number of releases to retain", 0), opt("plan", []string{"--plan"}, "Show what would be removed", "boolean"), jsonOpt, noColor}),
 		cmd("cleanup", "Cleanup", "Apply configured release and backup retention", nil, []Parameter{root, intOpt("keep", []string{"--keep"}, "Number of releases/backups to retain", 0), opt("plan", []string{"--plan"}, "Show what would be removed", "boolean"), jsonOpt, noColor}),
 		cmd("history", "History", "Show update history", nil, []Parameter{root, intOpt("limit", []string{"--limit"}, "Maximum history entries", 1), jsonOpt, noColor}),
-		cmd("init", "Initialize", "Initialize Update CLI configuration for a project", nil, []Parameter{root, opt("project", []string{"--project"}, "Project name; optional for repository init and derived from repository name when omitted", "string"), modeOpt, enumOpt("from", []string{"--from"}, "Initial source type", []Choice{{Value: "download"}, {Value: "url"}, {Value: "repository"}}), opt("folder", []string{"--folder"}, "Release source folder", "directory"), opt("url", []string{"--url"}, "Release source URL", "url"), opt("repository", []string{"--repository"}, "Release repository; for init also supplies the project name when --project is omitted", "string"), opt("use-template", []string{"--use-template"}, "Apply an initialization template", "string"), opt("force", []string{"--force", "-f"}, "Overwrite existing initialization where supported", "boolean"), noColor}),
+		cmd("init", "Initialize", "Initialize Update CLI configuration for a project", nil, []Parameter{root, opt("project", []string{"--project"}, "Project name; optional for repository init and derived from repository name when omitted", "string"), modeOpt, enumOpt("from", []string{"--from"}, "Initial source type", []Choice{{Value: "download"}, {Value: "url"}, {Value: "repository"}}), opt("folder", []string{"--folder"}, "Release source folder", "directory"), opt("url", []string{"--url"}, "Release source URL", "url"), opt("repository", []string{"--repository", "--repo"}, "Release repository; for init also supplies the project name when --project is omitted", "string"), opt("from-repository", []string{"--from-repository"}, "Initialize directly from repository URL/name", "string"), opt("use-template", []string{"--use-template"}, "Apply an initialization template", "string"), opt("force", []string{"--force", "-f"}, "Overwrite existing initialization where supported", "boolean"), noColor}),
 		cmd("upgrade", "Upgrade config", "Upgrade project configuration to the current schema", nil, []Parameter{root, jsonOpt, noColor}),
 		cmd("migrate", "Migrate config", "Migrate project configuration to the current schema; same behavior as upgrade", nil, []Parameter{root, jsonOpt, noColor}),
 		cmd("recover", "Recover", "Recover an interrupted update transaction from its persistent journal", nil, []Parameter{root, jsonOpt, noColor}),
@@ -134,6 +145,10 @@ func configCommand(root, jsonOpt, noColor Parameter) Command {
 	set.ValueHint = "KEY=VALUE"
 	return Command{Name: "config", Title: "Config", Description: "Show, validate, migrate or change project configuration", Arguments: []Parameter{}, Options: []Parameter{
 		root, set,
+		opt("help", []string{"--help"}, "Show configuration command help", "boolean"),
+		opt("show", []string{"--show"}, "Show effective runtime configuration", "boolean"),
+		opt("generate", []string{"--generate"}, "Generate a runtime configuration draft", "boolean"),
+		opt("repo", []string{"--repo"}, "Repository for generated draft", "string"),
 		opt("check", []string{"--check"}, "Validate merged global + project config without changing files", "boolean"),
 		opt("migrate", []string{"--migrate"}, "Upgrade .update-cli/config.json in place with backup", "boolean"),
 		opt("list", []string{"--list"}, "List project configuration files", "boolean"),

@@ -1,0 +1,7 @@
+.sidebar__right.sticky{position:sticky;top:1.5rem;align-self:start}
+.sidebar__right .toc__menu{max-height:calc(100vh - 7rem);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
+.sidebar__right .toc__menu a{border-left:3px solid transparent}
+.sidebar__right .toc__menu a.is-active{border-left-color:#dc2626;color:#b91c1c;background:#fff1f2;font-weight:700}
+.sidebar .nav__list a.is-active-page,.sidebar .nav__list a[aria-current="page"]{border-left:4px solid #dc2626;background:#fff1f2;color:#b91c1c;font-weight:700}
+.page__content h2[id],.page__content h3[id],.page__content h4[id]{scroll-margin-top:5rem}
+@media(max-width:1023px){.sidebar__right.sticky{position:static}}

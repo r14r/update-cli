@@ -9,6 +9,7 @@ import (
 	"github.com/r14r/update-cli/src/lib/backup"
 	"github.com/r14r/update-cli/src/lib/cleanup"
 	"github.com/r14r/update-cli/src/lib/config"
+	"github.com/r14r/update-cli/src/lib/discovery"
 	"github.com/r14r/update-cli/src/lib/doctor"
 	"github.com/r14r/update-cli/src/lib/history"
 	"github.com/r14r/update-cli/src/lib/inventory"
@@ -86,6 +87,7 @@ type commandHelp struct {
 }
 
 var commandHelpDetails = map[string]commandHelp{
+	"help": {Usage: []string{"update-cli help [--details]", "update-cli help --command COMMAND --details", "update-cli help --json"}, Description: "Zeigt alle Befehle oder die ausführliche Hilfe zu einem Befehl.", Options: []string{"--details  vollständige Kommandoübersicht", "--command COMMAND  einzelne Befehlsreferenz", "--json  maschinenlesbare CLI-Discovery"}},
 	"check": {
 		Usage:       []string{"update-cli check [--no-ask] [--wait|--no-wait] [--no-ui]"},
 		Description: "Prüft die installierte gegen die verfügbare Version und kann interaktiv in das Update wechseln.",
@@ -323,6 +325,7 @@ func printCommandHelp(v, topic string, details bool) {
 					fmt.Println("  " + option)
 				}
 			}
+			printDiscoveredCommandOptions(v, topic)
 			if len(h.Examples) > 0 {
 				fmt.Println("\nBeispiele:")
 				for _, example := range h.Examples {
@@ -345,7 +348,40 @@ func printCommandHelp(v, topic string, details bool) {
 		for _, name := range names {
 			fmt.Printf("  %-12s %s\n", name, commandHelpDetails[name].Description)
 		}
-		fmt.Println("\nUse: update-cli help --command COMMAND --details")
+		fmt.Println("\nParameter: update-cli help --command COMMAND --details")
+		printAllDiscoveredOptions(v)
+	}
+}
+
+func printDiscoveredCommandOptions(version, commandName string) {
+	for _, command := range discovery.Build(version).Commands {
+		if command.Name != commandName {
+			continue
+		}
+		if len(command.Options) == 0 {
+			return
+		}
+		fmt.Println("\nAlle registrierten Parameter:")
+		for _, option := range command.Options {
+			if len(option.Flags) > 0 {
+				fmt.Printf("  %-28s %s\n", strings.Join(option.Flags, ", "), option.Description)
+			}
+		}
+		return
+	}
+}
+
+func printAllDiscoveredOptions(version string) {
+	for _, command := range discovery.Build(version).Commands {
+		if len(command.Options) == 0 {
+			continue
+		}
+		fmt.Printf("\n  %s:\n", command.Name)
+		for _, option := range command.Options {
+			if len(option.Flags) > 0 {
+				fmt.Printf("    %-28s %s\n", strings.Join(option.Flags, ", "), option.Description)
+			}
+		}
 	}
 }
 

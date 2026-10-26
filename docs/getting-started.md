@@ -1,5 +1,5 @@
 ---
-layout: page
+layout: single
 title: Getting started
 permalink: /getting-started/
 ---

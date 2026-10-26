@@ -1,5 +1,5 @@
 ---
-layout: page
+layout: single
 title: Terminal demos
 permalink: /terminal-demos/
 ---
