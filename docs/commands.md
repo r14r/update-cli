@@ -1,49 +1,82 @@
 ---
-layout: page
-title: Commands
+layout: single
+title: CLI reference
 permalink: /commands/
 ---
 
-# CLI command reference
+# Commands and parameters
 
-Run `update-cli help` for the authoritative command and parameter list for your installed binary. The commands below reflect the project lifecycle; they are not all justfile aliases.
+**Source of truth:** the installed binary provides `update-cli help --details`, `update-cli help --command NAME --details` and `update-cli help --json`. The JSON output exposes command options for integrations and tools. Run `update-cli version` to verify the binary actually installed.
+
+## Core lifecycle
 
 | Command | Purpose |
 |---|---|
-| `version`, `whatsnew`, `help` | Version and built-in help |
-| `init --repository OWNER/REPO` | Initialize and install a managed project |
-| `check`, `update --plan`, `update` | Check and update releases |
-| `bootstrap` | Prepare project prerequisites |
-| `setup --list`, `setup` | Inspect and execute project setup tasks |
-| `precommit`, `test`, `ci` | Run manifest-defined checks |
-| `build`, `install`, `run`, `clean` | Build and application lifecycle |
-| `doctor`, `fix`, `migrate` | Diagnose and repair configuration |
-| `status`, `releases`, `history` | Inspect project and release state |
-| `backup`, `recover` | Recovery tooling |
-| `config`, `schema`, `templates` | Configuration and manifest utilities |
-| `generate-config` | Print a starter `update-cli.yaml` to stdout |
-| `generate-alias` | Print a Bash function `u` to stdout |
-| `show-requirements` | Print a project integration checklist |
-| `git status`, `git add`, `git commit`, `git push` | Git helper commands |
+| `help`, `howto`, `version`, `whatsnew` | Help, guide, version and release notes |
+| `init` | Initialize a project |
+| `check`, `update` | Check and install a release |
+| `workflow` | Seven-phase default lifecycle |
+| `bootstrap`, `setup` | Prepare prerequisites and apply setup tasks |
+| `precommit`, `test`, `ci` | Project validation |
+| `build`, `install`, `run` | Build, prepare installation and start |
+| `status`, `releases`, `history`, `verify` | Inspect state, releases and history |
+| `backup`, `recover`, `clean`, `cleanup` | Backup, interrupted-transaction recovery and retention |
+| `doctor`, `fix`, `migrate`, `upgrade`, `unlock` | Diagnose, repair and manage runtime state |
+| `config`, `schema`, `templates` | Configurations and manifest schemas |
+| `generate-alias`, `generate-config`, `show-requirements` | Generate project integration output |
+| `convert-yaml`, `create-yaml`, `create-setup-script` | Manifest and bootstrap authoring |
+| `git` | Git helper |
 
-## Typical noninteractive use
+**Removed:** `rollback` and `restore --snapshot` are not public commands. `recover` refers specifically to an interrupted update transaction; it is not an arbitrary release rollback.
+
+## Parameter reference
+
+To list the available commands and parameters:
+
+```bash
+update-cli help
+update-cli help --details
+update-cli help --command update --details
+update-cli help --command config --details
+update-cli help --json
+```
+
+The general help contains the command overview. Command-specific `--details` combines the explanatory examples with the registered flags from CLI discovery. Use `--json` for tooling.
+
+## Workflow modes
+
+```json
+{ "no parameter": ["workflow"] }
+```
+
+Bare `update-cli` (`u`) executes the seven workflow phases **without confirmation prompts**. To request confirmation before each phase, use:
+
+```json
+{ "no parameter": ["workflow-ask"] }
+```
+
+The configured value lives in the runtime `.update-cli/config.json`; it is separate from the repository's `update-cli.yaml` (manifest schema 2). For a terminal-friendly output, use `update-cli workflow --noui`.
+
+## Common commands
 
 ```bash
 update-cli doctor
-update-cli precommit --noui
-update-cli build --noui
+update-cli doctor --migrate
+update-cli config --show
+update-cli config --check
+update-cli update --plan
+update-cli workflow --view --details
+update-cli setup --list --json
+update-cli ci --noui
 update-cli install --noui
+update-cli run --noui
 ```
 
-`--noui` disables interactive UI and clipboard confirmation. It does not suppress errors or failure logs.
+**Important:** `tasks.install` in `update-cli.yaml` is a manifest task identifier, **not** automatically the same as a `just install` recipe. A manifest workflow referring to `install` must define that task.
 
-## Shell shortcut
+## Local quality gate
 
 ```bash
-eval "$(update-cli generate-alias)"
-u version
-u doctor
-u update --plan
+just ci           # tests the checked-out working tree, without checkout or pull
+just ci-branch    # explicitly fetches/fast-forwards the current branch before testing
 ```
-
-Explicit subcommands are forwarded; bare `u` invokes `update-cli update`.
