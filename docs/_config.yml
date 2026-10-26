@@ -30,6 +30,8 @@ defaults:
 exclude:
   - Gemfile
   - Gemfile.lock
+  - justfile
+  - README.md
   - tapes
   - examples
   - vendor
