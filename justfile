@@ -262,4 +262,9 @@ tape-quickstart:
 
 tapes: tape-install tape-quickstart
 
+# Render VHS terminal GIFs, then build the Jekyll documentation website.
+# Run from the repository root; VHS tapes use root-relative paths.
+build-docs: tapes
+    just --justfile docs/justfile build
+
 # Install native Git hooks for this clone.

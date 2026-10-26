@@ -1,3 +1,8 @@
+# 3.4.42
+
+- Add `just build-docs` to render the existing VHS terminal recordings and then build the Jekyll documentation website.
+- Reuse the docs-scoped Justfile and its Jekyll quality checks.
+
 # 3.4.41
 
 - Review command registration and improve human-readable and JSON CLI help coverage.
