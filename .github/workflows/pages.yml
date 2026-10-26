@@ -1,8 +1,12 @@
-name: Documentation website
+name: Build and deploy Jekyll documentation
 
 on:
   push:
     branches: [main]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/pages.yml'
+  pull_request:
     paths:
       - 'docs/**'
       - '.github/workflows/pages.yml'
@@ -14,15 +18,12 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  group: update-cli-pages
   cancel-in-progress: true
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: ruby/setup-ruby@v1
@@ -30,12 +31,29 @@ jobs:
           ruby-version: '3.3'
           bundler-cache: true
           working-directory: docs
-      - uses: actions/configure-pages@v5
-      - name: Build Jekyll from doc
+      - name: Build Jekyll with Bundler
         working-directory: docs
-        run: bundle exec jekyll build --destination ../_site
-      - uses: actions/upload-pages-artifact@v3
+        run: |
+          bundle exec jekyll build --strict_front_matter --destination ../_site
+          test -s ../_site/index.html
+          test -s ../_site/assets/css/main.css
+      - name: Configure Pages
+        if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@v5
+      - name: Upload static Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v4
         with:
           path: _site
-      - id: deployment
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy Pages
+        id: deployment
         uses: actions/deploy-pages@v4
