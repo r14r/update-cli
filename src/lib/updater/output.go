@@ -14,7 +14,6 @@ import (
 	"github.com/r14r/update-cli/src/lib/inventory"
 	"github.com/r14r/update-cli/src/lib/projectsetup"
 	"github.com/r14r/update-cli/src/lib/projectstatus"
-	rsyncutil "github.com/r14r/update-cli/src/lib/rsync"
 	"github.com/r14r/update-cli/src/lib/ui"
 	"github.com/r14r/update-cli/src/lib/updatecheck"
 )
