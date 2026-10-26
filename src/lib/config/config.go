@@ -995,14 +995,14 @@ func normalizedNoParameter(v NoParameterConfig) (NoParameterConfig, error) {
 		}
 		seen[a] = true
 		switch a {
-		case "help", "check", "update", "workflow", "setup", "no-setup", "no-bootstrap", "no-test", "no-install":
+		case "help", "check", "update", "workflow", "workflow-ask", "setup", "no-setup", "no-bootstrap", "no-test", "no-install":
 			out = append(out, a)
 		default:
-			return nil, fmt.Errorf("no parameter unterstützt nur help, check, update, workflow, setup, no-setup, no-bootstrap, no-test, no-install")
+			return nil, fmt.Errorf("no parameter unterstützt nur help, check, update, workflow, workflow-ask, setup, no-setup, no-bootstrap, no-test, no-install")
 		}
 	}
-	if seen["workflow"] && len(out) > 1 {
-		return nil, errors.New("workflow darf in no parameter nicht kombiniert werden")
+	if (seen["workflow"] || seen["workflow-ask"]) && len(out) > 1 {
+		return nil, errors.New("workflow und workflow-ask dürfen in no parameter nicht kombiniert werden")
 	}
 	if seen["help"] && len(out) > 1 {
 		return nil, errors.New("help darf nicht kombiniert werden")
