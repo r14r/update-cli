@@ -1330,6 +1330,16 @@ func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o op
 		progress.skip("Projekt-Setup ausführen", "vom Benutzer nicht ausgewählt")
 	}
 
+	// A schema v2 manifest may opt into candidate-only quality checks.
+	// Never execute project workflows against the active current directory.
+	phase = "candidate-quality"
+	if err := tx.setPhase(phase); err != nil {
+		return recoverOnError(err)
+	}
+	if err := runCandidateQualityGate(ctx, stageCfg, console, progress); err != nil {
+		return recoverOnError(err)
+	}
+
 	phase = "activation-gate"
 	if err := tx.setPhase(phase); err != nil {
 		return recoverOnError(err)
