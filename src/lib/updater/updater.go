@@ -1120,7 +1120,7 @@ func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o op
 	defer tools.RemoveTree(s.workDir)
 	s.extractDir = filepath.Join(s.workDir, "extract")
 
-	totalSteps := 15
+	totalSteps := 16
 	if o.plan || o.dryRun {
 		totalSteps = 5
 	}
