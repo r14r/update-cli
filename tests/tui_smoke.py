@@ -408,7 +408,7 @@ def main() -> int:
             prompt_output,
             {
                 "no implicit setup": "mit --no-setup deaktiviert".encode("utf-8"),
-                "aligned progress row": "[01/14] [".encode("utf-8"),
+                "aligned progress row": "[01/15] [".encode("utf-8"),
                 "transaction phase": b"Transaktions-Rollback vorbereiten",
                 "green completed-step icon": b"\x1b[32m\x1b[1m" + "✓".encode("utf-8"),
                 "final installed version": (
@@ -420,7 +420,7 @@ def main() -> int:
             raise SystemExit("transaction rollback preparation emitted a duplicate INFO row")
         if b"OK    Transaktions-Rollback vorbereiten" in prompt_output:
             raise SystemExit("transaction rollback preparation emitted a duplicate OK row")
-        if b"INFO  [01/14]" in prompt_output:
+        if b"INFO  [01/15]" in prompt_output:
             raise SystemExit("update phase still contains INFO prefix")
         if b"INFO  [" in prompt_output:
             raise SystemExit("an update/setup step still contains INFO prefix")
