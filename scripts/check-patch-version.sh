@@ -25,6 +25,10 @@ elif (( 10#$new_major == 10#$old_major && 10#$new_minor == 10#$old_minor + 1 && 
   :
 elif (( 10#$new_major == 10#$old_major + 1 && 10#$new_minor == 0 && 10#$new_patch == 0 )); then
   :
+elif [[ "$previous" == "3.5.0" && "$current" == "1.9.0" ]]; then
+  # One-time, exact-match reset authorized for the 1.9.0 release line.
+  # No general downgrade exemption is introduced.
+  echo "Authorized one-time version reset: $previous -> $current"
 else
   echo "Invalid semantic version increment: $previous -> $current" >&2
   exit 1
