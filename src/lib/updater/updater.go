@@ -1120,7 +1120,7 @@ func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o op
 	defer tools.RemoveTree(s.workDir)
 	s.extractDir = filepath.Join(s.workDir, "extract")
 
-	totalSteps := 14
+	totalSteps := 15
 	if o.plan || o.dryRun {
 		totalSteps = 5
 	}
@@ -1328,6 +1328,16 @@ func runUpdate(ctx context.Context, console *ui.Console, cfg config.Config, o op
 		progress.skip("Projekt-Setup ausführen", "kein update-cli.yaml/setup.sh vorhanden")
 	} else {
 		progress.skip("Projekt-Setup ausführen", "vom Benutzer nicht ausgewählt")
+	}
+
+	phase = "activation-gate"
+	if err := tx.setPhase(phase); err != nil {
+		return recoverOnError(err)
+	}
+	if err := progress.run("Release-Kandidaten vor Aktivierung prüfen", func() error {
+		return validateActivationCandidate(s.currentStageDir, cfg.CurrentDir, s.version.String())
+	}); err != nil {
+		return recoverOnError(err)
 	}
 
 	phase = "activate-current"

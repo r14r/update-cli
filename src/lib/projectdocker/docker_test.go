@@ -71,11 +71,13 @@ func TestRunningFailureIncludesCommandDirectoryExitAndOutput(t *testing.T) {
 	bin := t.TempDir()
 	script := `#!/bin/sh
 if [ "$1 $2" = "compose version" ]; then exit 0; fi
-if echo "$*" | grep -q 'ps -q'; then
-  echo 'compose stdout detail'
-  echo 'daemon unavailable' >&2
-  exit 17
-fi
+case "$*" in
+  *"ps -q"*)
+    echo 'compose stdout detail'
+    echo 'daemon unavailable' >&2
+    exit 17
+    ;;
+esac
 exit 0
 `
 	if err := os.WriteFile(filepath.Join(bin, "docker"), []byte(script), 0o755); err != nil {

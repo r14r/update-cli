@@ -1,3 +1,9 @@
+# 3.5.0
+
+- Add an explicit release-candidate validation gate after staged project setup and immediately before activating `current/`.
+- Reject a missing, invalid-version, symlinked or nested candidate staging directory without activating the release.
+- Begin phased staged-update architecture. Full preactivation test/build execution is planned separately and is **not yet enabled** in this increment.
+
 # 3.4.42
 
 - Add `just build-docs` to render the existing VHS terminal recordings and then build the Jekyll documentation website.

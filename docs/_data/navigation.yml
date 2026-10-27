@@ -20,6 +20,8 @@ docs:
         url: /lifecycle/
       - title: Deployment pipeline
         url: /deployment-pipeline/
+      - title: Staged updates (3.5)
+        url: /staged-update-design/
   - title: Development
     children:
       - title: Precommit
