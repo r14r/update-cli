@@ -75,7 +75,6 @@ func TestCandidateQualityGateWithoutPreactivateWorkflowIsOptional(t *testing.T) 
 	}
 }
 
-
 // A successful build must leave its output inside the candidate so the
 // subsequent directory activation can publish it without rebuilding in current.
 func TestCandidateQualityGateBuildsInsideStage(t *testing.T) {
