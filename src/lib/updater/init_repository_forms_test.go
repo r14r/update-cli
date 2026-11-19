@@ -63,3 +63,41 @@ func TestInitRepositoryDefaultUserFromGlobalConfig(t *testing.T) {
 		}
 	}
 }
+
+func TestInitRepoShorthandUsesConfiguredOwnerInSavedURL(t *testing.T) {
+	root := t.TempDir()
+	global := t.TempDir()
+	t.Setenv("UPDATE_CLI_GLOBAL_CONFIG_DIR", global)
+	if err := os.WriteFile(filepath.Join(global, "config.json"), []byte(`{"source":{"defaultUser":"r14r"}}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	o, err := parseOptions([]string{"init", "--repo", "ai-creative-studio"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if o.repository != "ai-creative-studio" {
+		t.Fatalf("--repo parsed repository = %q", o.repository)
+	}
+	owner := initRepositoryDefaultUser(root, false)
+	if owner != "r14r" {
+		t.Fatalf("configured owner = %q", owner)
+	}
+	url, err := config.NormalizeRepositorySpec(o.repository, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "https://github.com/r14r/ai-creative-studio.git"
+	if url != want {
+		t.Fatalf("normalized URL = %q, want %q", url, want)
+	}
+	cfg, err := config.Init(root, config.InitOptions{ProjectName: o.projectName, Repository: url})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Source.DefaultUser != owner {
+		t.Fatalf("stored owner = %q, want %q", cfg.Source.DefaultUser, owner)
+	}
+	if cfg.Source.Repository != want {
+		t.Fatalf("stored repository = %q, want %q", cfg.Source.Repository, want)
+	}
+}

@@ -1,3 +1,10 @@
+# 1.9.0
+
+- Reset the release numbering to 1.9.0 (intentional major-version decrease; upgrades from 3.x may require explicit downgrade permission).
+- Allow manifest schema 2 projects to declare an opt-in `preactivate` workflow, executed in a staged release candidate after setup and before activation of `current/`.
+- A failed `preactivate` workflow aborts activation and invokes transaction recovery.
+- Existing projects without the workflow preserve their current behavior.
+
 # 3.5.0
 
 - Add an explicit release-candidate validation gate after staged project setup and immediately before activating `current/`.
