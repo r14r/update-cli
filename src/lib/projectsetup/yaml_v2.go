@@ -72,7 +72,7 @@ func parseManifestV2(path string, data []byte) (Manifest, error) {
 	}
 	allowedTop := map[string]bool{
 		"schemaVersion": true, "version": true, "project": true, "defaults": true, "variables": true,
-		"requirements": true, "workflows": true, "tasks": true, "run": true, "update": true, "cli": true, "legacySetup": true,
+		"requirements": true, "workflows": true, "tasks": true, "run": true, "update": true, "cli": true, "legacySetup": true, "bootstrap": true,
 	}
 	for key := range root.m {
 		if !allowedTop[key] {
@@ -95,6 +95,10 @@ func parseManifestV2(path string, data []byte) (Manifest, error) {
 		Tasks:        map[string]Task{},
 		Defaults:     SetupDefaults{FailFast: true},
 		LegacySchema: false,
+	}
+	if n := root.m["bootstrap"]; n != nil {
+		m.Bootstrap, err = parseBootstrap(n)
+		if err != nil { return m, err }
 	}
 	if n := root.m["version"]; n != nil {
 		m.ProjectVersion, err = nodeString(n)
@@ -276,7 +280,7 @@ func parseManifestV2(path string, data []byte) (Manifest, error) {
 			m.Tasks[name] = task
 		}
 	}
-	if len(m.Tasks) == 0 && strings.TrimSpace(m.Run.Command) == "" && len(m.Run.Steps) == 0 && !m.Update.Configured {
+	if len(m.Tasks) == 0 && strings.TrimSpace(m.Run.Command) == "" && len(m.Run.Steps) == 0 && !m.Update.Configured && !m.Bootstrap.Configured {
 		return m, fmt.Errorf("update-cli.yaml benötigt mindestens tasks, run oder update")
 	}
 	for name, w := range m.Workflows {

@@ -137,6 +137,10 @@ func runManifestSelected(ctx context.Context, c config.Config, console *ui.Conso
 		// Older manifests may provide a bootstrap just recipe without the
 		// newer bootstrap workflow. Only this missing workflow can fall back.
 		if selection.Workflow == "bootstrap" {
+			if m.Bootstrap.Configured {
+				if err := RunManagedBootstrap(ctx, c.CurrentDir, m.Bootstrap, BootstrapOptions{}, os.Stdout); err != nil { return Result{}, err }
+				return Result{Manifest: path, StepsExecuted: 1}, nil
+			}
 			if _, exists := m.Workflows["bootstrap"]; !exists && hasJustfile(c.CurrentDir) {
 				return runBootstrapJustFallback(ctx, c.CurrentDir, path, console)
 			}

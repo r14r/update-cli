@@ -55,6 +55,7 @@ func SchemaJSON() ([]byte, error) {
 		"properties": map[string]any{
 			"schemaVersion": map[string]any{"const": SchemaVersion},
 			"version":       map[string]any{"type": []string{"string", "number"}},
+			"bootstrap": bootstrapSchema(),
 			"project": map[string]any{
 				"type":                 "object",
 				"additionalProperties": false,
@@ -182,6 +183,7 @@ func SchemaJSON() ([]byte, error) {
 			map[string]any{"required": []string{"run"}},
 			map[string]any{"required": []string{"legacySetup"}},
 			map[string]any{"required": []string{"update"}},
+			map[string]any{"required": []string{"bootstrap"}},
 		},
 		"$defs": map[string]any{
 			"stringList": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},

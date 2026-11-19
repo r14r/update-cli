@@ -68,6 +68,9 @@ func Run(ctx context.Context, buildVersion string, args []string) (retErr error)
 	if len(args) == 0 {
 		return runNoParameter(ctx, buildVersion, false, false)
 	}
+	if args[0] == "bootstrap" {
+		if handled, err := managedBootstrapCommand(ctx, args[1:]); handled || err != nil { return err }
+	}
 	if args[0] == "workflow" {
 		rootArg, debug, noUI, pipeline, plan, details, parseErr := parseWorkflowArguments(args[1:])
 		if parseErr != nil {

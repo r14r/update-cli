@@ -10,6 +10,7 @@ import (
 )
 
 type Manifest struct {
+	Bootstrap BootstrapConfig
 	Version            int
 	ProjectVersion     string
 	ProjectName        string
